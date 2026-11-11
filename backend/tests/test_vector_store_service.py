@@ -104,3 +104,25 @@ def test_delete_document_vectors_removes_only_target_doc(persist_dir, fake_embed
 
     assert len(results_deleted) == 0
     assert len(results_kept) == 1
+
+
+def test_add_document_chunks_batches_large_writes(persist_dir, fake_embeddings, monkeypatch):
+    chunks = _make_chunks([f"分块内容 {i}" for i in range(70)])
+    batch_sizes = []
+
+    class _SpyVectorStore:
+        def add_documents(self, documents):
+            batch_sizes.append(len(documents))
+            return [f"id_{i}" for i in range(len(documents))]
+
+    monkeypatch.setattr(
+        vector_store_service,
+        "get_user_vector_store",
+        lambda user_id, embeddings=None: _SpyVectorStore(),
+    )
+
+    total = vector_store_service.add_document_chunks(
+        user_id=1, doc_id="doc-batch", chunks=chunks, embeddings=fake_embeddings, batch_size=32
+    )
+    assert total == 70
+    assert batch_sizes == [32, 32, 6]

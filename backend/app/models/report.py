@@ -1,5 +1,7 @@
 """报告相关数据模型"""
 
+from typing import Literal, Optional
+
 from pydantic import BaseModel, Field
 
 from .quiz import AnswerRecord, Question
@@ -10,6 +12,20 @@ class ReportGenerateRequest(BaseModel):
     topic: str
     questions: list[Question]
     answer_records: list[AnswerRecord]
+
+
+class SubmittedAnswerItem(BaseModel):
+    """前端交卷作答明细（服务端忽略客户端传入的 is_correct 并权威重算）。"""
+
+    question_id: str
+    selected_answers: list[str]
+    duration_ms: int = Field(default=0, ge=0)
+    is_correct: Optional[bool] = None
+
+
+class ReportSubmitRequest(BaseModel):
+    quiz_id: str
+    answer_records: list[SubmittedAnswerItem]
 
 
 class ReportOutput(BaseModel):
@@ -30,3 +46,24 @@ class ReportGenerateResponse(BaseModel):
     three_line_summary: list[str]
     advice: list[str]
     share_quote: str
+
+
+class ReportSubmitResponse(BaseModel):
+    quiz_id: str
+    accuracy: int
+    correct_count: int
+    wrong_count: int
+    total_questions: int
+    xp_gain: int
+    xp_awarded: bool
+    already_submitted: bool = False
+    report_status: Literal["generating", "completed", "failed"]
+    report: Optional[ReportGenerateResponse] = None
+    error_message: Optional[str] = None
+
+
+class ReportStatusResponse(BaseModel):
+    quiz_id: str
+    report_status: Literal["generating", "completed", "failed"]
+    report: Optional[ReportGenerateResponse] = None
+    error_message: Optional[str] = None

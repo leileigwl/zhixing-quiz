@@ -53,8 +53,9 @@ class QuizGenerateResponse(BaseModel):
     title: str
     summary: str
     questions: list[Question]
+    image_status: Literal["none", "generating", "completed", "partial", "failed"] = "none"
     image_notice: str | None = Field(
-        default=None, description="配图相关的提示信息（如未登录/额度已用完/部分题目未配图等），无异常时为 None"
+        default=None, description="配图相关的提示信息（如未登录/额度已用完/后台补图中等），无异常时为 None"
     )
 
 
@@ -76,5 +77,15 @@ class QuizTaskStatusResponse(BaseModel):
     """轮询任务状态的响应"""
     task_id: str
     status: Literal["pending", "running", "completed", "failed"]
+    stage: Literal["queued", "fetching_context", "generating_quiz", "completed", "failed"] = "queued"
+    stage_message: str | None = None
     result: "QuizGenerateResponse | None" = None
     error_message: str | None = None
+
+
+class QuizImagesResponse(BaseModel):
+    """轮询题库后台配图补齐状态"""
+    quiz_id: str
+    image_status: Literal["none", "generating", "completed", "partial", "failed"]
+    image_urls: dict[str, str] = Field(default_factory=dict)
+    image_notice: str | None = None

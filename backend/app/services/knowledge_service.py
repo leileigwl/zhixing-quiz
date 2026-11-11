@@ -23,6 +23,19 @@ logger = structlog.get_logger()
 
 SUPPORTED_EXTENSIONS = {"pdf", "docx", "md", "txt"}
 
+_background_kb_tasks: set[asyncio.Task] = set()
+
+
+def _write_upload_file_sync(upload_dir: str, file_path: str, content: bytes) -> None:
+    os.makedirs(upload_dir, exist_ok=True)
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+
+def _remove_upload_file_sync(file_path: str) -> None:
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
 
 def _get_extension(filename: str) -> str:
     _, ext = os.path.splitext(filename)
@@ -54,10 +67,8 @@ async def handle_upload(user_id: int, filename: str, content: bytes) -> Knowledg
 
     doc_id = f"doc_{uuid.uuid4().hex[:12]}"
 
-    os.makedirs(settings.kb_upload_dir, exist_ok=True)
     file_path = os.path.join(settings.kb_upload_dir, f"{doc_id}.{file_type}")
-    with open(file_path, "wb") as f:
-        f.write(content)
+    await asyncio.to_thread(_write_upload_file_sync, settings.kb_upload_dir, file_path, content)
 
     await knowledge_repository.create_document(
         doc_id=doc_id,
@@ -67,7 +78,9 @@ async def handle_upload(user_id: int, filename: str, content: bytes) -> Knowledg
         file_size=len(content),
     )
 
-    asyncio.create_task(_process_document(doc_id, user_id, file_path, file_type))
+    task = asyncio.create_task(_process_document(doc_id, user_id, file_path, file_type))
+    _background_kb_tasks.add(task)
+    task.add_done_callback(_background_kb_tasks.discard)
 
     return KnowledgeUploadResponse(doc_id=doc_id, file_name=filename, status="processing")
 
@@ -137,8 +150,7 @@ async def delete_document(user_id: int, doc_id: str) -> None:
 
     try:
         file_path = os.path.join(settings.kb_upload_dir, f"{doc_id}.{row['file_type']}")
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        await asyncio.to_thread(_remove_upload_file_sync, file_path)
     except Exception as e:
         logger.warning("kb_document_file_delete_failed", doc_id=doc_id, error=str(e))
 

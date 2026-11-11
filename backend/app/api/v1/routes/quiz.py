@@ -9,6 +9,7 @@ from app.models.common import ApiResponse
 from app.models.quiz import QuizGenerateRequest
 from app.services.quiz_service import (
     create_quiz_task,
+    get_quiz_images_status,
     get_quiz_task_status,
     handle_quiz_generate,
 )
@@ -50,4 +51,14 @@ async def quiz_task_status(
 ):
     """轮询查询任务状态（校验归属当前用户）。"""
     result = await get_quiz_task_status(task_id, user_id=user_id)
+    return ApiResponse.success(data=result.model_dump())
+
+
+@router.get("/{quiz_id}/images", response_model=ApiResponse)
+async def quiz_images_status(
+    quiz_id: str,
+    user_id: int = Depends(get_current_user),
+):
+    """轮询查询题目后台配图补齐状态（校验归属当前用户）。"""
+    result = await get_quiz_images_status(quiz_id, user_id=user_id)
     return ApiResponse.success(data=result.model_dump())

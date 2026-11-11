@@ -74,4 +74,8 @@ class QuizDetailResponse(BaseModel):
     questions: list
     answer_records: Optional[list] = None
     report: Optional[dict] = None
+    image_status: str = "none"
+    image_notice: Optional[str] = None
+    report_status: Optional[str] = None
+    report_error: Optional[str] = None
     created_at: str

@@ -172,10 +172,10 @@
 | 表名 | 核心用途 | 主键 / 唯一键 / 外键 |
 | --- | --- | --- |
 | `users` | 用户与累计 XP | `id`, `UNIQUE(openid)` |
-| `quiz_sessions` | 生成的题库快照 JSON | `id`, `UNIQUE(quiz_id)`, `FK(user_id -> users.id ON DELETE SET NULL)` |
+| `quiz_sessions` | 生成的题库快照 JSON 与配图状态 (`image_status/image_notice`) | `id`, `UNIQUE(quiz_id)`, `FK(user_id -> users.id ON DELETE SET NULL)` |
 | `answer_records` | 答题明细与正确率 | `id`, `UNIQUE(quiz_id)`, `FK(quiz_id -> quiz_sessions.quiz_id ON DELETE CASCADE)` |
-| `reports` | AI 复盘报告 JSON | `id`, `UNIQUE(quiz_id)`, `FK(quiz_id -> quiz_sessions.quiz_id ON DELETE CASCADE)` |
-| `quiz_tasks` | 异步出题状态 (`pending/running/completed/failed`) | `id`, `UNIQUE(task_id)`, `IDX(user_id, status)` |
+| `reports` | AI 复盘报告 JSON 与生成状态 (`status/error_message`) | `id`, `UNIQUE(quiz_id)`, `FK(quiz_id -> quiz_sessions.quiz_id ON DELETE CASCADE)` |
+| `quiz_tasks` | 异步出题状态与阶段 (`status/stage`) | `id`, `UNIQUE(task_id)`, `IDX(user_id, status)` |
 | `kb_documents` | 私有文档状态 (`processing/ready/failed`) | `id`, `UNIQUE(doc_id)`, `FK(user_id -> users.id ON DELETE CASCADE)` |
 | `image_generation_logs` | 题目配图每日额度审计 | `id`, `IDX(user_id, created_at)` |
 
@@ -194,6 +194,9 @@
 | `/knowledge/documents` | `POST` / `GET` | 必选 JWT | 10MB / 10 篇限制 | 上传异步解析 / 获取文档列表 |
 | `/knowledge/documents/{doc_id}` | `GET` / `DELETE` | 必选 JWT | 校验 `user_id` | 轮询解析状态 / 三处级联删除 |
 | `/quiz/generate/async` | `POST` | 必选 JWT | 每分钟限流 + 校验 `doc_id` | 秒级创建异步出题任务 |
-| `/quiz/task/{task_id}` | `GET` | 必选 JWT | **校验任务归属 `user_id`** | 每 2 秒轮询任务状态 |
+| `/quiz/task/{task_id}` | `GET` | 必选 JWT | **校验任务归属 `user_id`** | 每 2 秒轮询任务状态与阶段进度 (`stage/stage_message`) |
+| `/quiz/{quiz_id}/images` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 轮询题目后台异步配图 URL 与 `image_status` |
 | `/quiz/generate` | `POST` | 必选 JWT | 每分钟限流 + 校验 `doc_id` | 同步出题（调试/测试） |
-| `/report/generate` | `POST` | 必选 JWT | 归属当前用户 | 精确计分 + AI 报告 + 累加 XP |
+| `/report/submit` | `POST` | 必选 JWT | **校验归属 + 服务端重算 + 事务幂等 XP** | 秒返算分与 XP，启动后台 AI 复盘报告 |
+| `/report/{quiz_id}` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 每 2 秒轮询 AI 复盘报告生成状态与内容 |
+| `/report/generate` | `POST` | 必选 JWT | 归属当前用户 + 幂等防重复 | 同步报告接口（兼容保留，内部已幂等） |

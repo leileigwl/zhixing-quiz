@@ -1,5 +1,6 @@
 """knowledge_service 单元测试"""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -222,3 +223,41 @@ async def test_delete_document_tolerates_vector_delete_failure(tmp_path):
 
     delete_db_mock.assert_called_once_with("doc_1", 1)
     assert not file_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_upload_and_delete_offload_file_io_via_to_thread(tmp_path):
+    settings = _patch_settings(kb_upload_dir=str(tmp_path))
+    row = {"doc_id": "doc_io", "file_name": "notes.txt", "file_type": "txt"}
+    saved = tmp_path / "doc_io.txt"
+
+    with patch("app.services.knowledge_service.get_settings", return_value=settings), patch(
+        "app.services.knowledge_service.knowledge_repository.count_documents",
+        AsyncMock(return_value=0),
+    ), patch(
+        "app.services.knowledge_service.knowledge_repository.create_document",
+        AsyncMock(),
+    ), patch(
+        "app.services.knowledge_service.knowledge_repository.get_document",
+        AsyncMock(return_value=row),
+    ), patch(
+        "app.services.knowledge_service.knowledge_repository.delete_document",
+        AsyncMock(),
+    ), patch(
+        "app.services.knowledge_service.vector_store_service.delete_document_vectors",
+        MagicMock(),
+    ), patch(
+        "app.services.knowledge_service.asyncio.create_task",
+    ) as mock_create_task, patch(
+        "app.services.knowledge_service.asyncio.to_thread",
+        wraps=asyncio.to_thread,
+    ) as to_thread_spy:
+        result = await knowledge_service.handle_upload(1, "notes.txt", b"hello thread")
+        mock_create_task.call_args[0][0].close()
+
+        # 把创建出的文件路径同步到 delete_document 预期的 doc_io
+        (tmp_path / f"{result.doc_id}.txt").rename(saved)
+        await knowledge_service.delete_document(1, "doc_io")
+
+    assert to_thread_spy.await_count >= 2
+    assert not saved.exists()

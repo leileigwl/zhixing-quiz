@@ -55,3 +55,11 @@ class RateLimitError(Exception):
     def __init__(self, message: str = "操作过于频繁，请稍后再试"):
         self.message = message
         super().__init__(self.message)
+
+
+class ResourceNotFoundError(Exception):
+    """请求资源不存在"""
+
+    def __init__(self, message: str = "请求的资源不存在"):
+        self.message = message
+        super().__init__(self.message)

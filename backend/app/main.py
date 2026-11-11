@@ -20,6 +20,7 @@ from app.core.exceptions import (
     QuizGenerationError,
     RateLimitError,
     ReportGenerationError,
+    ResourceNotFoundError,
 )
 from app.models.common import ApiResponse
 
@@ -132,6 +133,14 @@ async def knowledge_base_error_handler(request: Request, exc: KnowledgeBaseError
     return JSONResponse(
         status_code=400,
         content=ApiResponse.error(code=4001, message=str(exc)).model_dump(),
+    )
+
+
+@app.exception_handler(ResourceNotFoundError)
+async def resource_not_found_handler(request: Request, exc: ResourceNotFoundError):
+    return JSONResponse(
+        status_code=404,
+        content=ApiResponse.error(code=4004, message=str(exc)).model_dump(),
     )
 
 

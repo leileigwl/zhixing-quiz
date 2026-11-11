@@ -26,9 +26,22 @@ async def create_task(
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "INSERT INTO quiz_tasks (task_id, user_id, user_input, question_count, difficulty, status) "
-                "VALUES (%s, %s, %s, %s, %s, 'pending')",
+                "INSERT INTO quiz_tasks (task_id, user_id, user_input, question_count, difficulty, status, stage) "
+                "VALUES (%s, %s, %s, %s, %s, 'pending', 'queued')",
                 (task_id, user_id, user_input, question_count, difficulty),
+            )
+
+
+async def update_task_stage(task_id: str, stage: str) -> None:
+    """更新异步出题任务当前执行阶段。"""
+    pool = get_mysql_pool()
+    if pool is None:
+        return
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE quiz_tasks SET stage = %s WHERE task_id = %s",
+                (stage, task_id),
             )
 
 
@@ -37,21 +50,40 @@ async def update_task_status(
     status: str,
     result_json: Optional[dict] = None,
     error_message: Optional[str] = None,
+    stage: Optional[str] = None,
 ) -> None:
     pool = get_mysql_pool()
     if pool is None:
         return
+    resolved_stage = stage
+    if resolved_stage is None:
+        if status == "completed":
+            resolved_stage = "completed"
+        elif status == "failed":
+            resolved_stage = "failed"
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            await cur.execute(
-                "UPDATE quiz_tasks SET status = %s, result_json = %s, error_message = %s WHERE task_id = %s",
-                (
-                    status,
-                    json.dumps(result_json, ensure_ascii=False) if result_json else None,
-                    error_message,
-                    task_id,
-                ),
-            )
+            if resolved_stage is not None:
+                await cur.execute(
+                    "UPDATE quiz_tasks SET status = %s, stage = %s, result_json = %s, error_message = %s WHERE task_id = %s",
+                    (
+                        status,
+                        resolved_stage,
+                        json.dumps(result_json, ensure_ascii=False) if result_json else None,
+                        error_message,
+                        task_id,
+                    ),
+                )
+            else:
+                await cur.execute(
+                    "UPDATE quiz_tasks SET status = %s, result_json = %s, error_message = %s WHERE task_id = %s",
+                    (
+                        status,
+                        json.dumps(result_json, ensure_ascii=False) if result_json else None,
+                        error_message,
+                        task_id,
+                    ),
+                )
 
 
 async def get_task(task_id: str) -> Optional[dict]:
@@ -61,7 +93,7 @@ async def get_task(task_id: str) -> Optional[dict]:
     async with pool.acquire() as conn:
         async with conn.cursor(aiomysql.DictCursor) as cur:
             await cur.execute(
-                "SELECT task_id, user_id, status, result_json, error_message "
+                "SELECT task_id, user_id, status, stage, result_json, error_message "
                 "FROM quiz_tasks WHERE task_id = %s",
                 (task_id,),
             )

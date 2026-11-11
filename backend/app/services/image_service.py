@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from collections.abc import Awaitable, Callable
 from typing import Optional
 
 import httpx
@@ -97,6 +98,7 @@ async def generate_images_for_quiz(
     questions: list[Question],
     user_id: Optional[int],
     quiz_id: str,
+    on_image_ready: Optional[Callable[[str, str], Awaitable[None]]] = None,
 ) -> tuple[dict[str, str], Optional[str]]:
     """为一批题目并发生成配图，返回 (question_id -> image_url, 提示信息)，永不抛出异常。"""
     settings = get_settings()
@@ -129,6 +131,16 @@ async def generate_images_for_quiz(
     async def _run(q: Question) -> tuple[str, Optional[str]]:
         async with semaphore:
             url = await generate_image_for_question(q, quiz_id)
+            if url and on_image_ready is not None:
+                try:
+                    await on_image_ready(q.id, url)
+                except Exception as cb_err:
+                    logger.warning(
+                        "image_ready_callback_failed",
+                        quiz_id=quiz_id,
+                        question_id=q.id,
+                        error=str(cb_err),
+                    )
             return q.id, url
 
     results = await asyncio.gather(*(_run(q) for q in target_questions))

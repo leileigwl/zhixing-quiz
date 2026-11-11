@@ -13,6 +13,8 @@ from app.core.config import get_settings, resolve_embedding_config
 
 logger = structlog.get_logger()
 
+CHUNK_WRITE_BATCH_SIZE = 32
+
 
 @lru_cache
 def get_embeddings() -> Embeddings:
@@ -50,8 +52,9 @@ def add_document_chunks(
     doc_id: str,
     chunks: list[Document],
     embeddings: Optional[Embeddings] = None,
+    batch_size: int = CHUNK_WRITE_BATCH_SIZE,
 ) -> int:
-    """将文档分块写入用户向量库，返回写入的分块数量。"""
+    """将文档分块按固定批次写入用户向量库，返回写入的分块数量。"""
     if not chunks:
         return 0
 
@@ -64,9 +67,21 @@ def add_document_chunks(
             "user_id": user_id,
         }
 
-    ids = vector_store.add_documents(documents=chunks)
-    logger.info("document_chunks_added", user_id=user_id, doc_id=doc_id, chunk_count=len(ids))
-    return len(ids)
+    step = max(1, batch_size)
+    total_added = 0
+    for idx in range(0, len(chunks), step):
+        batch = chunks[idx : idx + step]
+        ids = vector_store.add_documents(documents=batch)
+        total_added += len(ids)
+
+    logger.info(
+        "document_chunks_added",
+        user_id=user_id,
+        doc_id=doc_id,
+        chunk_count=total_added,
+        batches=(len(chunks) + step - 1) // step,
+    )
+    return total_added
 
 
 def delete_document_vectors(

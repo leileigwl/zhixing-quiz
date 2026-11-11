@@ -16,24 +16,43 @@ AGENT_TIMEOUT_SECONDS = 60
 
 
 def _build_knowledge_base_tool(user_id: int, doc_id: str):
-    """通过 Python 闭包锁定 user_id / doc_id，防止大模型越权访问其他用户数据。"""
-    from langchain_core.tools import tool
+    """通过 Python 闭包锁定 user_id / doc_id，并以异步工具调度检索避免阻塞事件循环。"""
+    from langchain_core.tools import StructuredTool
 
-    @tool
-    def search_knowledge_base(query: str) -> str:
-        """在用户上传的私有知识库文档中检索与 query 最相关的内容片段，返回拼接后的文本。"""
+    def _format_docs(docs: list) -> str:
+        if not docs:
+            return "知识库中未检索到相关内容。"
+        return "\n\n".join(doc.page_content for doc in docs)
+
+    def _search_sync(query: str) -> str:
         try:
-            docs = vector_store_service.similarity_search(user_id=user_id, doc_id=doc_id, query=query)
+            docs = vector_store_service.similarity_search(
+                user_id=user_id, doc_id=doc_id, query=query
+            )
         except Exception as e:
             logger.warning("kb_retrieval_failed", user_id=user_id, doc_id=doc_id, error=str(e))
             return "知识库检索失败，未获取到内容。"
+        return _format_docs(docs)
 
-        if not docs:
-            return "知识库中未检索到相关内容。"
+    async def _search_async(query: str) -> str:
+        try:
+            docs = await asyncio.to_thread(
+                vector_store_service.similarity_search,
+                user_id=user_id,
+                doc_id=doc_id,
+                query=query,
+            )
+        except Exception as e:
+            logger.warning("kb_retrieval_failed", user_id=user_id, doc_id=doc_id, error=str(e))
+            return "知识库检索失败，未获取到内容。"
+        return _format_docs(docs)
 
-        return "\n\n".join(doc.page_content for doc in docs)
-
-    return search_knowledge_base
+    return StructuredTool.from_function(
+        func=_search_sync,
+        coroutine=_search_async,
+        name="search_knowledge_base",
+        description="在用户上传的私有知识库文档中检索与 query 最相关的内容片段，返回拼接后的文本。",
+    )
 
 
 def _build_agent(user_id: int, doc_id: str):

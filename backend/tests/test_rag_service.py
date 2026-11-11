@@ -67,6 +67,19 @@ class TestKnowledgeBaseTool:
 
         assert "检索失败" in result
 
+    @pytest.mark.asyncio
+    async def test_async_ainvoke_runs_via_thread_off_event_loop(self):
+        docs = [Document(page_content="异步检索命中片段")]
+        with patch(
+            "app.services.rag_service.vector_store_service.similarity_search",
+            return_value=docs,
+        ) as mock_search:
+            tool = rag_service._build_knowledge_base_tool(user_id=3, doc_id="doc_async")
+            result = await tool.ainvoke({"query": "async query"})
+
+        assert "异步检索命中片段" in result
+        mock_search.assert_called_once_with(user_id=3, doc_id="doc_async", query="async query")
+
 
 @pytest.mark.asyncio
 async def test_fetch_rag_context_returns_content_on_success(mock_settings_web_enabled):
