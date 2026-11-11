@@ -1,5 +1,5 @@
 import Taro from '@tarojs/taro'
-import type { AnswerRecord, QuizData } from './api'
+import type { AnswerRecord, QuizData, QuizImageStatus } from './api'
 
 const ACTIVE_QUIZ_KEY = 'zx_active_quiz'
 const ACTIVE_ANSWERS_KEY = 'zx_active_answers'
@@ -50,6 +50,42 @@ export function setActiveAnswerRecords(answers: AnswerRecord[]) {
   } catch {
     // ignore storage errors
   }
+}
+
+export function updateActiveQuizImages(
+  quizId: string,
+  patch: {
+    image_status?: QuizImageStatus
+    image_urls?: Record<string, string>
+    image_notice?: string | null
+  },
+): QuizData | null {
+  const { quizData } = getActiveQuizSession(quizId)
+  if (!quizData) {
+    return null
+  }
+  const imageUrls = patch.image_urls ?? {}
+  const updatedQuestions = quizData.questions.map((question) => {
+    const nextUrl = imageUrls[question.id]
+    if (!nextUrl || nextUrl === question.image_url) {
+      return question
+    }
+    return { ...question, image_url: nextUrl }
+  })
+  const updatedQuiz: QuizData = {
+    ...quizData,
+    questions: updatedQuestions,
+    image_status: patch.image_status ?? quizData.image_status,
+    image_notice:
+      patch.image_notice !== undefined ? patch.image_notice : quizData.image_notice,
+  }
+  memoryQuiz = updatedQuiz
+  try {
+    Taro.setStorageSync(ACTIVE_QUIZ_KEY, updatedQuiz)
+  } catch {
+    // ignore storage errors
+  }
+  return updatedQuiz
 }
 
 export function clearActiveQuizSession() {

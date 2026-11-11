@@ -26,7 +26,7 @@ cd backend
 cp .env.example .env
 uv sync && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# 3. 运行后端质量检查与 154 个单元测试
+# 3. 运行后端质量检查与单元测试
 uv run ruff check app tests
 uv run pytest
 

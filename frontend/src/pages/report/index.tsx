@@ -1,8 +1,14 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { View, Text, Image } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
-import { generateReport, getQuizDetail, getCachedUser, setCachedUser } from '../../services/api'
-import type { QuizData, AnswerRecord, ReportData } from '../../services/api'
+import {
+  submitQuizReport,
+  pollReportStatus,
+  getQuizDetail,
+  getCachedUser,
+  setCachedUser,
+} from '../../services/api'
+import type { QuizData, AnswerRecord, ReportData, ReportStatusEnum } from '../../services/api'
 import { getActiveQuizSession } from '../../services/quizSessionStore'
 import './index.scss'
 
@@ -29,11 +35,18 @@ export default function ReportPage() {
   const [answerRecords, setAnswerRecords] = useState<AnswerRecord[]>(
     hasFreshQuizData ? cachedSession.answerRecords : [],
   )
+  const [serverStats, setServerStats] = useState<{
+    accuracy: number
+    correctCount: number
+    wrongCount: number
+  } | null>(null)
   const [report, setReport] = useState<ReportData | null>(null)
+  const [reportStatus, setReportStatus] = useState<ReportStatusEnum | 'idle'>('idle')
+  const [reportError, setReportError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [xpGain, setXpGain] = useState<number | null>(null)
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
-  const loadedRef = useRef(false)
 
   const localCorrectCount = useMemo(
     () => answerRecords.filter((r) => r.is_correct).length,
@@ -49,58 +62,128 @@ export default function ReportPage() {
   }, [answerRecords.length, localCorrectCount])
 
   useEffect(() => {
-    if (loadedRef.current) return
-    loadedRef.current = true
+    let cancelled = false
+
+    const startAsyncReportPolling = async (targetQuizId: string) => {
+      try {
+        const res = await pollReportStatus(targetQuizId, undefined, {
+          intervalMs: 2000,
+          maxAttempts: 90,
+          isCancelled: () => cancelled,
+        })
+        if (cancelled) return
+        setReportStatus(res.report_status)
+        if (res.report_status === 'completed' && res.report) {
+          setReport(res.report)
+          setReportError(null)
+        } else if (res.report_status === 'failed') {
+          setReportError(res.error_message || 'AI 复盘报告暂未生成成功')
+        }
+      } catch (err: any) {
+        if (cancelled) return
+        setReportStatus('failed')
+        setReportError(err?.message || 'AI 复盘报告生成超时，请稍后在历史记录中查看')
+      }
+    }
 
     if (hasFreshQuizData && cachedSession.quizData) {
       const targetQuiz = cachedSession.quizData
       const targetRecords = cachedSession.answerRecords
 
-      generateReport({
+      submitQuizReport({
         quiz_id: targetQuiz.quiz_id,
-        topic: targetQuiz.title,
-        questions: targetQuiz.questions,
         answer_records: targetRecords,
       })
-        .then((data) => {
-          setReport(data)
-          const correct = targetRecords.filter((r) => r.is_correct).length
-          const gained = 10 + correct * 2
-          setXpGain(gained)
-          const cached = getCachedUser()
-          if (cached) {
-            cached.total_xp += gained
-            setCachedUser(cached)
+        .then((res) => {
+          if (res.xp_awarded && res.xp_gain > 0) {
+            const cached = getCachedUser()
+            if (cached) {
+              setCachedUser({
+                ...cached,
+                total_xp: cached.total_xp + res.xp_gain,
+              })
+            }
+          }
+          if (cancelled) return
+
+          setServerStats({
+            accuracy: res.accuracy,
+            correctCount: res.correct_count,
+            wrongCount: res.wrong_count,
+          })
+          setXpGain(res.xp_gain)
+          setAlreadySubmitted(res.already_submitted)
+          setReportStatus(res.report_status)
+          setLoading(false)
+
+          if (res.report_status === 'completed' && res.report) {
+            setReport(res.report)
+            setReportError(null)
+          } else if (res.report_status === 'failed') {
+            setReportError(res.error_message || 'AI 复盘报告暂未生成成功')
+          } else if (res.report_status === 'generating') {
+            void startAsyncReportPolling(targetQuiz.quiz_id)
           }
         })
-        .catch(() => {
-          setReport(null)
+        .catch((err: any) => {
+          if (cancelled) return
+          setLoading(false)
+          setReportStatus('failed')
+          setReportError(err?.message || '交卷结算失败，请返回重试')
         })
-        .finally(() => setLoading(false))
-      return
+
+      return () => {
+        cancelled = true
+      }
     }
 
     if (quizIdParam) {
       getQuizDetail(quizIdParam)
         .then((detail) => {
+          if (cancelled) return
           setQuizData({
             quiz_id: detail.quiz_id,
             title: detail.title,
             summary: detail.summary,
             questions: detail.questions,
+            image_status: detail.image_status,
+            image_notice: detail.image_notice,
           })
           if (detail.answer_records) setAnswerRecords(detail.answer_records)
-          if (detail.report) setReport(detail.report)
+          setLoading(false)
+
+          if (detail.report) {
+            setReport(detail.report)
+            setReportStatus('completed')
+            setReportError(null)
+          } else if (detail.report_status === 'generating') {
+            setReportStatus('generating')
+            void startAsyncReportPolling(detail.quiz_id)
+          } else if (detail.report_status === 'failed') {
+            setReportStatus('failed')
+            setReportError(detail.report_error || 'AI 复盘报告暂未生成成功')
+          } else {
+            setReportStatus('idle')
+          }
         })
-        .catch(() => {})
-        .finally(() => setLoading(false))
-      return
+        .catch(() => {
+          if (!cancelled) setLoading(false)
+        })
+
+      return () => {
+        cancelled = true
+      }
     }
 
     setLoading(false)
+    return () => {
+      cancelled = true
+    }
   }, [hasFreshQuizData, cachedSession, quizIdParam])
 
-  const accuracy = report?.accuracy ?? localAccuracy
+  const correctCount = serverStats?.correctCount ?? localCorrectCount
+  const wrongCount = serverStats?.wrongCount ?? localWrongCount
+  const accuracy = report?.accuracy ?? serverStats?.accuracy ?? localAccuracy
 
   const handleShareQuote = () => {
     const quote = report?.share_quote || '不是所有的努力都会立刻回报，但所有的成长都值得被记录。'
@@ -129,7 +212,11 @@ export default function ReportPage() {
         </View>
         {xpGain !== null && (
           <View className='xp-gain-pill'>
-            <Text>本局经验 +{xpGain} XP</Text>
+            <Text>
+              {alreadySubmitted && xpGain === 0
+                ? '本局成绩已结算 · 经验不重复发放'
+                : `本局经验 +${xpGain} XP`}
+            </Text>
           </View>
         )}
       </View>
@@ -137,10 +224,10 @@ export default function ReportPage() {
       {/* 对错统计 */}
       <View className='stat-pair'>
         <View className='stat-tile is-green'>
-          <Text>✓ 答对 {localCorrectCount} 题</Text>
+          <Text>✓ 答对 {correctCount} 题</Text>
         </View>
         <View className='stat-tile is-red'>
-          <Text>✕ 答错 {localWrongCount} 题</Text>
+          <Text>✕ 答错 {wrongCount} 题</Text>
         </View>
       </View>
 
@@ -148,10 +235,31 @@ export default function ReportPage() {
 
       {loading ? (
         <View className='zx-card report-loading'>
-          <Text className='report-loading-text'>AI 正在为你生成复盘报告...</Text>
+          <Text className='report-loading-text'>正在快速结算成绩...</Text>
         </View>
       ) : (
         <>
+          {reportStatus === 'generating' && !report && (
+            <View className='zx-card report-block report-ai-skeleton'>
+              <Text className='report-subhead'>AI 复盘报告生成中</Text>
+              <Text className='report-ai-hint'>
+                客观判分与经验值已即时完成，AI 正在提炼薄弱知识点与学习建议...
+              </Text>
+              <View className='skeleton-line is-long' />
+              <View className='skeleton-line is-mid' />
+              <View className='skeleton-line is-short' />
+            </View>
+          )}
+
+          {reportStatus === 'failed' && !report && (
+            <View className='zx-card report-block report-ai-failed'>
+              <Text className='report-subhead'>AI 复盘总结</Text>
+              <Text className='report-ai-failed-text'>
+                {reportError || 'AI 复盘总结暂未生成成功，客观成绩与解析已完整保存。'}
+              </Text>
+            </View>
+          )}
+
           {/* 掌握与薄弱知识点标签 */}
           {(report?.mastered_points?.length || report?.weak_points?.length) ? (
             <View className='zx-card report-block'>

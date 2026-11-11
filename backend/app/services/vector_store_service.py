@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from functools import lru_cache
 from typing import Optional
 
@@ -14,6 +15,7 @@ from app.core.config import get_settings, resolve_embedding_config
 logger = structlog.get_logger()
 
 CHUNK_WRITE_BATCH_SIZE = 32
+_chroma_init_lock = threading.RLock()
 
 
 @lru_cache
@@ -36,15 +38,20 @@ def get_embeddings() -> Embeddings:
 
 
 def get_user_vector_store(user_id: int, embeddings: Optional[Embeddings] = None):
-    """获取指定用户的 Chroma 向量库实例（按用户 ID 独立集合隔离）。"""
+    """获取指定用户的 Chroma 向量库实例（按用户 ID 独立集合隔离）。
+
+    Chroma 的 SharedSystemClient / RustBindingsAPI 在并发首次初始化时非线程安全，
+    通过可重入锁串行化实例化，避免 asyncio.to_thread 并发上传/检索触发竞态异常。
+    """
     from langchain_chroma import Chroma
 
     settings = get_settings()
-    return Chroma(
-        collection_name=f"kb_user_{user_id}",
-        embedding_function=embeddings or get_embeddings(),
-        persist_directory=settings.chroma_persist_dir,
-    )
+    with _chroma_init_lock:
+        return Chroma(
+            collection_name=f"kb_user_{user_id}",
+            embedding_function=embeddings or get_embeddings(),
+            persist_directory=settings.chroma_persist_dir,
+        )
 
 
 def add_document_chunks(

@@ -102,6 +102,50 @@
   color: var(--text-sub);
 }
 
+.report-ai-skeleton {
+  background: #ffffff;
+}
+
+.report-ai-hint {
+  display: block;
+  font-size: 23px;
+  line-height: 1.5;
+  color: var(--text-sub);
+  margin-bottom: 18px;
+}
+
+.skeleton-line {
+  height: 22px;
+  border-radius: 10px;
+  background: #eef2ff;
+  margin-bottom: 12px;
+
+  &.is-long {
+    width: 92%;
+  }
+
+  &.is-mid {
+    width: 76%;
+  }
+
+  &.is-short {
+    width: 58%;
+    margin-bottom: 0;
+  }
+}
+
+.report-ai-failed {
+  background: #fffbeb;
+  border: 1Px solid #fde68a;
+}
+
+.report-ai-failed-text {
+  display: block;
+  font-size: 24px;
+  line-height: 1.5;
+  color: #b45309;
+}
+
 .report-block {
   padding: 24px 28px;
   margin-bottom: 20px;

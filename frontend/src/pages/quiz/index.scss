@@ -108,6 +108,33 @@
   height: 320px;
 }
 
+.quiz-image-pending {
+  background: var(--primary-soft);
+  border-radius: 16px;
+  padding: 14px 20px;
+  margin-bottom: 22px;
+}
+
+.quiz-image-pending-text {
+  font-size: 23px;
+  font-weight: 500;
+  color: var(--primary);
+}
+
+.quiz-image-notice {
+  background: #fffbeb;
+  border: 1Px solid #fde68a;
+  border-radius: 16px;
+  padding: 12px 18px;
+  margin-bottom: 22px;
+}
+
+.quiz-image-notice-text {
+  font-size: 22px;
+  color: #b45309;
+  line-height: 1.4;
+}
+
 .options-list {
   display: flex;
   flex-direction: column;

@@ -1,9 +1,14 @@
 import { useState, useMemo, useEffect } from 'react'
 import { View, Text, Image } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
-import { getQuizDetail } from '../../services/api'
+import { getQuizDetail, getQuizImages } from '../../services/api'
 import type { Question, AnswerRecord, QuizData } from '../../services/api'
-import { getActiveQuizSession, setActiveAnswerRecords, setActiveQuizSession } from '../../services/quizSessionStore'
+import {
+  getActiveQuizSession,
+  setActiveAnswerRecords,
+  setActiveQuizSession,
+  updateActiveQuizImages,
+} from '../../services/quizSessionStore'
 import './index.scss'
 
 const TYPE_LABEL: Record<Question['type'], string> = {
@@ -30,6 +35,8 @@ export default function QuizPage() {
             title: detail.title,
             summary: detail.summary,
             questions: detail.questions,
+            image_status: detail.image_status,
+            image_notice: detail.image_notice,
           }
           setQuizData(restored)
           setActiveQuizSession(restored, detail.answer_records || [])
@@ -38,6 +45,71 @@ export default function QuizPage() {
         .finally(() => setLoadingDetail(false))
     }
   }, [quizData, paramQuizId])
+
+  useEffect(() => {
+    const activeQuizId = quizData?.quiz_id
+    if (!activeQuizId || quizData?.image_status !== 'generating') {
+      return
+    }
+
+    let cancelled = false
+    let attempts = 0
+    const maxAttempts = 60
+    let timer: ReturnType<typeof setInterval> | null = null
+
+    const stopPolling = () => {
+      if (timer !== null) {
+        clearInterval(timer)
+        timer = null
+      }
+    }
+
+    const fetchImages = async () => {
+      if (cancelled) return
+      attempts += 1
+      try {
+        const res = await getQuizImages(activeQuizId)
+        if (cancelled) return
+
+        const imageUrls = res.image_urls || {}
+        const updated = updateActiveQuizImages(activeQuizId, {
+          image_status: res.image_status,
+          image_urls: imageUrls,
+          image_notice: res.image_notice,
+        })
+        setQuizData((prev) => {
+          if (!prev || prev.quiz_id !== activeQuizId) return prev
+          if (updated) return updated
+          return {
+            ...prev,
+            image_status: res.image_status,
+            image_notice: res.image_notice,
+            questions: prev.questions.map((q) =>
+              imageUrls[q.id] && imageUrls[q.id] !== q.image_url
+                ? { ...q, image_url: imageUrls[q.id] }
+                : q,
+            ),
+          }
+        })
+
+        if (res.image_status !== 'generating' || attempts >= maxAttempts) {
+          stopPolling()
+        }
+      } catch {
+        if (attempts >= maxAttempts) {
+          stopPolling()
+        }
+      }
+    }
+
+    timer = setInterval(fetchImages, 2500)
+    void fetchImages()
+
+    return () => {
+      cancelled = true
+      stopPolling()
+    }
+  }, [quizData?.quiz_id, quizData?.image_status])
 
   useEffect(() => {
     if (quizData?.title) {
@@ -183,9 +255,19 @@ export default function QuizPage() {
 
       <Text className='quiz-stem'>{currentQuestion.stem}</Text>
 
-      {currentQuestion.image_url && (
+      {currentQuestion.image_url ? (
         <View className='quiz-illustration'>
           <Image className='quiz-image' src={currentQuestion.image_url} mode='aspectFit' />
+        </View>
+      ) : quizData.image_status === 'generating' ? (
+        <View className='quiz-image-pending'>
+          <Text className='quiz-image-pending-text'>🎨 配图正在后台绘制中，可先继续作答...</Text>
+        </View>
+      ) : null}
+
+      {quizData.image_notice && (
+        <View className='quiz-image-notice'>
+          <Text className='quiz-image-notice-text'>{quizData.image_notice}</Text>
         </View>
       )}
 

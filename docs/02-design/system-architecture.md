@@ -61,8 +61,8 @@
 │       │   ├── health.py               # GET /api/v1/health
 │       │   ├── user.py                 # login / dev-login / profile / quizzes
 │       │   ├── knowledge.py            # documents CRUD + status
-│       │   ├── quiz.py                 # generate / generate/async / task/{task_id}
-│       │   └── report.py               # generate
+│       │   ├── quiz.py                 # generate / generate/async / task/{task_id} / {quiz_id}/images
+│       │   └── report.py               # submit / {quiz_id} / generate
 │       ├── core/
 │       │   ├── config.py               # Settings + validate_runtime_security()
 │       │   ├── db.py                   # aiomysql 连接池、7 表 DDL、recover_stale_jobs()

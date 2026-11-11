@@ -217,8 +217,10 @@ export default function KnowledgePage() {
       const { task_id } = await generateQuizAsync(userInput, 5, doc.doc_id, false)
 
       setGeneratingText('AI 正在检索知识库片段并生成题目...')
-      const quizData = await pollQuizTask(task_id, (status) => {
-        if (status === 'running') {
+      const quizData = await pollQuizTask(task_id, (status, task) => {
+        if (task?.stage_message) {
+          setGeneratingText(task.stage_message)
+        } else if (status === 'running') {
           setGeneratingText('AI 正在编排题目与解析，请稍候...')
         }
       })

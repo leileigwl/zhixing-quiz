@@ -4,7 +4,7 @@
 
 ## 当前阶段
 
-**Phase 1–5 本地全栈构建、真实 MySQL 8.0 + Chroma + 硅基流动大模型全链路联调，以及 H5 5 屏真浏览器交互与 UI 对齐验收均已完成并通过；当前后端（`:8000`）与 H5 前端（`:10086`）常驻运行中，可直接打开浏览器查验，后续仅余微信开发者工具真机预览与云主机 1Panel 上线部署。**
+**OpenSpec 变更 [`async-pipeline-and-kb-upgrade`](../openspec/changes/async-pipeline-and-kb-upgrade/proposal.md)（MySQL 8.0 幂等列迁移与自愈 + 异步出题阶段进度与文字先出/配图后台补齐 + 服务端重判/XP 幂等/秒返算分与异步 AI 复盘 + 知识库 GBK/UTF-8-SIG 多编码解析、Markdown 章节切分、Chroma 并发锁与分批写入、非阻塞 `asyncio.to_thread` RAG + 前端 H5/微信小程序渐进式交互）已全部开发完成并完成真库/大模型/浏览器端到端验收；当前后端（`:8000`）与 H5 前端（`:10086`）常驻运行，`frontend/dist/` 已构建指向 `http://127.0.0.1:8000/api/v1` 的本地微信开发者工具调试包。**
 
 ## 已完成事项
 
@@ -25,19 +25,19 @@
 
 ## 已执行的真实校验（2026-11-11，全部基于最终代码重跑确认）
 
-- **真实基础设施**：OrbStack `zhixing-quiz-mysql-1`（MySQL 8.0）容器运行正常（`Up` / `healthy`），7 张表 `answer_records`、`image_generation_logs`、`kb_documents`、`quiz_sessions`、`quiz_tasks`、`reports`、`users` 已建表。
+- **真实基础设施**：OrbStack `zhixing-quiz-mysql-1`（MySQL 8.0）容器运行正常（`Up` / `healthy`），已通过重启与二次冷启动验证基于 `INFORMATION_SCHEMA.COLUMNS` 的幂等列迁移（`quiz_tasks.stage`、`quiz_sessions.image_status` / `image_notice`、`reports.status` / `error_message`），存量数据零丢失（`users=5`、`quiz_sessions=9`、`reports=8` 迁移前核验保留）。
 - **后端静态检查与单测**：
   - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run ruff check app tests`：**`All checks passed!`**
-  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run pytest`：**20 个测试文件共 154 个用例全部通过**（`154 passed, 1 warning`；单测层使用 Mock 隔离外部网络/数据库）。
-  - `docker compose config -q`：**通过**。
-- **真实全链路 API 端到端集成测试（无 Mock，连接真实 MySQL + Chroma + 硅基流动 DeepSeek-V3 & BAAI/bge-m3）**：
-  - 验证未携带 JWT 访问 `/api/v1/user/profile` 返回 `401` (`code: 4010`) 拦截成功；
-  - 验证 `dev-login` 签发 JWT、`GET/PUT /user/profile`、`POST /knowledge/documents` 上传 Markdown 文档并用 `BAAI/bge-m3` 写入 Chroma 至 `ready`、基于文档 RAG 与自由主题两条路径异步出题 + 2 秒轮询完成、跨用户查询他人任务/文档返回 `403`/`400` 隔离拦截、提交答卷生成 AI 复盘报告并增加 XP、查询历史与详情、以及 `DELETE /knowledge/documents/{doc_id}` 删除清理全部通过。
+  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run pytest`：**23 个测试文件共 174 个用例全部通过**（`174 passed, 1 warning in 2.11s`；含 `test_db_migrations.py`、`test_async_quiz_pipeline.py`、`test_async_report_and_xp.py` 及 Chroma 并发锁/分批写入/GBK/Markdown/async RAG 等新增测试）。
+- **真实全链路 API 端到端集成测试（无 Mock，连接真实 MySQL + Chroma + 硅基流动 LLM & Embedding）**：
+  - 验证并发上传 `GBK` `.txt` 与多章节 `# / ## / ###` `.md` 至 `ready`（Chroma `_chroma_init_lock` 修复了多线程并发初始化 `RustBindingsAPI` 竞态问题，`chunk_count` 分别为 `1` 和 `3`）；
+  - 验证异步出题实时阶段迁移 `queued -> fetching_context -> generating_quiz -> completed`、文字先就绪且跨用户查询 `/quiz/{quiz_id}/images` 返回 `403`、未配置生图 Key 时后台非阻塞降级至 `image_status=failed` 与友好提示；
+  - 验证 `POST /api/v1/report/submit` 约 **15.1ms** 秒返且无视客户端篡改的 `is_correct: true` 严格按标准答案重算 `accuracy`、二次重复提交返回 `already_submitted=True` / `xp_gain=0` 不重复加分、`GET /api/v1/report/{quiz_id}` 跨用户拦截 `403` 并轮询至 `completed`。
 - **前端构建与真浏览器 5 屏 UI/交互全链路测试**：
   - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/frontend && pnpm typecheck`：**通过**（0 TS 错误）。
-  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/frontend && pnpm build:weapp`：**通过**（编译输出至 `frontend/dist/`）。
-  - Playwright + 本机 Google Chrome（`390×844` 移动端视口，`2x` DPR）实测 `http://localhost:10086`：走通“首页快捷主题填充 & 开关交互 → 知识库上传 Markdown 等候 `已就绪` → 发起 RAG 闯关出题 → 逐题作答展开解析 → AI 复盘报告与题目回顾 → 返回首页核验实时 XP 增长与最近记录 → 我的页面 KPI/历史/昵称修改与还原”。
-  - 全程 5 屏 **0 Console Error、0 Page Error、0 API >=400 错误、0 横向溢出（`scrollWidth === 390`）**，视觉布局经逐屏截图核验与设计稿一致。
+  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/frontend && pnpm build:weapp:local`：**通过**（编译输出至 `frontend/dist/`，`dist/common.js` 仅包含 `http://127.0.0.1:8000/api/v1`，无 `api.example.com`）；`NODE_ENV=development pnpm build:h5` 编译通过。
+  - Playwright + `chromium_headless_shell`（`390×844` 移动端视口，`2x` DPR）实测 `http://localhost:10086`：覆盖 `Index -> Knowledge -> 异步出题阶段遮罩 -> Quiz 逐题作答 -> Report 秒级算分 + XP(+16 XP) + 异步复盘报告完成 -> Profile 累计 XP/历史同步`。
+  - 全程 5 屏 **0 Console Error、0 Page Error、0 HTTP >= 400 错误、0 横向溢出（`scrollWidth=390 === innerWidth=390`）**。
 
 ## 本地已启动的查看入口
 

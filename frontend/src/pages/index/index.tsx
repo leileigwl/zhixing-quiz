@@ -80,8 +80,10 @@ export default function IndexPage() {
       const { task_id } = await generateQuizAsync(trimmed, 5, undefined, generateImages)
       setLoadingText('AI 正在联网检索资料并生成题库...')
 
-      const quizData = await pollQuizTask(task_id, (status) => {
-        if (status === 'running') {
+      const quizData = await pollQuizTask(task_id, (status, task) => {
+        if (task?.stage_message) {
+          setLoadingText(task.stage_message)
+        } else if (status === 'running') {
           setLoadingText('AI 正在编排题目与解析，请稍候...')
         }
       })

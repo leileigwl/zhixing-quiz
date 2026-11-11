@@ -234,7 +234,7 @@ export function getQuizTaskStatus(taskId: string) {
 /** 每 2 秒轮询一次异步出题任务状态（规避微信小程序 60s 请求超时） */
 export function pollQuizTask(
   taskId: string,
-  onProgress?: (status: string) => void,
+  onProgress?: (status: string, task: QuizTaskStatus) => void,
   intervalMs = 2000,
   maxAttempts = 90,
 ): Promise<QuizData> {
@@ -244,7 +244,7 @@ export function pollQuizTask(
       attempts++
       try {
         const res = await getQuizTaskStatus(taskId)
-        onProgress?.(res.status)
+        onProgress?.(res.status, res)
 
         if (res.status === 'completed' && res.result) {
           clearInterval(timer)
@@ -264,7 +264,78 @@ export function pollQuizTask(
   })
 }
 
+export function getQuizImages(quizId: string) {
+  return request<QuizImagesResponse>(`/quiz/${quizId}/images`)
+}
+
 /* ---- 报告 API ---- */
+
+export function submitQuizReport(params: {
+  quiz_id: string
+  answer_records: ReportSubmitAnswerItem[]
+}) {
+  return request<ReportSubmitResponse>('/report/submit', {
+    method: 'POST',
+    data: {
+      quiz_id: params.quiz_id,
+      answer_records: params.answer_records.map((item) => ({
+        question_id: item.question_id,
+        selected_answers: item.selected_answers,
+        duration_ms: item.duration_ms,
+      })),
+    },
+    timeout: 30000,
+  })
+}
+
+export function getReportStatus(quizId: string) {
+  return request<ReportStatusResponse>(`/report/${quizId}`)
+}
+
+export function pollReportStatus(
+  quizId: string,
+  onUpdate?: (status: ReportStatusResponse) => void,
+  options?: {
+    intervalMs?: number
+    maxAttempts?: number
+    isCancelled?: () => boolean
+  },
+): Promise<ReportStatusResponse> {
+  const intervalMs = options?.intervalMs ?? 2000
+  const maxAttempts = options?.maxAttempts ?? 90
+  const isCancelled = options?.isCancelled
+
+  return new Promise((resolve, reject) => {
+    let attempts = 0
+    const timer = setInterval(async () => {
+      if (isCancelled?.()) {
+        clearInterval(timer)
+        return
+      }
+      attempts++
+      try {
+        const res = await getReportStatus(quizId)
+        if (isCancelled?.()) {
+          clearInterval(timer)
+          return
+        }
+        onUpdate?.(res)
+        if (res.report_status === 'completed' || res.report_status === 'failed') {
+          clearInterval(timer)
+          resolve(res)
+        } else if (attempts >= maxAttempts) {
+          clearInterval(timer)
+          reject(new Error('复盘报告生成超时，请稍后在历史记录中查看'))
+        }
+      } catch (err) {
+        clearInterval(timer)
+        if (!isCancelled?.()) {
+          reject(err)
+        }
+      }
+    }, intervalMs)
+  })
+}
 
 export function generateReport(params: {
   quiz_id: string
@@ -417,25 +488,47 @@ export interface Question {
   image_url?: string | null
 }
 
+export type QuizTaskStage = 'queued' | 'fetching_context' | 'generating_quiz' | 'completed' | 'failed'
+
+export type QuizImageStatus = 'none' | 'generating' | 'completed' | 'partial' | 'failed'
+
+export type ReportStatusEnum = 'generating' | 'completed' | 'failed'
+
 export interface QuizData {
   quiz_id: string
   title: string
   summary: string
   questions: Question[]
+  image_status?: QuizImageStatus
   image_notice?: string | null
 }
 
 export interface QuizTaskStatus {
   task_id: string
   status: 'pending' | 'running' | 'completed' | 'failed'
+  stage?: QuizTaskStage
+  stage_message?: string | null
   result: QuizData | null
   error_message: string | null
+}
+
+export interface QuizImagesResponse {
+  quiz_id: string
+  image_status: QuizImageStatus
+  image_urls: Record<string, string>
+  image_notice?: string | null
 }
 
 export interface AnswerRecord {
   question_id: string
   selected_answers: string[]
   is_correct: boolean
+  duration_ms: number
+}
+
+export interface ReportSubmitAnswerItem {
+  question_id: string
+  selected_answers: string[]
   duration_ms: number
 }
 
@@ -446,6 +539,27 @@ export interface ReportData {
   three_line_summary: string[]
   advice: string[]
   share_quote: string
+}
+
+export interface ReportSubmitResponse {
+  quiz_id: string
+  accuracy: number
+  correct_count: number
+  wrong_count: number
+  total_questions: number
+  xp_gain: number
+  xp_awarded: boolean
+  already_submitted: boolean
+  report_status: ReportStatusEnum
+  report?: ReportData | null
+  error_message?: string | null
+}
+
+export interface ReportStatusResponse {
+  quiz_id: string
+  report_status: ReportStatusEnum
+  report?: ReportData | null
+  error_message?: string | null
 }
 
 export interface UserBrief {
@@ -491,8 +605,12 @@ export interface QuizDetailResponse {
   summary: string
   user_input?: string
   questions: Question[]
+  image_status?: QuizImageStatus
+  image_notice?: string | null
   answer_records?: AnswerRecord[]
-  report?: ReportData
+  report?: ReportData | null
+  report_status?: ReportStatusEnum | null
+  report_error?: string | null
   created_at: string
 }
 

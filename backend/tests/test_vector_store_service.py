@@ -126,3 +126,20 @@ def test_add_document_chunks_batches_large_writes(persist_dir, fake_embeddings, 
     )
     assert total == 70
     assert batch_sizes == [32, 32, 6]
+
+
+def test_concurrent_vector_store_init_is_thread_safe(persist_dir, fake_embeddings):
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _add(idx: int) -> int:
+        return vector_store_service.add_document_chunks(
+            user_id=idx + 1,
+            doc_id=f"doc-concurrent-{idx}",
+            chunks=_make_chunks([f"并发文档片段 {idx}"]),
+            embeddings=fake_embeddings,
+        )
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        counts = list(executor.map(_add, range(4)))
+
+    assert counts == [1, 1, 1, 1]

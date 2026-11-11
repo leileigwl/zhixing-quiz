@@ -21,10 +21,10 @@
 
 ## 5. 前端渐进式交互改造（H5 + 微信小程序双端）
 
-- [ ] 5.1 更新 `frontend/src/services/api.ts` 与 `quizSessionStore.ts`：对齐出题阶段提示字段 `stage_message`，新增 `getQuizImages`、`submitQuizReport` 与 `pollReportStatus` 封装（保持对旧历史字段的兼容），并移除前端写死的 XP 公式改读服务端返回值；通过 `pnpm typecheck` 校验无报错。
-- [ ] 5.2 更新 `frontend/src/pages/{index,knowledge,quiz,report}/index.tsx` 及样式：出题等待弹窗展示实时 `stage_message`；`QuizPage` 在 `image_status === 'generating'` 时后台每 2.5s 轮询增量挂图不中断答题；`ReportPage` 交卷后秒现圆环正确率与 XP、AI 复盘模块展示局部骨架并 2 秒轮询补全；同步核验 `pnpm build:weapp:local` 与 `pnpm build:h5` 编译通过。
+- [x] 5.1 更新 `frontend/src/services/api.ts` 与 `quizSessionStore.ts`：对齐出题阶段提示字段 `stage_message`，新增 `getQuizImages`、`submitQuizReport` 与 `pollReportStatus` 封装（保持对旧历史字段的兼容），并移除前端写死的 XP 公式改读服务端返回值；通过 `pnpm typecheck` 校验无报错。
+- [x] 5.2 更新 `frontend/src/pages/{index,knowledge,quiz,report}/index.tsx` 及样式：出题等待弹窗展示实时 `stage_message`；`QuizPage` 在 `image_status === 'generating'` 时后台每 2.5s 轮询增量挂图不中断答题；`ReportPage` 交卷后秒现圆环正确率与 XP、AI 复盘模块展示局部骨架并 2 秒轮询补全；同步核验 `pnpm build:weapp:local` 与 `pnpm build:h5` 编译通过。
 
 ## 6. 全链路联调与规范收口
 
-- [ ] 6.1 启动本地 MySQL 8.0、FastAPI 后端与 H5 服务，跑通“上传 GBK/Markdown 文档 → 异步出题阶段提示 → 秒进答题页渐进补图 → 秒返算分 + 重复提交幂等验证 → 异步报告轮询完成”全链路真实联调，并完成 Playwright 移动端 5 屏零报错截图核验。
-- [ ] 6.2 同步更新 `docs/ARCHITECTURE.md`、`docs/session-handoff.md`，并在验收通过后准备执行 OpenSpec `sync-specs` / `archive` 收口。
+- [x] 6.1 启动本地 MySQL 8.0、FastAPI 后端与 H5 服务，跑通“上传 GBK/Markdown 文档 → 异步出题阶段提示 → 秒进答题页渐进补图 → 秒返算分 + 重复提交幂等验证 → 异步报告轮询完成”全链路真实联调，并完成 Playwright 移动端 5 屏零报错截图核验。
+- [x] 6.2 同步更新 `docs/ARCHITECTURE.md`、`docs/session-handoff.md`，并在验收通过后准备执行 OpenSpec `sync-specs` / `archive` 收口。
