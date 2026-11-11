@@ -1,0 +1,117 @@
+/* 全局设计令牌 - 对齐原型图极简现代工具风 */
+
+/* #ifdef h5 */
+html {
+  font-size: clamp(16Px, 5.3333vw, 22Px);
+}
+
+taro-textarea-core textarea,
+taro-textarea-core .taro-textarea,
+.taro-textarea,
+textarea {
+  resize: none !important;
+  outline: none !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  color: inherit !important;
+}
+
+taro-textarea-core textarea::placeholder,
+.taro-textarea::placeholder {
+  color: var(--text-muted);
+  font-size: inherit;
+}
+
+.taro-tabbar__panel::-webkit-scrollbar {
+  display: none;
+}
+/* #endif */
+
+:root,
+page {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --border: #e5eaf2;
+  --border-strong: #cbd5e1;
+  --primary: #4f46e5;
+  --primary-deep: #4338ca;
+  --primary-soft: #eef2ff;
+  --primary-border: #c7d2fe;
+  --text-main: #0f172a;
+  --text-sub: #475569;
+  --text-muted: #94a3b8;
+  --green: #10b981;
+  --green-dark: #059669;
+  --green-soft: #ecfdf5;
+  --green-border: #6ee7b7;
+  --red: #ef4444;
+  --red-dark: #dc2626;
+  --red-soft: #fef2f2;
+  --red-border: #fca5a5;
+  --amber: #d97706;
+  --amber-soft: #fffbeb;
+}
+
+page,
+body {
+  font-family: 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: var(--text-main);
+  background-color: var(--bg);
+  font-size: 28px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+view,
+text,
+image,
+button,
+input,
+textarea,
+scroll-view,
+navigator {
+  box-sizing: border-box;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+
+  &::after {
+    display: none;
+  }
+}
+
+.zx-card {
+  background: var(--surface);
+  border: 1Px solid var(--border);
+  border-radius: 32px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.035);
+}
+
+.zx-btn-primary {
+  width: 100%;
+  height: 92px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  color: #ffffff;
+  font-size: 30px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  box-shadow: 0 12px 32px rgba(79, 70, 229, 0.24);
+}
+
+.zx-btn-primary.is-disabled {
+  opacity: 0.6;
+}

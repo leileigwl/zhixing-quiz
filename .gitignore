@@ -1,0 +1,32 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Environment & Local Data
+.env
+.env.*
+!.env.example
+backend/data/
+data/
+
+# Node / Taro
+node_modules/
+frontend/dist/
+frontend/dist-h5/
+frontend/.temp/
+frontend/.swc/
+.turbo/
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / IDE / DevTools private
+.DS_Store
+.idea/
+.vscode/
+/project.config.json
+project.private.config.json
+**/project.private.config.json

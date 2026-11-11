@@ -1,0 +1,269 @@
+.report-page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: 24px 32px 176px;
+}
+
+.report-ring-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.ring-outer {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring-inner {
+  width: 164px;
+  height: 164px;
+  border-radius: 50%;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring-pct {
+  font-size: 48px;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1.1;
+}
+
+.ring-label {
+  font-size: 22px;
+  color: var(--text-sub);
+  margin-top: 4px;
+}
+
+.xp-gain-pill {
+  margin-top: 14px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 23px;
+  font-weight: 700;
+  padding: 6px 20px;
+  border-radius: 999px;
+}
+
+.stat-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.stat-tile {
+  border-radius: 22px;
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+
+  &.is-green {
+    background: var(--green-soft);
+    border: 1Px solid #bbf7d0;
+    color: var(--green-dark);
+  }
+
+  &.is-red {
+    background: var(--red-soft);
+    border: 1Px solid #fecaca;
+    color: var(--red-dark);
+  }
+}
+
+.report-encourage {
+  display: block;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 24px;
+}
+
+.report-loading {
+  padding: 48px;
+  text-align: center;
+}
+
+.report-loading-text {
+  font-size: 26px;
+  color: var(--text-sub);
+}
+
+.report-block {
+  padding: 24px 28px;
+  margin-bottom: 20px;
+}
+
+.kp-section {
+  margin-bottom: 20px;
+}
+
+.kp-section-last {
+  margin-bottom: 0;
+}
+
+.report-subhead {
+  display: block;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 14px;
+}
+
+.pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pill-green {
+  background: var(--green-soft);
+  color: var(--green-dark);
+  font-size: 23px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 12px;
+}
+
+.pill-red {
+  background: var(--red-soft);
+  color: var(--red-dark);
+  font-size: 23px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 12px;
+}
+
+.summary-line {
+  display: block;
+  font-size: 24px;
+  line-height: 1.6;
+  color: var(--text-sub);
+  margin-bottom: 6px;
+}
+
+.block-divider {
+  height: 1Px;
+  background: var(--border);
+  margin: 18px 0 20px;
+}
+
+.quote-card {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  border-radius: 26px;
+  padding: 26px 28px;
+  margin-bottom: 20px;
+  color: #ffffff;
+}
+
+.quote-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.quote-title {
+  font-size: 24px;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.share-pill {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 600;
+  padding: 6px 18px;
+  border-radius: 999px;
+}
+
+.quote-text {
+  display: block;
+  font-size: 26px;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+.review-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.review-arrow {
+  font-size: 24px;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.review-list {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.review-item {
+  border-top: 1Px solid var(--border);
+  padding-top: 18px;
+}
+
+.review-stem {
+  display: block;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 10px;
+}
+
+.review-image {
+  width: 100%;
+  height: 240px;
+  margin-bottom: 12px;
+}
+
+.review-status {
+  display: block;
+  font-size: 23px;
+  font-weight: 700;
+  margin-bottom: 8px;
+
+  &.is-green {
+    color: var(--green-dark);
+  }
+
+  &.is-red {
+    color: var(--red-dark);
+  }
+}
+
+.review-explain {
+  display: block;
+  font-size: 24px;
+  line-height: 1.55;
+  color: var(--text-sub);
+}
+
+.sticky-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20px 32px calc(24px + env(safe-area-inset-bottom));
+  background: #ffffff;
+  border-top: 1Px solid var(--border);
+}

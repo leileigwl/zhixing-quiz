@@ -1,0 +1,49 @@
+name: zhixing-quiz
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-zhixing_dev_pass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-zhixing_quiz}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      CHROMA_PERSIST_DIR: /app/data/chroma
+      KB_UPLOAD_DIR: /app/data/uploads
+      LOCAL_IMAGE_DIR: /app/data/static/quiz-images
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  app_data:

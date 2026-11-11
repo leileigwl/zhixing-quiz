@@ -1,0 +1,49 @@
+[project]
+name = "zhixing-quiz-api"
+version = "0.1.0"
+description = "知行快刷（ZhiXing Quiz）AI 知识库自测与智能闯关小程序后端服务"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0,<1.0.0",
+  "uvicorn[standard]>=0.30.0,<1.0.0",
+  "pydantic>=2.0.0,<3.0.0",
+  "pydantic-settings>=2.0.0,<3.0.0",
+  "langchain-core>=0.3.0,<1.0.0",
+  "langchain-openai>=0.3.0,<1.0.0",
+  "langchain-tavily>=0.1.0,<1.0.0",
+  "langgraph>=0.3.0,<1.0.0",
+  "langchain-chroma>=0.2.0,<0.3.0",
+  "langchain-community>=0.3.0,<0.4.0",
+  "langchain-text-splitters>=0.3.0,<1.0.0",
+  "chromadb>=1.0.0,<2.0.0",
+  "pypdf>=5.0.0,<6.0.0",
+  "docx2txt>=0.8,<1.0",
+  "python-multipart>=0.0.9,<1.0.0",
+  "structlog>=24.0.0,<26.0.0",
+  "python-dotenv>=1.0.0,<2.0.0",
+  "aiomysql>=0.2.0,<1.0.0",
+  "cryptography>=41.0.0,<50.0.0",
+  "PyJWT>=2.8.0,<3.0.0",
+  "httpx>=0.27.0,<1.0.0",
+  "dashscope>=1.20.0,<2.0.0",
+  "cos-python-sdk-v5>=1.9.30,<2.0.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0.0,<9.0.0",
+  "pytest-asyncio>=0.24.0,<1.0.0",
+  "ruff>=0.11.0,<1.0.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["B008", "E501", "UP045", "UP017", "UP011", "UP041"]

@@ -1,0 +1,1918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>知行快刷（ZhiXing Quiz）— 5 屏交互式 UI 原型图</title>
+  <style>
+    :root {
+      --bg-canvas: #eef1f6;
+      --bg-page: #f5f7fb;
+      --surface: #ffffff;
+      --surface-muted: #f1f5f9;
+      --border: #e5eaf2;
+      --border-strong: #cbd5e1;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-soft: #eef2ff;
+      --primary-border: #c7d2fe;
+      --text-main: #0f172a;
+      --text-sub: #475569;
+      --text-muted: #94a3b8;
+      --green: #10b981;
+      --green-dark: #059669;
+      --green-soft: #ecfdf5;
+      --green-border: #6ee7b7;
+      --red: #ef4444;
+      --red-dark: #dc2626;
+      --red-soft: #fef2f2;
+      --red-border: #fca5a5;
+      --amber: #d97706;
+      --amber-soft: #fffbeb;
+      --amber-border: #fde68a;
+      --shadow-card: 0 2px 10px rgba(15, 23, 42, 0.035);
+      --shadow-phone: 0 20px 50px rgba(15, 23, 42, 0.10);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Microsoft YaHei", sans-serif;
+      background: var(--bg-canvas);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    /* Top Control Bar */
+    .proto-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 12px 24px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #dde3ee;
+    }
+
+    .proto-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .proto-badge {
+      background: var(--primary);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .proto-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .proto-sub {
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .mode-switch {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #e8ecf4;
+      padding: 4px;
+      border-radius: 10px;
+    }
+
+    .mode-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-sub);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .mode-btn.active {
+      background: #fff;
+      color: var(--primary);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+    }
+
+    /* Stage Layouts */
+    .stage-overview {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 24px;
+      padding: 28px 24px 48px;
+      overflow-x: auto;
+    }
+
+    .stage-interactive {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 48px;
+      gap: 16px;
+    }
+
+    body.mode-interactive .stage-overview {
+      display: none;
+    }
+
+    body.mode-interactive .stage-interactive {
+      display: flex;
+    }
+
+    .phone-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .phone-caption {
+      font-size: 14px;
+      font-weight: 700;
+      color: #334155;
+      letter-spacing: 0.2px;
+    }
+
+    /* Phone Frame */
+    .phone-frame {
+      width: 375px;
+      height: 812px;
+      background: var(--bg-page);
+      border-radius: 36px;
+      border: 8px solid #ffffff;
+      box-shadow: var(--shadow-phone);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .stage-overview .phone-frame {
+      transform-origin: top center;
+    }
+
+    @media (max-width: 1960px) {
+      .stage-overview {
+        justify-content: flex-start;
+      }
+    }
+
+    /* Status Bar */
+    .status-bar {
+      height: 44px;
+      padding: 12px 22px 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      background: var(--bg-page);
+      flex-shrink: 0;
+    }
+
+    .status-bar.white-bar {
+      background: #fff;
+    }
+
+    .status-icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Scroll Area */
+    .screen-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 16px 20px;
+      scrollbar-width: none;
+    }
+    .screen-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Top Nav for Subpages */
+    .sub-navbar {
+      height: 46px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #fff;
+      border-bottom: 1px solid #eef2f7;
+      flex-shrink: 0;
+    }
+
+    .sub-nav-back {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      border: none;
+      background: transparent;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+
+    .sub-nav-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .sub-nav-right {
+      min-width: 38px;
+      text-align: right;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+
+    /* Bottom Tab Bar */
+    .tab-bar {
+      height: 66px;
+      background: #ffffff;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      padding-bottom: 8px;
+      flex-shrink: 0;
+    }
+
+    .tab-item {
+      border: none;
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .tab-item.active {
+      color: var(--primary);
+    }
+
+    /* Shared UI Components */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow-card);
+    }
+
+    .btn-primary {
+      width: 100%;
+      height: 46px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 6px 16px rgba(79, 70, 229, 0.24);
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+
+    .btn-primary:active {
+      transform: scale(0.985);
+    }
+
+    /* Screen 1: Home */
+    .home-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .user-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .avatar-sm {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+      color: var(--primary);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1.5px solid #fff;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+    }
+
+    .user-pill-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .xp-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 999px;
+      box-shadow: 0 4px 10px rgba(79, 70, 229, 0.22);
+    }
+
+    .hero-title {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.3px;
+      margin-bottom: 6px;
+    }
+
+    .hero-desc {
+      font-size: 13px;
+      color: var(--text-sub);
+      margin-bottom: 16px;
+    }
+
+    .input-card {
+      background: #fff;
+      border: 1.5px solid #d7dfec;
+      border-radius: 14px;
+      padding: 12px 14px 10px;
+      margin-bottom: 12px;
+      transition: border-color 0.15s ease;
+    }
+
+    .input-card:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    .prompt-textarea {
+      width: 100%;
+      height: 82px;
+      border: none;
+      outline: none;
+      resize: none;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--text-main);
+      background: transparent;
+    }
+
+    .prompt-textarea::placeholder {
+      color: #94a3b8;
+    }
+
+    .char-counter {
+      text-align: right;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .chips-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .topic-chip {
+      border: none;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .topic-chip:hover {
+      background: #e0e7ff;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 2px 14px;
+    }
+
+    .toggle-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .switch {
+      width: 46px;
+      height: 26px;
+      border-radius: 999px;
+      background: #cbd5e1;
+      padding: 3px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      display: flex;
+      align-items: center;
+    }
+
+    .switch.on {
+      background: var(--primary);
+      justify-content: flex-end;
+    }
+
+    .switch-knob {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 2px 4px rgba(15, 23, 42, 0.18);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 22px 0 10px;
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .section-link {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--primary);
+      cursor: pointer;
+      background: none;
+      border: none;
+    }
+
+    .recent-card {
+      padding: 13px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .recent-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .recent-time {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .recent-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .badge-mastery {
+      flex-shrink: 0;
+      background: var(--green-soft);
+      color: var(--green-dark);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 8px;
+    }
+
+    /* Screen 2: Knowledge Base */
+    .page-h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin: 4px 0 14px;
+    }
+
+    .kb-notice {
+      background: var(--primary-soft);
+      border: 1px solid #dbe4ff;
+      border-radius: 12px;
+      padding: 11px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .kb-notice-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 2px;
+    }
+
+    .kb-notice-sub {
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .upload-box {
+      background: #f5f7ff;
+      border: 1.5px dashed #818cf8;
+      border-radius: 16px;
+      padding: 28px 16px;
+      text-align: center;
+      margin-bottom: 20px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .upload-box:hover {
+      background: #eef2ff;
+    }
+
+    .upload-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-top: 8px;
+      margin-bottom: 4px;
+    }
+
+    .upload-sub {
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .doc-card {
+      padding: 14px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .file-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .file-icon.pdf {
+      background: #fee2e2;
+      color: #dc2626;
+    }
+
+    .file-icon.docx {
+      background: #dbeafe;
+      color: #2563eb;
+    }
+
+    .file-icon.md {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .doc-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .doc-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .doc-meta {
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-bottom: 10px;
+    }
+
+    .doc-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 9px;
+      border-radius: 999px;
+    }
+
+    .status-pill.ready {
+      background: var(--green-soft);
+      color: var(--green-dark);
+    }
+
+    .status-pill.processing {
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .doc-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-mini-primary {
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn-icon-del {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Screen 3: Quiz */
+    .quiz-progress-track {
+      height: 5px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 4px 0 14px;
+    }
+
+    .quiz-progress-fill {
+      height: 100%;
+      background: var(--primary);
+      border-radius: 999px;
+      transition: width 0.25s ease;
+    }
+
+    .quiz-tags {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .tag-outline {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary);
+      border: 1px solid #c7d2fe;
+      background: #fff;
+      padding: 3px 9px;
+      border-radius: 999px;
+    }
+
+    .tag-soft {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--primary);
+      background: var(--primary-soft);
+      padding: 3px 10px;
+      border-radius: 999px;
+    }
+
+    .quiz-stem {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.5;
+      color: var(--text-main);
+      margin-bottom: 12px;
+    }
+
+    .quiz-illustration {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .option-card {
+      width: 100%;
+      text-align: left;
+      background: #fff;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 13px;
+      margin-bottom: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.14s ease;
+    }
+
+    .option-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .option-key {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .option-card.selected {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+    }
+    .option-card.selected .option-key {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .option-card.wrong {
+      border-color: var(--red-border);
+      background: var(--red-soft);
+    }
+    .option-card.wrong .option-key {
+      background: #fee2e2;
+      color: var(--red-dark);
+    }
+
+    .option-card.correct {
+      border-color: var(--green-border);
+      background: var(--green-soft);
+    }
+    .option-card.correct .option-key {
+      background: #d1fae5;
+      color: var(--green-dark);
+    }
+
+    .option-status {
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .option-status.wrong { color: var(--red-dark); }
+    .option-status.correct { color: var(--green-dark); }
+
+    .explain-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+
+    .explain-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+
+    .explain-body {
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 10px 11px;
+      font-size: 12.5px;
+      line-height: 1.58;
+      color: var(--text-sub);
+    }
+
+    .sticky-footer {
+      padding: 10px 16px 18px;
+      background: #fff;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    /* Screen 4: Report */
+    .report-ring-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0 0 10px;
+    }
+
+    .ring-box {
+      position: relative;
+      width: 92px;
+      height: 92px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ring-center {
+      position: absolute;
+      text-align: center;
+    }
+
+    .ring-pct {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.1;
+    }
+
+    .ring-label {
+      font-size: 10.5px;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    .stat-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .stat-tile {
+      border-radius: 10px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12.5px;
+      font-weight: 700;
+    }
+
+    .stat-tile.green {
+      background: var(--green-soft);
+      color: var(--green-dark);
+    }
+
+    .stat-tile.red {
+      background: var(--red-soft);
+      color: var(--red-dark);
+    }
+
+    .report-encourage {
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 10px;
+    }
+
+    .report-block {
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+
+    .report-subhead {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .pill-green {
+      background: var(--green-soft);
+      color: var(--green-dark);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 6px;
+    }
+
+    .pill-red {
+      background: var(--red-soft);
+      color: var(--red-dark);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 6px;
+    }
+
+    .summary-list {
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--text-sub);
+      padding-left: 14px;
+    }
+
+    .summary-list li {
+      margin-bottom: 2px;
+    }
+
+    .quote-card {
+      background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+      border-radius: 12px;
+      padding: 11px 13px;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+
+    .quote-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      font-weight: 700;
+      opacity: 0.92;
+      margin-bottom: 5px;
+    }
+
+    .share-pill {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2.5px 8px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .quote-text {
+      font-size: 12px;
+      line-height: 1.48;
+      font-weight: 500;
+    }
+
+    /* Screen 5: Profile */
+    .profile-hero {
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .avatar-lg {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+      color: var(--primary);
+      font-size: 20px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .profile-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .profile-name {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .profile-motto {
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .kpi-card {
+      padding: 14px 12px;
+      text-align: center;
+    }
+
+    .kpi-num {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .kpi-num.primary {
+      color: var(--primary);
+    }
+
+    .kpi-unit {
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: 2px;
+    }
+
+    .kpi-label {
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+
+    .history-card {
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .acc-tag {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 9px;
+      border-radius: 8px;
+    }
+
+    .acc-tag.high {
+      background: var(--green-soft);
+      color: var(--green-dark);
+    }
+
+    .acc-tag.mid {
+      background: #e0f2fe;
+      color: #0284c7;
+    }
+
+    .acc-tag.warn {
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    /* Interactive Modal / Toast inside phone */
+    .phone-toast {
+      position: absolute;
+      top: 58px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 999px;
+      z-index: 40;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .phone-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 30;
+    }
+
+    .loading-modal {
+      width: 100%;
+      background: #fff;
+      border-radius: 18px;
+      padding: 22px 18px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.2);
+    }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid #e0e7ff;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      margin: 0 auto 12px;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <header class="proto-toolbar">
+    <div class="proto-brand">
+      <span class="proto-badge">Phase 2 原型确认</span>
+      <div>
+        <div class="proto-title">知行快刷（ZhiXing Quiz）5 屏高保真交互原型</div>
+        <div class="proto-sub">100% 对齐参考图视觉规范：#F5F7FB 冷白底 · #4F46E5 靛蓝主色 · 3 平级 Tab</div>
+      </div>
+    </div>
+    <div class="mode-switch">
+      <button id="btnOverview" class="mode-btn active" onclick="setMode('overview')">5 屏并排总览</button>
+      <button id="btnInteractive" class="mode-btn" onclick="setMode('interactive')">单机沉浸体验</button>
+    </div>
+  </header>
+
+  <!-- Mode 1: 5 Screens Side-by-Side Overview -->
+  <main id="overviewStage" class="stage-overview"></main>
+
+  <!-- Mode 2: Interactive Single Mobile Simulator -->
+  <section id="interactiveStage" class="stage-interactive">
+    <div id="interactiveHost"></div>
+    <div class="proto-sub">提示：在单机体验模式下，可真实点击快捷主题、开关、上传模拟、答题交卷、编辑昵称与历史回看。</div>
+  </section>
+
+  <script>
+    const state = {
+      mode: 'overview',
+      activeScreen: 'home',
+      inputValue: '',
+      generateImages: true,
+      loadingTaskText: '',
+      toastText: '',
+      nickname: '高同学',
+      xp: 128,
+      docs: [
+        { id: 'd1', name: '计算机网络复习笔记.pdf', type: 'pdf', size: '2.4 MB', chunks: 24, status: 'ready' },
+        { id: 'd2', name: 'RAG 原理与实践.docx', type: 'docx', size: '1.8 MB', chunks: 18, status: 'processing' },
+        { id: 'd3', name: '考研政治重点梳理.md', type: 'md', size: '850 KB', chunks: 12, status: 'ready' }
+      ],
+      history: [
+        { id: 'q101', title: 'RAG 检索基础知识自测', date: '2026-11-11 14:30', count: 5, duration: '08:24', accuracy: 80 },
+        { id: 'q102', title: '计算机网络 · TCP/IP 协议', date: '2026-11-10 18:45', count: 5, duration: '06:12', accuracy: 100 },
+        { id: 'q103', title: '考研政治 · 马克思主义原理', date: '2026-11-09 17:20', count: 5, duration: '07:40', accuracy: 60 },
+        { id: 'q104', title: 'Python 异步编程基础', date: '2026-11-08 21:10', count: 5, duration: '05:50', accuracy: 100 }
+      ],
+      quiz: {
+        title: '知识自测',
+        currentIdx: 1,
+        selected: ['A'],
+        submitted: true,
+        explainOpen: true,
+        questions: [
+          {
+            type: '单选题',
+            kp: 'RAG 基础流程',
+            stem: 'RAG（检索增强生成）流程中，在将私有文档切片存入向量库前，通常必须经过哪个步骤？',
+            hasImage: false,
+            options: [
+              { key: 'A', text: '文本向量化（Embedding）' },
+              { key: 'B', text: '模型微调训练（Fine-tuning）' },
+              { key: 'C', text: '生成二维码索引' },
+              { key: 'D', text: '图片压缩转码' }
+            ],
+            answer: ['A'],
+            explanation: '文档切片需要通过 Embedding 模型转换为高维向量后才能存入 Chroma 等向量数据库进行语义检索。'
+          },
+          {
+            type: '单选题',
+            kp: '向量检索',
+            stem: '在向量检索系统中，以下哪种方法通常用于衡量查询向量与文档向量的相似度？',
+            hasImage: true,
+            options: [
+              { key: 'A', text: '曼哈顿距离' },
+              { key: 'B', text: '余弦相似度' },
+              { key: 'C', text: '欧几里得均值' },
+              { key: 'D', text: '编辑距离' }
+            ],
+            answer: ['B'],
+            explanation: '在向量检索中，余弦相似度是最常用的相似度度量方法之一，它衡量的是两个向量方向的夹角，范围在 -1 到 1 之间，越接近 1 表示语义越相近。'
+          },
+          {
+            type: '多选题',
+            kp: '文档切分策略',
+            stem: '设置合理的文本切块重叠（chunk_overlap）可以带来哪些好处？',
+            hasImage: false,
+            options: [
+              { key: 'A', text: '避免关键句子被强行截断丢失上下文' },
+              { key: 'B', text: '提高跨段落边界语义检索的召回率' },
+              { key: 'C', text: '完全替代大语言模型推理' },
+              { key: 'D', text: '降低所有存储开销' }
+            ],
+            answer: ['A', 'B'],
+            explanation: '保留适当的 overlap 可以确保相邻切块之间有语义衔接，避免整句话被一刀劈断。'
+          },
+          {
+            type: '判断题',
+            kp: '异步防超时',
+            stem: '微信小程序单次网络请求受平台超时限制，因此 AI 出题适合采用“秒级返回 task_id + 定时轮询”机制。',
+            hasImage: false,
+            options: [
+              { key: 'A', text: '正确' },
+              { key: 'B', text: '错误' }
+            ],
+            answer: ['A'],
+            explanation: '微信小程序网络请求存在超时上限，异步任务创建后立即返回 task_id 并由前端每 2 秒轮询可彻底避免超时断连。'
+          },
+          {
+            type: '单选题',
+            kp: '多用户隔离',
+            stem: '在私有知识库出题系统中，如何防止大模型调用检索工具时越权访问他人文档？',
+            hasImage: false,
+            options: [
+              { key: 'A', text: '让大模型自己在提示词里保证不越权' },
+              { key: 'B', text: '通过服务端闭包锁定当前 user_id 与 doc_id' },
+              { key: 'C', text: '把所有用户文档混在一个集合不加过滤' },
+              { key: 'D', text: '依靠前端隐藏按钮' }
+            ],
+            answer: ['B'],
+            explanation: '服务端通过闭包绑定当前鉴权用户的 user_id 与 doc_id，大模型仅能传入查询词 query，无法篡改归属身份。'
+          }
+        ],
+        results: [true, false]
+      },
+      report: {
+        accuracy: 80,
+        correct: 4,
+        wrong: 1,
+        heading: '🎉 掌握扎实，继续突破薄弱点！',
+        mastered: ['向量检索原理', '余弦相似度', 'RAG 流程'],
+        weak: ['向量索引结构', '召回重排'],
+        summary: [
+          '向量检索通过将文本映射到向量空间进行语义匹配。',
+          '余弦相似度是衡量向量语义相近度的常用方法。',
+          '检索效果受向量质量、切分结构与召回策略影响。'
+        ],
+        advice: [
+          '针对薄弱知识点进行专项重刷练习',
+          '补充对比：HNSW 与 IVF 向量索引结构笔记',
+          '尝试基于个人 PDF 笔记进行更高难度自测'
+        ],
+        quote: '不是所有的努力都会立刻回报，但所有的成长都值得被记录。'
+      }
+    };
+
+    const icons = {
+      bolt: `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+      chevronDown: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>`,
+      chevronRight: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg>`,
+      back: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>`,
+      info: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>`,
+      upload: `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V7"/><path d="m8 11 4-4 4 4"/><path d="M20 16.5A4.5 4.5 0 0 0 17.5 8h-1.1A7 7 0 1 0 4 14.9"/></svg>`,
+      trash: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>`,
+      edit: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+      tabQuiz: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="m13 8-4 5h4l-1 4 4-5h-4z"/></svg>`,
+      tabKb: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg>`,
+      tabMe: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>`,
+      signal: `<svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor"><rect x="0" y="7" width="2.5" height="4" rx="0.8"/><rect x="4" y="5" width="2.5" height="6" rx="0.8"/><rect x="8" y="2.5" width="2.5" height="8.5" rx="0.8"/><rect x="12" y="0" width="2.5" height="11" rx="0.8"/></svg>`,
+      battery: `<svg width="22" height="11" viewBox="0 0 22 11" fill="none"><rect x="0.5" y="0.5" width="18" height="10" rx="2.5" stroke="#0f172a"/><rect x="2" y="2" width="15" height="7" rx="1.2" fill="#0f172a"/><path d="M20 3.5v4" stroke="#0f172a" stroke-width="1.5" stroke-linecap="round"/></svg>`
+    };
+
+    function statusBar(white = false) {
+      return `
+        <div class="status-bar ${white ? 'white-bar' : ''}">
+          <span>9:41</span>
+          <div class="status-icons">${icons.signal}${icons.battery}</div>
+        </div>`;
+    }
+
+    function tabBar(active, interactive) {
+      const clickAttr = (tab) => interactive ? `onclick="goScreen('${tab}')"` : '';
+      return `
+        <nav class="tab-bar">
+          <button class="tab-item ${active === 'home' ? 'active' : ''}" ${clickAttr('home')}>
+            ${icons.tabQuiz}<span>闯关</span>
+          </button>
+          <button class="tab-item ${active === 'knowledge' ? 'active' : ''}" ${clickAttr('knowledge')}>
+            ${icons.tabKb}<span>知识库</span>
+          </button>
+          <button class="tab-item ${active === 'profile' ? 'active' : ''}" ${clickAttr('profile')}>
+            ${icons.tabMe}<span>我的</span>
+          </button>
+        </nav>`;
+    }
+
+    function renderHome(interactive) {
+      const val = interactive ? state.inputValue : '';
+      const imgOn = interactive ? state.generateImages : true;
+      const recent = state.history.slice(0, 2);
+      return `
+        ${statusBar(false)}
+        <div class="screen-scroll">
+          <div class="home-header">
+            <div class="user-pill" ${interactive ? `onclick="goScreen('profile')"` : ''}>
+              <div class="avatar-sm">${state.nickname.slice(0, 1)}</div>
+              <span class="user-pill-name">${state.nickname}</span>
+              ${icons.chevronDown}
+            </div>
+            <div class="xp-pill">${icons.bolt}<span>${state.xp}</span></div>
+          </div>
+
+          <div class="hero-title">今天想自测什么？</div>
+          <div class="hero-desc">输入主题或知识点，AI 为你生成个性化题目</div>
+
+          <div class="input-card">
+            <textarea
+              class="prompt-textarea"
+              placeholder="例如：RAG 原理、计算机网络、考研政治..."
+              maxlength="500"
+              ${interactive ? `oninput="updatePromptInput(this.value)"` : ''}
+            >${val}</textarea>
+            <div class="char-counter">${val.length}/500</div>
+          </div>
+
+          <div class="chips-row">
+            ${['RAG 检索', '计算机网络', '考研政治'].map(t => `
+              <button class="topic-chip" ${interactive ? `onclick="fillTopic('${t}')"` : ''}>${t}</button>
+            `).join('')}
+          </div>
+
+          <div class="toggle-row">
+            <span class="toggle-label">为题目生成配图</span>
+            <div class="switch ${imgOn ? 'on' : ''}" ${interactive ? `onclick="toggleImages()"` : ''}>
+              <div class="switch-knob"></div>
+            </div>
+          </div>
+
+          <button class="btn-primary" ${interactive ? `onclick="startQuizFlow()"` : ''}>
+            ${icons.bolt}<span>开始智能出题</span>
+          </button>
+
+          <div class="section-head">
+            <span class="section-title">最近闯关</span>
+            <button class="section-link" ${interactive ? `onclick="goScreen('profile')"` : ''}>全部记录 ›</button>
+          </div>
+
+          ${recent.map(item => `
+            <div class="card recent-card" ${interactive ? `onclick="openReportFromHistory('${item.id}')"` : ''}>
+              <div>
+                <div class="recent-title">${item.title}</div>
+                <div class="recent-time">${item.date}</div>
+                <div class="recent-meta">
+                  <span>📄 共 ${item.count} 题</span>
+                  <span>⏱ 用时 ${item.duration}</span>
+                </div>
+              </div>
+              <span class="badge-mastery">${item.accuracy}% 掌握</span>
+            </div>
+          `).join('')}
+        </div>
+        ${tabBar('home', interactive)}
+      `;
+    }
+
+    function renderKnowledge(interactive) {
+      const readyCount = state.docs.length;
+      return `
+        ${statusBar(false)}
+        <div class="screen-scroll">
+          <div class="page-h1">私有知识库</div>
+
+          <div class="kb-notice">
+            <div>
+              <div class="kb-notice-title">支持 PDF / Word / MD / TXT</div>
+              <div class="kb-notice-sub">单文件 ≤ 10MB · 最多 10 篇</div>
+            </div>
+            ${icons.info}
+          </div>
+
+          <div class="upload-box" ${interactive ? `onclick="simulateUpload()"` : ''}>
+            ${icons.upload}
+            <div class="upload-title">点击上传学习资料</div>
+            <div class="upload-sub">支持从微信聊天或本地选择文件</div>
+          </div>
+
+          <div class="section-head" style="margin-top:4px;">
+            <span class="section-title">我的文档 (${readyCount}/10)</span>
+          </div>
+
+          ${state.docs.map(doc => `
+            <div class="card doc-card">
+              <div class="file-icon ${doc.type}">${doc.type.toUpperCase()}</div>
+              <div class="doc-body">
+                <div class="doc-name">${doc.name}</div>
+                <div class="doc-meta">${doc.size} · ${doc.chunks} 片段</div>
+                <div class="doc-footer">
+                  ${doc.status === 'ready'
+                    ? `<span class="status-pill ready">● 已就绪</span>`
+                    : `<span class="status-pill processing">● 解析中...</span>`
+                  }
+                  <div class="doc-actions">
+                    ${doc.status === 'ready'
+                      ? `<button class="btn-mini-primary" ${interactive ? `onclick="startDocQuiz('${doc.name}')"` : ''}>开始闯关 ›</button>`
+                      : ''
+                    }
+                    <button class="btn-icon-del" title="删除" ${interactive ? `onclick="deleteDoc('${doc.id}')"` : ''}>${icons.trash}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        ${tabBar('knowledge', interactive)}
+      `;
+    }
+
+    function renderQuiz(interactive) {
+      const idx = interactive ? state.quiz.currentIdx : 1;
+      const q = state.quiz.questions[idx];
+      const total = state.quiz.questions.length;
+      const pct = Math.round(((idx + 1) / total) * 100);
+      const selected = interactive ? state.quiz.selected : ['A'];
+      const submitted = interactive ? state.quiz.submitted : true;
+      const explainOpen = interactive ? state.quiz.explainOpen : true;
+
+      const vectorDiagram = `
+        <div class="quiz-illustration">
+          <svg width="310" height="92" viewBox="0 0 310 92" fill="none">
+            <rect x="6" y="18" width="76" height="56" rx="8" fill="#EEF2FF" stroke="#C7D2FE"/>
+            <text x="44" y="36" text-anchor="middle" fill="#4338CA" font-size="10" font-weight="700">查询向量</text>
+            <text x="44" y="50" text-anchor="middle" fill="#64748B" font-size="9">(Query)</text>
+            <text x="44" y="64" text-anchor="middle" fill="#4F46E5" font-size="9">[0.2, 0.7, ...]</text>
+
+            <path d="M84 46h22" stroke="#818CF8" stroke-width="1.8" stroke-dasharray="3 2"/>
+            <rect x="110" y="10" width="90" height="72" rx="8" fill="#F8FAFC" stroke="#CBD5E1"/>
+            <line x1="122" y1="70" x2="190" y2="70" stroke="#94A3B8" stroke-width="1.2"/>
+            <line x1="122" y1="70" x2="122" y2="20" stroke="#94A3B8" stroke-width="1.2"/>
+            <line x1="122" y1="70" x2="178" y2="28" stroke="#4F46E5" stroke-width="2"/>
+            <line x1="122" y1="70" x2="184" y2="48" stroke="#10B981" stroke-width="2"/>
+            <circle cx="152" cy="40" r="2.5" fill="#4F46E5"/>
+            <circle cx="164" cy="36" r="2.5" fill="#10B981"/>
+            <text x="155" y="79" text-anchor="middle" fill="#64748B" font-size="8.5">cos θ 夹角余弦</text>
+
+            <path d="M202 46h22" stroke="#818CF8" stroke-width="1.8" stroke-dasharray="3 2"/>
+            <rect x="226" y="14" width="78" height="64" rx="8" fill="#ECFDF5" stroke="#A7F3D0"/>
+            <text x="265" y="31" text-anchor="middle" fill="#059669" font-size="10" font-weight="700">文档向量库</text>
+            <text x="265" y="47" text-anchor="middle" fill="#475569" font-size="9">Doc 1 · 0.94</text>
+            <text x="265" y="60" text-anchor="middle" fill="#475569" font-size="9">Doc 2 · 0.87</text>
+          </svg>
+        </div>`;
+
+      return `
+        ${statusBar(true)}
+        <div class="sub-navbar">
+          <button class="sub-nav-back" ${interactive ? `onclick="goScreen('home')"` : ''}>${icons.back}</button>
+          <span class="sub-nav-title">知识自测</span>
+          <span class="sub-nav-right">${idx + 1} / ${total}</span>
+        </div>
+        <div class="screen-scroll" style="background:#fff; padding-top:6px;">
+          <div class="quiz-progress-track">
+            <div class="quiz-progress-fill" style="width:${pct}%"></div>
+          </div>
+
+          <div class="quiz-tags">
+            <span class="tag-outline">${q.type}</span>
+            <span class="tag-soft">知识点：${q.kp}</span>
+          </div>
+
+          <div class="quiz-stem">${q.stem}</div>
+          ${q.hasImage ? vectorDiagram : ''}
+
+          <div>
+            ${q.options.map(opt => {
+              const isSelected = selected.includes(opt.key);
+              const isAnswer = q.answer.includes(opt.key);
+              let cls = '';
+              let statusHtml = '';
+              if (submitted) {
+                if (isAnswer) {
+                  cls = 'correct';
+                  statusHtml = `<span class="option-status correct">✓ 正确答案</span>`;
+                } else if (isSelected && !isAnswer) {
+                  cls = 'wrong';
+                  statusHtml = `<span class="option-status wrong">✕ 你的选择</span>`;
+                }
+              } else if (isSelected) {
+                cls = 'selected';
+              }
+              return `
+                <button class="option-card ${cls}" ${interactive ? `onclick="selectOption('${opt.key}')"` : ''}>
+                  <span class="option-left">
+                    <span class="option-key">${opt.key}</span>
+                    <span>${opt.text}</span>
+                  </span>
+                  ${statusHtml}
+                </button>`;
+            }).join('')}
+          </div>
+
+          ${submitted ? `
+            <div class="explain-card">
+              <div class="explain-head" ${interactive ? `onclick="toggleExplain()"` : ''}>
+                <span>详细解析</span>
+                ${icons.chevronDown}
+              </div>
+              ${explainOpen ? `<div class="explain-body">${q.explanation}</div>` : ''}
+            </div>
+          ` : ''}
+        </div>
+        <div class="sticky-footer">
+          ${submitted
+            ? `<button class="btn-primary" ${interactive ? `onclick="nextQuestion()"` : ''}>${idx + 1 < total ? '下一题' : '查看复盘报告'}</button>`
+            : `<button class="btn-primary" ${interactive ? `onclick="submitQuestion()"` : ''}>提交答案</button>`
+          }
+        </div>
+      `;
+    }
+
+    function renderReport(interactive) {
+      const r = state.report;
+      const radius = 38;
+      const circ = 2 * Math.PI * radius;
+      const offset = circ * (1 - r.accuracy / 100);
+      return `
+        ${statusBar(true)}
+        <div class="sub-navbar">
+          <button class="sub-nav-back" ${interactive ? `onclick="goScreen('home')"` : ''}>${icons.back}</button>
+          <span class="sub-nav-title">闯关复盘报告</span>
+          <span class="sub-nav-right"></span>
+        </div>
+        <div class="screen-scroll" style="padding-top:8px;padding-bottom:10px;">
+          <div class="report-ring-wrap">
+            <div class="ring-box">
+              <svg width="92" height="92" viewBox="0 0 92 92" style="transform: rotate(-90deg);">
+                <circle cx="46" cy="46" r="${radius}" fill="none" stroke="#e2e8f0" stroke-width="8.5"/>
+                <circle cx="46" cy="46" r="${radius}" fill="none" stroke="#10b981" stroke-width="8.5"
+                        stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"/>
+              </svg>
+              <div class="ring-center">
+                <div class="ring-pct">${r.accuracy}%</div>
+                <div class="ring-label">正确率</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-pair">
+            <div class="stat-tile green">✓ 答对 ${r.correct} 题</div>
+            <div class="stat-tile red">✕ 答错 ${r.wrong} 题</div>
+          </div>
+
+          <div class="report-encourage">${r.heading}</div>
+
+          <div class="card report-block">
+            <div class="report-subhead">掌握较好</div>
+            <div class="pill-group" style="margin-bottom:7px;">
+              ${r.mastered.map(p => `<span class="pill-green">${p}</span>`).join('')}
+            </div>
+            <div class="report-subhead">薄弱知识点</div>
+            <div class="pill-group">
+              ${r.weak.map(p => `<span class="pill-red">${p}</span>`).join('')}
+            </div>
+          </div>
+
+          <div class="card report-block">
+            <div class="report-subhead">三句核心总结</div>
+            <ol class="summary-list" style="margin-bottom:6px;">
+              ${r.summary.map(s => `<li>${s}</li>`).join('')}
+            </ol>
+            <div style="height:1px;background:#eef2f7;margin:6px 0 7px;"></div>
+            <div class="report-subhead">下一步建议</div>
+            <ul class="summary-list">
+              ${r.advice.map(a => `<li>${a}</li>`).join('')}
+            </ul>
+          </div>
+
+          <div class="quote-card">
+            <div class="quote-head">
+              <span>今日学习金句</span>
+              <button class="share-pill" ${interactive ? `onclick="showToast('学习金句已复制，快去分享吧')"` : ''}>分享</button>
+            </div>
+            <div class="quote-text">“${r.quote}”</div>
+          </div>
+        </div>
+        <div class="sticky-footer">
+          <button class="btn-primary" ${interactive ? `onclick="goScreen('home')"` : ''}>返回首页</button>
+        </div>
+      `;
+    }
+
+    function renderProfile(interactive) {
+      return `
+        ${statusBar(false)}
+        <div class="screen-scroll">
+          <div class="card profile-hero">
+            <div class="avatar-lg">${state.nickname.slice(0, 1)}</div>
+            <div style="flex:1;">
+              <div class="profile-name-row">
+                <span class="profile-name">${state.nickname}</span>
+                <button class="btn-icon-del" title="编辑昵称" ${interactive ? `onclick="editNickname()"` : ''}>${icons.edit}</button>
+              </div>
+              <div class="profile-motto">知行快刷，刷出真知！</div>
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="card kpi-card">
+              <div class="kpi-num primary">${state.xp}<span class="kpi-unit">XP</span></div>
+              <div class="kpi-label">累计经验值</div>
+            </div>
+            <div class="card kpi-card">
+              <div class="kpi-num">${state.history.length}<span class="kpi-unit">次</span></div>
+              <div class="kpi-label">闯关次数</div>
+            </div>
+            <div class="card kpi-card">
+              <div class="kpi-num">34<span class="kpi-unit">题</span></div>
+              <div class="kpi-label">累计答对</div>
+            </div>
+            <div class="card kpi-card">
+              <div class="kpi-num primary">85%</div>
+              <div class="kpi-label">平均正确率</div>
+            </div>
+          </div>
+
+          <div class="section-head" style="margin-top:0;">
+            <span class="section-title">历史闯关记录</span>
+            <span class="section-link">共 ${state.history.length} 条</span>
+          </div>
+
+          ${state.history.map(item => {
+            const cls = item.accuracy >= 90 ? 'mid' : item.accuracy >= 75 ? 'high' : 'warn';
+            return `
+              <div class="card history-card" ${interactive ? `onclick="openReportFromHistory('${item.id}')"` : ''}>
+                <div>
+                  <div class="recent-title">${item.title}</div>
+                  <div class="recent-time" style="margin-bottom:4px;">${item.date}</div>
+                  <div class="recent-meta"><span>📄 共 ${item.count} 题</span></div>
+                </div>
+                <span class="acc-tag ${cls}">${item.accuracy}%</span>
+              </div>`;
+          }).join('')}
+        </div>
+        ${tabBar('profile', interactive)}
+      `;
+    }
+
+    function renderAll() {
+      const screens = [
+        { key: 'home', label: '1. 闯关首页', fn: renderHome },
+        { key: 'knowledge', label: '2. 知识库页', fn: renderKnowledge },
+        { key: 'quiz', label: '3. 答题页', fn: renderQuiz },
+        { key: 'report', label: '4. 复盘报告页', fn: renderReport },
+        { key: 'profile', label: '5. 我的页面', fn: renderProfile }
+      ];
+
+      document.getElementById('overviewStage').innerHTML = screens.map(s => `
+        <div class="phone-col">
+          <div class="phone-frame">${s.fn(false)}</div>
+          <div class="phone-caption">${s.label}</div>
+        </div>
+      `).join('');
+
+      const activeFn = screens.find(s => s.key === state.activeScreen).fn;
+      document.getElementById('interactiveHost').innerHTML = `
+        <div class="phone-frame">
+          ${activeFn(true)}
+          ${state.toastText ? `<div class="phone-toast">${state.toastText}</div>` : ''}
+          ${state.loadingTaskText ? `
+            <div class="phone-overlay">
+              <div class="loading-modal">
+                <div class="spinner"></div>
+                <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px;">正在创建出题任务</div>
+                <div style="font-size:12.5px;color:#64748b;">${state.loadingTaskText}</div>
+              </div>
+            </div>` : ''}
+        </div>`;
+    }
+
+    // Interactive Handlers
+    function setMode(mode) {
+      state.mode = mode;
+      document.body.classList.toggle('mode-interactive', mode === 'interactive');
+      document.getElementById('btnOverview').classList.toggle('active', mode === 'overview');
+      document.getElementById('btnInteractive').classList.toggle('active', mode === 'interactive');
+    }
+
+    function goScreen(screen) {
+      state.activeScreen = screen;
+      renderAll();
+    }
+
+    function showToast(msg) {
+      state.toastText = msg;
+      renderAll();
+      setTimeout(() => {
+        state.toastText = '';
+        renderAll();
+      }, 2000);
+    }
+
+    function updatePromptInput(v) {
+      state.inputValue = v;
+      const counter = document.querySelector('#interactiveHost .char-counter');
+      if (counter) counter.textContent = `${v.length}/500`;
+    }
+
+    function fillTopic(topic) {
+      state.inputValue = `我想重点复习「${topic}」的核心考点，请帮我生成一组 5 道闯关自测题并附上详细解析。`;
+      renderAll();
+    }
+
+    function toggleImages() {
+      state.generateImages = !state.generateImages;
+      renderAll();
+    }
+
+    function startQuizFlow(customTopic) {
+      const prompt = customTopic || state.inputValue.trim();
+      if (!prompt) {
+        showToast('请先输入学习内容或点选快捷标签');
+        return;
+      }
+      state.loadingTaskText = '已返回 task_id，正在每 2 秒轮询 AI 出题状态...';
+      renderAll();
+      setTimeout(() => {
+        state.loadingTaskText = '';
+        state.quiz.currentIdx = 0;
+        state.quiz.selected = [];
+        state.quiz.submitted = false;
+        state.quiz.results = [];
+        state.activeScreen = 'quiz';
+        renderAll();
+      }, 1200);
+    }
+
+    function simulateUpload() {
+      if (state.docs.length >= 10) {
+        showToast('知识库已达 10 篇上限');
+        return;
+      }
+      const newDoc = {
+        id: 'd_' + Date.now(),
+        name: 'FastAPI_异步并发实战.pdf',
+        type: 'pdf',
+        size: '1.2 MB',
+        chunks: 0,
+        status: 'processing'
+      };
+      state.docs.unshift(newDoc);
+      showToast('已上传，正在后台切块向量化...');
+      setTimeout(() => {
+        newDoc.status = 'ready';
+        newDoc.chunks = 16;
+        renderAll();
+      }, 1400);
+    }
+
+    function startDocQuiz(docName) {
+      startQuizFlow(`基于《${docName}》生成闯关题`);
+    }
+
+    function deleteDoc(id) {
+      state.docs = state.docs.filter(d => d.id !== id);
+      showToast('已级联清理向量、文件与记录');
+    }
+
+    function selectOption(key) {
+      const q = state.quiz.questions[state.quiz.currentIdx];
+      if (state.quiz.submitted) return;
+      if (q.type === '多选题') {
+        if (state.quiz.selected.includes(key)) {
+          state.quiz.selected = state.quiz.selected.filter(k => k !== key);
+        } else {
+          state.quiz.selected = [...state.quiz.selected, key].sort();
+        }
+      } else {
+        state.quiz.selected = [key];
+      }
+      renderAll();
+    }
+
+    function submitQuestion() {
+      if (state.quiz.selected.length === 0) {
+        showToast('请先选择一个选项');
+        return;
+      }
+      const q = state.quiz.questions[state.quiz.currentIdx];
+      const isRight = JSON.stringify([...state.quiz.selected].sort()) === JSON.stringify([...q.answer].sort());
+      state.quiz.results[state.quiz.currentIdx] = isRight;
+      state.quiz.submitted = true;
+      state.quiz.explainOpen = true;
+      renderAll();
+    }
+
+    function toggleExplain() {
+      state.quiz.explainOpen = !state.quiz.explainOpen;
+      renderAll();
+    }
+
+    function nextQuestion() {
+      if (state.quiz.currentIdx + 1 < state.quiz.questions.length) {
+        state.quiz.currentIdx += 1;
+        state.quiz.selected = [];
+        state.quiz.submitted = false;
+        renderAll();
+      } else {
+        const correct = state.quiz.results.filter(Boolean).length;
+        const total = state.quiz.questions.length;
+        state.report.correct = correct;
+        state.report.wrong = total - correct;
+        state.report.accuracy = Math.round((correct / total) * 100);
+        state.xp += 10 + correct * 2;
+        state.activeScreen = 'report';
+        renderAll();
+      }
+    }
+
+    function openReportFromHistory(id) {
+      const item = state.history.find(h => h.id === id);
+      if (item) {
+        state.report.accuracy = item.accuracy;
+        state.report.correct = Math.round((item.accuracy / 100) * item.count);
+        state.report.wrong = item.count - state.report.correct;
+      }
+      state.activeScreen = 'report';
+      renderAll();
+    }
+
+    function editNickname() {
+      const next = prompt('修改用户昵称', state.nickname);
+      if (next && next.trim()) {
+        state.nickname = next.trim().slice(0, 16);
+        showToast('昵称已更新');
+      }
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>
