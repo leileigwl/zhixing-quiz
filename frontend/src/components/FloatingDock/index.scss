@@ -1,0 +1,162 @@
+.zx-dock-wrap {
+  position: fixed;
+  left: 36px;
+  right: 36px;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  z-index: 900;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.zx-dock-pill {
+  width: 100%;
+  max-width: 680px;
+  height: 116px;
+  border-radius: 999px;
+  background: #18191e;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  box-shadow: 0 22px 48px -12px rgba(24, 25, 30, 0.38);
+  pointer-events: auto;
+}
+
+.zx-dock-tab {
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.zx-dock-tab.is-active {
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+}
+
+.zx-dock-sr {
+  position: absolute;
+  width: 1Px;
+  height: 1Px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 纯 CSS 跨端几何线性图标 */
+.dock-glyph {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dock-glyph.is-dark {
+  color: #18191e;
+}
+
+.dock-glyph.is-light {
+  color: rgba(255, 255, 255, 0.56);
+}
+
+/* 1. Home */
+.glyph-home {
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.gh-roof {
+  width: 24px;
+  height: 24px;
+  border-left: 3.5px solid currentColor;
+  border-top: 3.5px solid currentColor;
+  transform: rotate(45deg);
+  margin-bottom: -14px;
+  border-top-left-radius: 4px;
+}
+.gh-body {
+  width: 28px;
+  height: 18px;
+  border: 3.5px solid currentColor;
+  border-top: none;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.gh-door {
+  width: 10px;
+  height: 10px;
+  border: 3px solid currentColor;
+  border-bottom: none;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+
+/* 2. Pocket / Knowledge */
+.glyph-pocket {
+  flex-direction: column;
+}
+.gp-flap {
+  width: 28px;
+  height: 8px;
+  border: 3.5px solid currentColor;
+  border-bottom: none;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+.gp-box {
+  width: 28px;
+  height: 20px;
+  border: 3.5px solid currentColor;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* 3. Bars / Retention */
+.glyph-bars {
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  padding-bottom: 3px;
+}
+.gb-bar {
+  width: 5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.gb-bar.b1 {
+  height: 14px;
+}
+.gb-bar.b2 {
+  height: 28px;
+}
+.gb-bar.b3 {
+  height: 20px;
+}
+
+/* 4. User / Profile */
+.glyph-user {
+  flex-direction: column;
+  gap: 4px;
+}
+.gu-head {
+  width: 14px;
+  height: 14px;
+  border: 3.5px solid currentColor;
+  border-radius: 50%;
+}
+.gu-shoulder {
+  width: 26px;
+  height: 12px;
+  border: 3.5px solid currentColor;
+  border-bottom: none;
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}

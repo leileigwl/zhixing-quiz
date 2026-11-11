@@ -1,0 +1,82 @@
+.geo-prop {
+  position: relative;
+  width: 124px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.geo-cards {
+  .gc-back {
+    position: absolute;
+    left: 16px;
+    top: 26px;
+    width: 82px;
+    height: 54px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.72);
+    transform: rotate(-8deg);
+  }
+
+  .gc-front {
+    position: absolute;
+    left: 28px;
+    top: 14px;
+    width: 82px;
+    height: 54px;
+    border-radius: 18px;
+    background: #18191e;
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    gap: 10px;
+    box-shadow: 0 10px 22px rgba(24, 25, 30, 0.16);
+  }
+
+  .gc-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #f4d06f;
+    flex-shrink: 0;
+  }
+
+  .gc-line {
+    flex: 1;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.65);
+  }
+}
+
+.geo-target {
+  .gt-outer {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.78);
+  }
+
+  .gt-inner {
+    position: absolute;
+    left: 24px;
+    top: 12px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(79, 148, 196, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 18px rgba(79, 148, 196, 0.25);
+  }
+
+  .gt-core {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+  }
+}

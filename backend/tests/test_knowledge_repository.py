@@ -40,7 +40,17 @@ async def test_create_document_executes_insert():
         cursor.execute.assert_called_once()
         sql, params = cursor.execute.call_args[0]
         assert "INSERT INTO kb_documents" in sql
-        assert params == ("doc_1", 1, "a.pdf", "pdf", 1024)
+        assert params == ("doc_1", 1, None, None, "a.pdf", "pdf", 1024)
+
+
+@pytest.mark.asyncio
+async def test_update_document_domain():
+    pool, cursor = _make_pool()
+    with patch("app.repositories.knowledge_repository.get_mysql_pool", return_value=pool):
+        await knowledge_repository.update_document_domain("doc_1", 7, "RAG 架构")
+        sql, params = cursor.execute.call_args[0]
+        assert "UPDATE kb_documents SET domain_id = %s, domain_name = %s" in sql
+        assert params == (7, "RAG 架构", "doc_1")
 
 
 @pytest.mark.asyncio
@@ -62,11 +72,13 @@ async def test_update_document_status():
 
 @pytest.mark.asyncio
 async def test_get_document_found():
-    row = ("doc_1", 1, "a.pdf", "pdf", 1024, "ready", 5, None, None)
+    row = ("doc_1", 1, 7, "RAG 架构", "a.pdf", "pdf", 1024, "ready", 5, None, None)
     pool, cursor = _make_pool(fetchone_result=row)
     with patch("app.repositories.knowledge_repository.get_mysql_pool", return_value=pool):
         result = await knowledge_repository.get_document("doc_1", 1)
         assert result["doc_id"] == "doc_1"
+        assert result["domain_id"] == 7
+        assert result["domain_name"] == "RAG 架构"
         assert result["status"] == "ready"
         assert result["chunk_count"] == 5
 
@@ -82,14 +94,15 @@ async def test_get_document_not_found():
 @pytest.mark.asyncio
 async def test_list_documents():
     rows = [
-        ("doc_1", "a.pdf", "pdf", 1024, "ready", 5, None, None),
-        ("doc_2", "b.docx", "docx", 2048, "processing", 0, None, None),
+        ("doc_1", 7, "RAG 架构", "a.pdf", "pdf", 1024, "ready", 5, None, None),
+        ("doc_2", None, None, "b.docx", "docx", 2048, "processing", 0, None, None),
     ]
     pool, cursor = _make_pool(fetchall_result=rows)
     with patch("app.repositories.knowledge_repository.get_mysql_pool", return_value=pool):
         result = await knowledge_repository.list_documents(1)
         assert len(result) == 2
         assert result[0]["doc_id"] == "doc_1"
+        assert result[0]["domain_name"] == "RAG 架构"
         assert result[1]["status"] == "processing"
 
 

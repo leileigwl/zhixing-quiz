@@ -1,4 +1,4 @@
-"""向量存储服务 - 基于 Chroma 的多用户隔离知识库向量检索"""
+"""向量存储服务 - 支持 V2 独立 Chroma HTTP 服务（多 Worker 安全）与本地持久化兜底"""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import threading
 from functools import lru_cache
 from typing import Optional
 
+import chromadb
 import structlog
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -20,11 +21,7 @@ _chroma_init_lock = threading.RLock()
 
 @lru_cache
 def get_embeddings() -> Embeddings:
-    """获取 OpenAI 兼容模式的 Embedding 实例。
-
-    check_embedding_ctx_length=False：禁用 langchain_openai 默认的 tiktoken 分词，
-    避免百炼 / 硅基流动等服务端收到 token id 数组后报错。
-    """
+    """获取 OpenAI 兼容模式的 Embedding 实例。"""
     from langchain_openai import OpenAIEmbeddings
 
     settings = get_settings()
@@ -38,18 +35,31 @@ def get_embeddings() -> Embeddings:
 
 
 def get_user_vector_store(user_id: int, embeddings: Optional[Embeddings] = None):
-    """获取指定用户的 Chroma 向量库实例（按用户 ID 独立集合隔离）。
-
-    Chroma 的 SharedSystemClient / RustBindingsAPI 在并发首次初始化时非线程安全，
-    通过可重入锁串行化实例化，避免 asyncio.to_thread 并发上传/检索触发竞态异常。
-    """
+    """获取指定用户的 Chroma 向量库实例（优先连接独立 Chroma HTTP 服务）。"""
     from langchain_chroma import Chroma
 
     settings = get_settings()
+    emb = embeddings or get_embeddings()
+    chroma_host = (getattr(settings, "chroma_host", "") or "").strip()
+
+    if chroma_host:
+        chroma_port = int(getattr(settings, "chroma_port", 8001) or 8001)
+        chroma_ssl = bool(getattr(settings, "chroma_ssl", False))
+        client = chromadb.HttpClient(
+            host=chroma_host,
+            port=chroma_port,
+            ssl=chroma_ssl,
+        )
+        return Chroma(
+            collection_name=f"kb_user_{user_id}",
+            embedding_function=emb,
+            client=client,
+        )
+
     with _chroma_init_lock:
         return Chroma(
             collection_name=f"kb_user_{user_id}",
-            embedding_function=embeddings or get_embeddings(),
+            embedding_function=emb,
             persist_directory=settings.chroma_persist_dir,
         )
 

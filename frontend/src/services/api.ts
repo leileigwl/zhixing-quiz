@@ -137,7 +137,6 @@ export async function ensureLogin(forceRefresh = false): Promise<boolean> {
         return false
       }
 
-      // H5 开发调试模式：自动调用 dev-login 获取可联调的真实 JWT
       if (process.env.NODE_ENV === 'development') {
         const { body } = await rawRequest<LoginResponse>('/user/dev-login', {
           method: 'POST',
@@ -187,7 +186,7 @@ export async function request<T = any>(
   _retried = false,
 ): Promise<T> {
   await ensureAuthToken()
-  const { body } = await rawRequest<T>(url, options)
+  const { statusCode, body } = await rawRequest<T>(url, options)
 
   if (body?.code === 4010) {
     if (!_retried) {
@@ -200,6 +199,10 @@ export async function request<T = any>(
     throw new Error('登录状态已过期，请刷新或重新进入')
   }
 
+  if (statusCode === 404) {
+    throw new Error('ENDPOINT_NOT_FOUND')
+  }
+
   if (!body || body.code !== 0) {
     throw new Error(body?.message || '请求失败，请稍后重试')
   }
@@ -207,22 +210,53 @@ export async function request<T = any>(
   return body.data
 }
 
-/* ---- 出题与任务轮询 API ---- */
+/* ---- 出题与任务轮询 API（V2 支持自适应题量、冷启动自评、显式联网开关与领域 ID） ---- */
+
+export type SelfRatedLevel = 'unfamiliar' | 'familiar' | 'mastered'
+export type QuestionCountChoice = 'adaptive' | 3 | 5 | 10 | 15
+export type QuizSourceType = 'llm_direct' | 'kb_rag' | 'web_search'
+
+export interface GenerateQuizAsyncParams {
+  user_input: string
+  question_count?: number
+  adaptive_mode?: boolean
+  self_rated_level?: SelfRatedLevel
+  doc_id?: string
+  domain_id?: number
+  enable_web_search?: boolean
+  generate_images?: boolean
+  review_card_ids?: number[]
+}
 
 export function generateQuizAsync(
-  userInput: string,
+  paramsOrInput: string | GenerateQuizAsyncParams,
   questionCount = 5,
   docId?: string,
   generateImages = false,
 ) {
+  const payload: GenerateQuizAsyncParams =
+    typeof paramsOrInput === 'string'
+      ? {
+          user_input: paramsOrInput,
+          question_count: questionCount,
+          doc_id: docId,
+          generate_images: generateImages,
+        }
+      : paramsOrInput
+
   return request<{ task_id: string }>('/quiz/generate/async', {
     method: 'POST',
     data: {
-      user_input: userInput,
-      question_count: questionCount,
+      user_input: payload.user_input,
+      question_count: payload.question_count ?? 5,
+      adaptive_mode: payload.adaptive_mode ?? false,
+      self_rated_level: payload.self_rated_level,
       difficulty: 'mixed',
-      doc_id: docId,
-      generate_images: generateImages,
+      doc_id: payload.doc_id,
+      domain_id: payload.domain_id,
+      enable_web_search: payload.enable_web_search ?? false,
+      generate_images: payload.generate_images ?? false,
+      review_card_ids: payload.review_card_ids,
     },
   })
 }
@@ -282,6 +316,7 @@ export function submitQuizReport(params: {
         question_id: item.question_id,
         selected_answers: item.selected_answers,
         duration_ms: item.duration_ms,
+        mark_review: item.mark_review ?? false,
       })),
     },
     timeout: 30000,
@@ -348,6 +383,55 @@ export function generateReport(params: {
     data: params,
     timeout: 600000,
   })
+}
+
+/* ---- V2 图谱、记忆曲线与错题复习 API（兼容 Stage 1 V1 后端未升级前的平滑降级） ---- */
+
+export async function getMasteryOverview(domainId?: number): Promise<MasteryOverviewResponse | null> {
+  try {
+    const q = domainId ? `?domain_id=${domainId}` : ''
+    return await request<MasteryOverviewResponse>(`/mastery/overview${q}`)
+  } catch {
+    return null
+  }
+}
+
+export async function getDueReviews(limit = 20): Promise<DueReviewsResponse | null> {
+  try {
+    return await request<DueReviewsResponse>(`/reviews/due?limit=${limit}`)
+  } catch {
+    return null
+  }
+}
+
+export async function markQuestionForReview(params: {
+  quiz_id: string
+  question_id: string
+  action?: 'add' | 'skip'
+}): Promise<{ card_id: number; status: string } | null> {
+  try {
+    return await request<{ card_id: number; status: string }>('/reviews/mark', {
+      method: 'POST',
+      data: params,
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function grantSubscribeQuota(params: {
+  template_id?: string
+  count?: number
+  preferred_hour?: number
+}): Promise<{ remaining_count: number } | null> {
+  try {
+    return await request<{ remaining_count: number }>('/reviews/subscribe', {
+      method: 'POST',
+      data: params,
+    })
+  } catch {
+    return null
+  }
 }
 
 /* ---- 用户与历史 API ---- */
@@ -499,6 +583,11 @@ export interface QuizData {
   title: string
   summary: string
   questions: Question[]
+  source_type?: QuizSourceType
+  domain_id?: number
+  domain_name?: string
+  recommended_count?: number
+  adaptive_reason?: string
   image_status?: QuizImageStatus
   image_notice?: string | null
 }
@@ -524,12 +613,14 @@ export interface AnswerRecord {
   selected_answers: string[]
   is_correct: boolean
   duration_ms: number
+  mark_review?: boolean
 }
 
 export interface ReportSubmitAnswerItem {
   question_id: string
   selected_answers: string[]
   duration_ms: number
+  mark_review?: boolean
 }
 
 export interface ReportData {
@@ -550,6 +641,10 @@ export interface ReportSubmitResponse {
   xp_gain: number
   xp_awarded: boolean
   already_submitted: boolean
+  streak_days?: number
+  domain_name?: string
+  domain_mastery_after?: number
+  due_cards_created?: number
   report_status: ReportStatusEnum
   report?: ReportData | null
   error_message?: string | null
@@ -567,6 +662,7 @@ export interface UserBrief {
   nickname: string
   avatar_url: string
   total_xp: number
+  streak_days?: number
 }
 
 export interface LoginResponse {
@@ -579,6 +675,7 @@ export interface UserProfile {
   nickname: string
   avatar_url: string
   total_xp: number
+  streak_days?: number
   quiz_count: number
   correct_count: number
   average_accuracy: number
@@ -589,6 +686,8 @@ export interface QuizHistoryItem {
   title: string
   accuracy: number
   question_count: number
+  domain_name?: string
+  source_type?: QuizSourceType
   created_at: string
 }
 
@@ -604,6 +703,8 @@ export interface QuizDetailResponse {
   title: string
   summary: string
   user_input?: string
+  source_type?: QuizSourceType
+  domain_name?: string
   questions: Question[]
   image_status?: QuizImageStatus
   image_notice?: string | null
@@ -620,6 +721,8 @@ export interface KnowledgeUploadResponse {
   doc_id: string
   file_name: string
   status: KnowledgeDocumentStatusEnum
+  domain_id?: number
+  domain_name?: string
 }
 
 export interface KnowledgeDocumentItem {
@@ -629,6 +732,8 @@ export interface KnowledgeDocumentItem {
   file_size: number
   status: KnowledgeDocumentStatusEnum
   chunk_count: number
+  domain_id?: number
+  domain_name?: string
   error_message: string | null
   created_at: string
 }
@@ -642,5 +747,75 @@ export interface KnowledgeDocumentStatus {
   file_name: string
   status: KnowledgeDocumentStatusEnum
   chunk_count: number
+  domain_id?: number
+  domain_name?: string
   error_message: string | null
+}
+
+export interface DifficultyMatrixStats {
+  easy_accuracy: number
+  medium_accuracy: number
+  hard_accuracy: number
+  easy_total: number
+  medium_total: number
+  hard_total: number
+}
+
+export interface DomainMasterySummary {
+  domain_id: number
+  name: string
+  color_token: string
+  doc_count: number
+  mastery_score: number
+  retention_rate: number
+  stability_days: number
+  due_review_count: number
+  recommended_count: number
+  below_threshold: boolean
+  difficulty_stats: DifficultyMatrixStats
+}
+
+export interface RetentionCurvePoint {
+  day_label: string
+  retention_pct: number
+  is_today?: boolean
+  is_recovery?: boolean
+}
+
+export interface WeeklyRhythmDay {
+  day_label: string
+  date_num: string
+  completed_count: number
+  is_today: boolean
+  active: boolean
+}
+
+export interface MasteryOverviewResponse {
+  streak_days: number
+  overall_retention: number
+  due_review_total: number
+  subscribe_remaining: number
+  focus_domain: DomainMasterySummary | null
+  domains: DomainMasterySummary[]
+  retention_curve: RetentionCurvePoint[]
+  weekly_rhythm: WeeklyRhythmDay[]
+  seven_day_forecast: number[]
+}
+
+export interface DueReviewCardItem {
+  card_id: number
+  question_id: string
+  quiz_id: string
+  domain_id?: number
+  domain_name: string
+  stem: string
+  knowledge_point: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  interval_days: number
+  next_review_at: string
+}
+
+export interface DueReviewsResponse {
+  total_due: number
+  items: DueReviewCardItem[]
 }

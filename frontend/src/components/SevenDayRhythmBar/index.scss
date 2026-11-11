@@ -1,0 +1,48 @@
+.zx-bars-7 {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 16px;
+  align-items: end;
+  height: 164px;
+  padding: 8px 6px 0;
+}
+
+.zx-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  height: 100%;
+}
+
+.zx-bar-track {
+  width: 28px;
+  height: 112px;
+  border-radius: 999px;
+  background: #efeff3;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.zx-bar-fill {
+  width: 100%;
+  border-radius: 999px;
+  background: #cbe5f5;
+  transition: height 320ms ease-out;
+}
+
+.zx-bar-fill.is-today {
+  background: #18191e;
+}
+
+.zx-bar-lbl {
+  font-size: 20px;
+  color: var(--ink-400);
+  font-weight: 600;
+}
+
+.zx-bar-lbl.is-today {
+  color: var(--ink-900);
+}

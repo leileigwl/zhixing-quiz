@@ -1,4 +1,4 @@
-"""报告服务：服务端权威判分、XP 幂等结算、异步 AI 复盘生成"""
+"""报告服务 V2：权威判分、XP 幂等结算、三维掌握度聚合、SM-2 复习卡与 ARQ 异步复盘"""
 
 from __future__ import annotations
 
@@ -7,11 +7,14 @@ from typing import Optional
 
 import structlog
 
+from app.core.config import get_settings
+from app.core.db import get_mysql_pool
 from app.core.exceptions import (
     AuthorizationError,
     ReportGenerationError,
     ResourceNotFoundError,
 )
+from app.core.redis_client import get_arq_pool
 from app.llm.report_chain import generate_report
 from app.models.quiz import AnswerRecord, Question
 from app.models.report import (
@@ -22,7 +25,8 @@ from app.models.report import (
     ReportSubmitResponse,
     SubmittedAnswerItem,
 )
-from app.repositories import quiz_repository, user_repository
+from app.repositories import mastery_repository, quiz_repository, user_repository
+from app.services import domain_classifier, mastery_service, review_service
 from app.services.scoring_service import (
     calculate_xp_gain,
     compute_score_summary,
@@ -69,6 +73,27 @@ async def _run_background_report_generation(
         )
 
 
+async def run_generate_report_job(
+    quiz_id: str,
+    user_id: int,
+    topic: str,
+    questions_payload: list[dict],
+    records_payload: list[dict],
+    score_summary: dict,
+) -> None:
+    """ARQ Worker 复盘报告任务入口（可序列化参数）。"""
+    questions = [Question.model_validate(q) for q in questions_payload]
+    records = [AnswerRecord.model_validate(r) for r in records_payload]
+    await _run_background_report_generation(
+        quiz_id=quiz_id,
+        user_id=user_id,
+        topic=topic,
+        questions=questions,
+        answer_records=records,
+        score_summary=score_summary,
+    )
+
+
 def _schedule_background_report(
     quiz_id: str,
     user_id: int,
@@ -84,6 +109,107 @@ def _schedule_background_report(
     )
     _background_report_tasks.add(task)
     task.add_done_callback(_background_report_tasks.discard)
+
+
+async def _dispatch_report_generation(
+    quiz_id: str,
+    user_id: int,
+    topic: str,
+    questions: list[Question],
+    answer_records: list[AnswerRecord],
+    score_summary: dict,
+) -> None:
+    settings = get_settings()
+    arq_pool = get_arq_pool()
+    if settings.enable_arq_queue and arq_pool is not None:
+        await arq_pool.enqueue_job(
+            "job_generate_report",
+            quiz_id,
+            user_id,
+            topic,
+            [q.model_dump() for q in questions],
+            [r.model_dump() for r in answer_records],
+            score_summary,
+            _job_id=f"rep:{quiz_id}",
+        )
+        return
+    _schedule_background_report(quiz_id, user_id, topic, questions, answer_records, score_summary)
+
+
+async def _update_v2_learning_state(
+    *,
+    session: dict,
+    quiz_id: str,
+    user_id: int,
+    questions: list[Question],
+    graded_records: list[AnswerRecord],
+    mark_review_map: dict[str, bool],
+) -> tuple[Optional[str], Optional[float], int, int]:
+    """交卷后聚合 E/M/H 三维表现、更新连续打卡并生成 SM-2 错题复习卡。"""
+    domain_id: Optional[int] = session.get("domain_id")
+    domain_name: Optional[str] = session.get("domain_name")
+    domain_mastery_after: Optional[float] = None
+    streak_days = 0
+    due_cards_created = 0
+
+    use_db = (
+        get_mysql_pool() is not None
+        or hasattr(mastery_repository.upsert_mastery_after_submission, "assert_called")
+        or hasattr(mastery_repository.update_user_streak_on_submit, "assert_called")
+    )
+    if not use_db:
+        return domain_name, domain_mastery_after, streak_days, due_cards_created
+
+    try:
+        if domain_id is None:
+            hint_text = (session.get("user_input") or session.get("title") or "").strip()
+            existing = [d["name"] for d in await mastery_repository.list_user_domains(user_id)]
+            guessed_name, color = await domain_classifier.classify_domain_with_llm(hint_text, existing)
+            dom = await mastery_repository.get_or_create_domain(user_id, guessed_name, color)
+            domain_id, domain_name = dom["domain_id"], dom["name"]
+
+        q_map = {q.id: q for q in questions}
+        counts = {"easy": [0, 0], "medium": [0, 0], "hard": [0, 0]}
+        total_dur = 0
+        for rec in graded_records:
+            q = q_map.get(rec.question_id)
+            diff = q.difficulty if q else "medium"
+            if diff not in counts:
+                diff = "medium"
+            counts[diff][1] += 1
+            if rec.is_correct:
+                counts[diff][0] += 1
+            total_dur += max(0, int(rec.duration_ms))
+
+        avg_dur = round(total_dur / len(graded_records)) if graded_records else 0
+
+        if domain_id is not None:
+            domain_mastery_after = await mastery_repository.upsert_mastery_after_submission(
+                user_id=user_id,
+                domain_id=domain_id,
+                easy_correct=counts["easy"][0],
+                easy_total=counts["easy"][1],
+                medium_correct=counts["medium"][0],
+                medium_total=counts["medium"][1],
+                hard_correct=counts["hard"][0],
+                hard_total=counts["hard"][1],
+                avg_duration_ms=avg_dur,
+            )
+
+        streak_days = await mastery_repository.update_user_streak_on_submit(user_id)
+        due_cards_created = await review_service.process_submission_reviews(
+            user_id=user_id,
+            quiz_id=quiz_id,
+            domain_id=domain_id,
+            questions=questions,
+            graded_records=graded_records,
+            mark_review_map=mark_review_map,
+        )
+        await mastery_service.invalidate_mastery_cache(user_id)
+    except Exception as exc:
+        logger.warning("update_v2_learning_state_failed", quiz_id=quiz_id, error=str(exc))
+
+    return domain_name, domain_mastery_after, streak_days, due_cards_created
 
 
 async def handle_report_submit(
@@ -111,6 +237,7 @@ async def handle_report_submit(
         summary = compute_score_summary(records_list)
 
         existing_rp = await quiz_repository.get_report_record(req.quiz_id)
+        domain_name = session.get("domain_name")
         if existing_rp and existing_rp["status"] == "completed" and existing_rp.get("report"):
             return ReportSubmitResponse(
                 quiz_id=req.quiz_id,
@@ -121,6 +248,7 @@ async def handle_report_submit(
                 xp_gain=0,
                 xp_awarded=False,
                 already_submitted=True,
+                domain_name=domain_name,
                 report_status="completed",
                 report=ReportGenerateResponse.model_validate(existing_rp["report"]),
             )
@@ -135,6 +263,7 @@ async def handle_report_submit(
                 xp_gain=0,
                 xp_awarded=False,
                 already_submitted=True,
+                domain_name=domain_name,
                 report_status="generating",
             )
 
@@ -146,7 +275,7 @@ async def handle_report_submit(
             status="generating",
             error_message=None,
         )
-        _schedule_background_report(
+        await _dispatch_report_generation(
             req.quiz_id,
             user_id,
             session["title"],
@@ -163,6 +292,7 @@ async def handle_report_submit(
             xp_gain=0,
             xp_awarded=False,
             already_submitted=True,
+            domain_name=domain_name,
             report_status="generating",
         )
 
@@ -179,6 +309,22 @@ async def handle_report_submit(
         xp_gain=xp_gain,
     )
 
+    domain_name: Optional[str] = session.get("domain_name")
+    domain_mastery_after: Optional[float] = None
+    streak_days = 0
+    due_cards_created = 0
+    if awarded:
+        domain_name, domain_mastery_after, streak_days, due_cards_created = (
+            await _update_v2_learning_state(
+                session=session,
+                quiz_id=req.quiz_id,
+                user_id=user_id,
+                questions=questions,
+                graded_records=graded_records,
+                mark_review_map={item.question_id: bool(item.mark_review) for item in req.answer_records},
+            )
+        )
+
     await quiz_repository.save_report(
         quiz_id=req.quiz_id,
         user_id=user_id,
@@ -186,7 +332,7 @@ async def handle_report_submit(
         status="generating",
         error_message=None,
     )
-    _schedule_background_report(
+    await _dispatch_report_generation(
         req.quiz_id,
         user_id,
         session["title"],
@@ -204,6 +350,10 @@ async def handle_report_submit(
         xp_gain=xp_gain if awarded else 0,
         xp_awarded=awarded,
         already_submitted=not awarded,
+        streak_days=streak_days,
+        domain_name=domain_name,
+        domain_mastery_after=domain_mastery_after,
+        due_cards_created=due_cards_created,
         report_status="generating",
     )
 

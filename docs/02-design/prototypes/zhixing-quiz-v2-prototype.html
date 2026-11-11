@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>知行快刷 V2.0｜Troy 融合美学 × 多物种 3D 动物园交互定稿原型（6 屏总览）</title>
+  <style>
+    :root {
+      --canvas: #edeaf4;
+      --bg: #faf8f5;
+      --ink: #181920;
+      --sub: #646775;
+      --muted: #989ba8;
+      --lavender: #c9beff;
+      --lavender-deep: #6b5be6;
+      --apricot: #ff8e53;
+      --coral: #ff6b4a;
+      --butter: #ffd66b;
+      --sky: #bfe3f7;
+      --blush: #f9c8dd;
+      --border: #ebe7f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      background: var(--canvas);
+      color: var(--ink);
+      padding-bottom: 64px;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid #ded9ea;
+      padding: 15px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .toolbar h1 { font-size: 16px; font-weight: 800; color: var(--ink); }
+    .toolbar p { font-size: 12px; color: var(--sub); margin-top: 3px; }
+    .badge-pill {
+      background: var(--ink);
+      color: #ffffff;
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+
+    .grid {
+      max-width: 1460px;
+      margin: 30px auto 0;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: repeat(3, 392px);
+      justify-content: center;
+      gap: 36px 38px;
+    }
+
+    .col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .cap {
+      font-size: 13px;
+      font-weight: 800;
+      color: #2f3140;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid #ddd7eb;
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+
+    .phone {
+      width: 390px;
+      height: 828px;
+      background: var(--bg);
+      border-radius: 42px;
+      border: 7px solid #1d1e26;
+      box-shadow: 0 24px 60px rgba(24, 25, 32, 0.14);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .status {
+      height: 36px;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .body {
+      flex: 1;
+      padding: 8px 20px 92px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* MOVEPOP-inspired Floating Dark Pill Dock */
+    .dock {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 16px;
+      height: 58px;
+      background: #181920;
+      border-radius: 999px;
+      padding: 6px 10px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      box-shadow: 0 12px 28px rgba(24, 25, 32, 0.24);
+      z-index: 20;
+    }
+    .dock-item {
+      height: 44px;
+      border-radius: 999px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      color: #8f93a3;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .dock-item.active {
+      background: #ffffff;
+      color: #181920;
+    }
+    .dock-ic { font-size: 14px; line-height: 1; }
+
+    .serif { font-family: Georgia, "Songti SC", "STSong", serif; }
+
+    /* Screen 1: PIPSTEP Hero + softside Perched Mascot Card */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand-title { font-size: 18px; font-weight: 900; letter-spacing: -0.3px; }
+    .streak-chip {
+      background: #fff2d6;
+      color: #a85900;
+      font-size: 11.5px;
+      font-weight: 800;
+      padding: 5px 11px;
+      border-radius: 999px;
+    }
+
+    .hero-pipstep {
+      background: linear-gradient(135deg, #d7cdff 0%, #bfb0ff 100%);
+      border-radius: 26px;
+      padding: 18px 18px 16px;
+      position: relative;
+      overflow: hidden;
+      min-height: 148px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .hero-pipstep .num {
+      font-size: 42px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -1.5px;
+      color: #181920;
+    }
+    .hero-pipstep .cta-mini {
+      align-self: flex-start;
+      background: #ffffff;
+      color: #181920;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 7px 14px;
+      border-radius: 999px;
+      margin-top: 10px;
+      box-shadow: 0 4px 12px rgba(24, 25, 32, 0.08);
+    }
+    .hero-bird {
+      position: absolute;
+      right: 6px;
+      bottom: -6px;
+      width: 126px;
+      height: 126px;
+    }
+
+    /* softside-inspired Curved Card with Perched Owl */
+    .perched-wrap {
+      position: relative;
+      margin-top: 22px;
+    }
+    .perched-owl {
+      position: absolute;
+      right: 16px;
+      top: -46px;
+      width: 92px;
+      height: 76px;
+      z-index: 3;
+    }
+    .prompt-dark-shell {
+      background: #1f202a;
+      border-radius: 28px;
+      padding: 16px 14px 14px;
+      color: #ffffff;
+      box-shadow: 0 14px 28px rgba(24, 25, 32, 0.14);
+    }
+    .prompt-inner-paper {
+      background: #faf7ff;
+      color: #2c2d3a;
+      border-radius: 18px;
+      padding: 13px 14px;
+      font-size: 13px;
+      line-height: 1.55;
+      min-height: 76px;
+    }
+    .deepseek-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .ds-pill {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.10);
+      color: #d6d8e4;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .ds-pill.on {
+      background: #ffd66b;
+      color: #181920;
+      border-color: #ffd66b;
+    }
+    .cold-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      font-size: 11px;
+      color: #b5b8c8;
+    }
+    .cold-chips { display: flex; gap: 5px; }
+    .cold-chip {
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      color: #d4d7e3;
+      font-size: 10.5px;
+      font-weight: 600;
+    }
+    .cold-chip.on { background: #ff7d54; color: #ffffff; }
+
+    .btn-coral {
+      width: 100%;
+      height: 50px;
+      border-radius: 999px;
+      background: #ff7048;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 22px rgba(255, 112, 72, 0.28);
+    }
+
+    /* Screen 2: DAYPATCH Translucent Pockets + Hippo */
+    .kb-hero {
+      background: #e9f4fc;
+      border-radius: 24px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .pockets-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      flex: 1;
+    }
+    .pocket {
+      border-radius: 22px;
+      padding: 12px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      min-height: 170px;
+    }
+    .pocket-paper {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 14px;
+      height: 92px;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      transform: rotate(-3deg);
+      font-size: 11px;
+      color: #343746;
+      font-weight: 700;
+    }
+    .pocket-paper.alt { transform: rotate(2.5deg); }
+    .pocket-front {
+      position: relative;
+      z-index: 2;
+      background: rgba(255, 255, 255, 0.56);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      border-radius: 16px;
+      padding: 10px 10px 9px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .pocket-title { font-size: 12.5px; font-weight: 800; color: #181920; }
+    .pocket-sub { font-size: 10.5px; color: #3f4252; margin-top: 2px; }
+
+    /* Screen 3: lingobud Clean Quiz + Previous Question */
+    .quiz-prog-track { height: 7px; background: #ece8f3; border-radius: 999px; overflow: hidden; }
+    .quiz-prog-fill { width: 60%; height: 100%; background: #6b5be6; border-radius: 999px; }
+    .dots-row { display: flex; justify-content: space-between; align-items: center; }
+    .dot-pills { display: flex; gap: 6px; }
+    .dpill {
+      width: 24px; height: 24px; border-radius: 999px; font-size: 11px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; background: #eeebf5; color: #646775;
+    }
+    .dpill.ok { background: #e3f7ec; color: #0a7f4f; }
+    .dpill.bad { background: #fde9e8; color: #cf2e2e; }
+    .dpill.cur { background: #181920; color: #ffffff; }
+
+    .opt-clean {
+      background: #ffffff;
+      border: 1.5px solid #e8e4f0;
+      border-radius: 18px;
+      padding: 13px 15px;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .opt-clean.ok { background: #e8faf1; border-color: #6bd3a1; color: #0b6e44; font-weight: 700; }
+    .explain-soft {
+      background: #f5f2fc;
+      border-radius: 18px;
+      padding: 13px 15px;
+      font-size: 12px;
+      color: #46495c;
+      line-height: 1.55;
+    }
+    .quiz-footer {
+      margin-top: auto;
+      display: grid;
+      grid-template-columns: 108px 1fr;
+      gap: 10px;
+    }
+    .btn-ghost {
+      height: 48px;
+      border-radius: 999px;
+      border: 1.5px solid #d9d4e6;
+      background: #ffffff;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Screen 4: lingobud Celebration Report */
+    .report-sky {
+      background: linear-gradient(180deg, #cbe6f7 0%, #eef4fa 48%, #faf8f5 100%);
+    }
+    .stat-capsule {
+      background: #ffffff;
+      border-radius: 22px;
+      padding: 14px 12px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      text-align: center;
+      box-shadow: 0 8px 20px rgba(24, 25, 32, 0.05);
+    }
+    .stat-capsule strong { display: block; font-size: 20px; font-weight: 900; }
+    .stat-capsule span { font-size: 10.5px; color: var(--sub); }
+
+    /* Screen 5: softside Animal-Topped Bar Chart + Maimemo Curve + lingobud S-Path */
+    .white-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 14px 16px;
+      box-shadow: 0 6px 18px rgba(24, 25, 32, 0.04);
+    }
+    .animal-bars {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      align-items: end;
+      height: 132px;
+      padding-top: 26px;
+    }
+    .abar-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      height: 100%;
+      gap: 4px;
+    }
+    .abar-pill {
+      width: 34px;
+      border-radius: 17px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 4px;
+    }
+    .abar-head {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      margin-top: -18px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+    }
+    .abar-pct { font-size: 10px; font-weight: 800; color: #ffffff; margin-top: auto; padding-bottom: 6px; }
+    .abar-lbl { font-size: 10px; font-weight: 700; color: var(--sub); }
+
+    .spath-box {
+      position: relative;
+      height: 162px;
+      background: linear-gradient(135deg, #eaf5fb 0%, #f5effe 100%);
+      border-radius: 22px;
+      padding: 12px 14px;
+      overflow: hidden;
+    }
+    .spath-node {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #ffffff;
+      padding: 6px 11px 6px 6px;
+      border-radius: 999px;
+      box-shadow: 0 6px 14px rgba(24,25,32,0.08);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    /* Screen 6: DAYPATCH Stamp Calendar + Archive */
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+      text-align: center;
+      margin-top: 8px;
+    }
+    .cal-cell {
+      height: 32px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--sub);
+      background: #f7f5fa;
+    }
+    .stamp {
+      font-size: 9.5px;
+      font-weight: 900;
+      border-radius: 999px;
+      padding: 3px 6px;
+      transform: rotate(-8deg);
+    }
+    .stamp.aha { background: #ffe4ef; color: #c72566; }
+    .stamp.yes { background: #ffe8c8; color: #b95700; }
+    .stamp.ok { background: #e1f7ea; color: #0a7f4f; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div>
+      <h1>知行快刷 V2.0｜Troy 明亮大气留白 × 多物种 3D 动物园组合原型（6 屏定稿预览）</h1>
+      <p>融合 PIPSTEP + lingobud + softside + DAYPATCH + MOVEPOP · 多物种 3D 形象融入真实组件交互（零暗黑、零手办架、零会员）</p>
+    </div>
+    <span class="badge-pill">🐦 🦉 🦛 🐱 🦊 🐼 🐬 多物种宇宙</span>
+  </div>
+
+  <div class="grid">
+    <!-- ==================== SCREEN 1: HOME ==================== -->
+    <div class="col">
+      <div class="cap">1. 闯关首页（PIPSTEP 小鸟 Hero + 趴框猫头鹰 + DeepSeek 胶囊）</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>5G 100%</span></div>
+        <div class="body">
+          <div class="top-bar">
+            <span class="brand-title serif">知行快刷</span>
+            <span class="streak-chip">🔥 连续 5 天 · 今日待清 4</span>
+          </div>
+
+          <!-- PIPSTEP Hero Card with 3D Bird -->
+          <div class="hero-pipstep">
+            <div>
+              <div style="font-size:11px;font-weight:800;color:#4a3ea8;letter-spacing:0.5px;">SM-2 到期提醒</div>
+              <div class="num">04<span style="font-size:15px;font-weight:800;margin-left:4px;">题待复习</span></div>
+              <div style="font-size:11.5px;color:#353063;margin-top:3px;">信使小鸟「咕咕」已送达遗忘预警题包</div>
+            </div>
+            <div class="cta-mini">立即拆信复习 ›</div>
+            <canvas class="hero-bird mascot" data-species="bird" width="252" height="252"></canvas>
+          </div>
+
+          <!-- softside Perched Owl Prompt Box -->
+          <div class="perched-wrap">
+            <canvas class="perched-owl mascot" data-species="owl" width="184" height="152"></canvas>
+            <div class="prompt-dark-shell">
+              <div style="font-size:11px;font-weight:700;color:#a5a8ba;margin-bottom:8px;">🦉 智博士出题台 · 自由主题或知识库</div>
+              <div class="prompt-inner-paper">
+                我想重点复习「Redis 持久化 RDB/AOF 与主从脑裂」核心考点...
+              </div>
+              <div class="deepseek-row">
+                <span class="ds-pill on">🌐 智能搜索</span>
+                <span class="ds-pill">🎨 题目配图</span>
+                <span class="ds-pill on">✨ 倒U智能 4题</span>
+              </div>
+              <div class="cold-row">
+                <span>领域熟悉度</span>
+                <div class="cold-chips">
+                  <span class="cold-chip">陌生</span>
+                  <span class="cold-chip on">略懂</span>
+                  <span class="cold-chip">熟练</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="btn-coral">⚡ 开始智能闯关</div>
+        </div>
+        <div class="dock">
+          <div class="dock-item active"><span class="dock-ic">⚡</span><span>闯关</span></div>
+          <div class="dock-item"><span class="dock-ic">📁</span><span>口袋库</span></div>
+          <div class="dock-item"><span class="dock-ic">📈</span><span>图谱</span></div>
+          <div class="dock-item"><span class="dock-ic">👤</span><span>我的</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN 2: DAYPATCH POCKET KB ==================== -->
+    <div class="col">
+      <div class="cap">2. 口袋知识库（DAYPATCH 半透明磨砂口袋 + 河马吞档归类）</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>5G 100%</span></div>
+        <div class="body">
+          <div>
+            <div class="serif" style="font-size:24px;font-weight:800;">你的知识口袋</div>
+            <div style="font-size:12px;color:var(--sub);margin-top:2px;">上传任意文档，大嘴河马「囤囤」自动归类装袋</div>
+          </div>
+
+          <div class="kb-hero">
+            <div style="flex:1;">
+              <div style="font-size:13.5px;font-weight:800;">☁️ 投喂新笔记给囤囤</div>
+              <div style="font-size:11px;color:#4f6478;margin-top:3px;">PDF / Word / MD / TXT（自动编码识别 &amp; 章节切分）</div>
+            </div>
+            <canvas class="mascot" data-species="hippo" width="144" height="144" style="width:72px;height:72px;"></canvas>
+          </div>
+
+          <!-- DAYPATCH Translucent Frosted Pockets -->
+          <div class="pockets-grid">
+            <div class="pocket" style="background:linear-gradient(145deg,#ffd6bd,#ffab82);">
+              <div class="pocket-paper">Redis_核心原理.md<br/><span style="color:#8b8e9e;font-weight:500;">12 切片 · 已归档</span></div>
+              <div class="pocket-front">
+                <div><div class="pocket-title">分布式缓存</div><div class="pocket-sub">掌握 82% · 🦊</div></div>
+                <span style="font-size:13px;font-weight:800;">→</span>
+              </div>
+            </div>
+
+            <div class="pocket" style="background:linear-gradient(145deg,#d8ceff,#b09fff);">
+              <div class="pocket-paper alt">TCP_HTTP3详解.pdf<br/><span style="color:#8b8e9e;font-weight:500;">18 切片 · 到期预警</span></div>
+              <div class="pocket-front">
+                <div><div class="pocket-title">计算机网络</div><div class="pocket-sub" style="color:#cf2e2e;">保持 46% · 🦉</div></div>
+                <span style="font-size:13px;font-weight:800;">→</span>
+              </div>
+            </div>
+
+            <div class="pocket" style="background:linear-gradient(145deg,#ffeab3,#ffd166);">
+              <div class="pocket-paper">LLM_RAG实战.docx<br/><span style="color:#8b8e9e;font-weight:500;">9 切片 · 巩固期</span></div>
+              <div class="pocket-front">
+                <div><div class="pocket-title">大模型 RAG</div><div class="pocket-sub">掌握 68% · 🐼</div></div>
+                <span style="font-size:13px;font-weight:800;">→</span>
+              </div>
+            </div>
+
+            <div class="pocket" style="background:linear-gradient(145deg,#ccebfb,#94d2f4);">
+              <div class="pocket-paper alt">考研英语长难句.txt<br/><span style="color:#8b8e9e;font-weight:500;">6 切片 · 待摸底</span></div>
+              <div class="pocket-front">
+                <div><div class="pocket-title">英语精读</div><div class="pocket-sub">冷启动 3题 · 🐬</div></div>
+                <span style="font-size:13px;font-weight:800;">→</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="dock-item"><span class="dock-ic">⚡</span><span>闯关</span></div>
+          <div class="dock-item active"><span class="dock-ic">📁</span><span>口袋库</span></div>
+          <div class="dock-item"><span class="dock-ic">📈</span><span>图谱</span></div>
+          <div class="dock-item"><span class="dock-ic">👤</span><span>我的</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN 3: LINGOBUD CLEAN QUIZ ==================== -->
+    <div class="col">
+      <div class="cap">3. 闯关答题（lingobud 呼吸感纸面 + ‹ 上一题只读回看）</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>5G 100%</span></div>
+        <div class="body" style="padding-bottom:24px;">
+          <div class="dots-row">
+            <span style="font-size:13px;font-weight:800;color:var(--sub);">‹ 退出</span>
+            <div class="dot-pills">
+              <span class="dpill ok">1</span>
+              <span class="dpill bad">2</span>
+              <span class="dpill cur">3</span>
+              <span class="dpill">4</span>
+            </div>
+            <span style="font-size:11px;font-weight:800;background:#f2effa;color:#6b5be6;padding:4px 9px;border-radius:999px;">回看第2题 🔒</span>
+          </div>
+
+          <div class="quiz-prog-track"><div class="quiz-prog-fill"></div></div>
+
+          <div class="serif" style="font-size:19px;font-weight:800;line-height:1.45;margin-top:4px;">
+            Redis 主从异步复制切主时，客户端已收到 ACK 的写操作为何可能丢失？
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:9px;">
+            <div class="opt-clean"><span>A. RDB 快照未触发自动回滚</span></div>
+            <div class="opt-clean ok"><span>B. 写命令尚未异步流转至新主节点</span><span>✓ 正确</span></div>
+            <div class="opt-clean"><span>C. 哨兵主动清空旧数据区</span></div>
+          </div>
+
+          <div class="explain-soft">
+            <div style="display:flex;justify-content:space-between;font-weight:800;color:#181920;margin-bottom:4px;">
+              <span>详细解析（提交后 220ms 柔和展开）</span>
+              <span style="color:#ff7048;">📌 已入复习卡</span>
+            </div>
+            Redis 默认采用异步主从复制，旧 Master 宕机前积压在复制缓冲区的数据尚未同步到 Slave。
+          </div>
+
+          <div class="quiz-footer">
+            <div class="btn-ghost">‹ 上一题</div>
+            <div class="btn-coral" style="height:48px;">回到第 3 题继续 →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN 4: CELEBRATION REPORT ==================== -->
+    <div class="col">
+      <div class="cap">4. 复盘报告（lingobud 动物举奖杯庆祝 + 掌握度跃迁）</div>
+      <div class="phone report-sky">
+        <div class="status"><span>9:41</span><span>5G 100%</span></div>
+        <div class="body" style="padding-bottom:24px;align-items:center;text-align:center;">
+          <div style="font-size:11px;font-weight:800;color:#3d5b73;letter-spacing:1px;margin-top:6px;">CHALLENGE COMPLETE</div>
+          <div class="serif" style="font-size:26px;font-weight:800;">干得漂亮，高同学！</div>
+          <div style="font-size:12px;color:#4a6378;">出题依据：私有口袋《Redis》+ LCEL 直出</div>
+
+          <canvas class="mascot" data-species="cat_trophy" width="320" height="300" style="width:166px;height:156px;margin:2px 0;"></canvas>
+
+          <div class="stat-capsule" style="width:100%;">
+            <div><strong style="color:#0a7f4f;">75%</strong><span>本局正确率</span></div>
+            <div><strong style="color:#6b5be6;">+12%</strong><span>缓存掌握跃迁</span></div>
+            <div><strong style="color:#ff7048;">1 题</strong><span>明日延迟巩固</span></div>
+          </div>
+
+          <div class="white-card" style="width:100%;text-align:left;padding:12px 15px;">
+            <div style="font-size:12.5px;font-weight:800;">三句复盘 &amp; 下次策略</div>
+            <div style="font-size:11.5px;color:var(--sub);margin-top:4px;line-height:1.55;">
+              1. 已达 82% 高熟练区间，下次自动收紧为 <b>3 题高难精简抽查</b>。<br/>
+              2. 错题已投递 ARQ 延迟队列，明日 20:00 由小黄鸟提醒。
+            </div>
+          </div>
+
+          <div style="width:100%;display:flex;gap:8px;margin-top:auto;">
+            <div class="btn-ghost" style="flex:1;height:48px;background:#ffffff;border-color:#d7e5f0;">🔔 订阅明日提醒</div>
+            <div class="btn-coral" style="flex:1.1;height:48px;background:#ffd66b;color:#181920;box-shadow:0 8px 18px rgba(255,214,107,0.4);">继续闯关 →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN 5: MULTI-ANIMAL MASTERY + MAIMEMO CURVE + S-PATH ==================== -->
+    <div class="col">
+      <div class="cap">5. 图谱页（softside 柱顶多动物 + 学习记忆曲线 + S 型 3D 路线）</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>5G 100%</span></div>
+        <div class="body">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;">
+            <div class="serif" style="font-size:22px;font-weight:800;">能力图谱与记忆路</div>
+            <span style="font-size:11px;font-weight:700;color:#6b5be6;">AI 自动归类 5 域</span>
+          </div>
+
+          <!-- softside Animal-Topped Bar Chart -->
+          <div class="white-card">
+            <div style="font-size:12px;font-weight:800;display:flex;justify-content:space-between;">
+              <span>各知识域当前掌握度</span>
+              <span style="color:#ff7048;font-size:11px;">网络跌破 50%</span>
+            </div>
+            <div class="animal-bars">
+              <div class="abar-col">
+                <div class="abar-pill" style="height:82%;background:#ff8e53;"><canvas class="abar-head mascot" data-species="fox" width="56" height="56"></canvas><span class="abar-pct">82%</span></div>
+                <span class="abar-lbl">缓存</span>
+              </div>
+              <div class="abar-col">
+                <div class="abar-pill" style="height:46%;background:#ff6b7a;"><canvas class="abar-head mascot" data-species="owl" width="56" height="56"></canvas><span class="abar-pct">46%</span></div>
+                <span class="abar-lbl">网络</span>
+              </div>
+              <div class="abar-col">
+                <div class="abar-pill" style="height:68%;background:#6b5be6;"><canvas class="abar-head mascot" data-species="panda" width="56" height="56"></canvas><span class="abar-pct">68%</span></div>
+                <span class="abar-lbl">RAG</span>
+              </div>
+              <div class="abar-col">
+                <div class="abar-pill" style="height:58%;background:#5bb5e8;"><canvas class="abar-head mascot" data-species="dolphin" width="56" height="56"></canvas><span class="abar-pct">58%</span></div>
+                <span class="abar-lbl">英语</span>
+              </div>
+              <div class="abar-col">
+                <div class="abar-pill" style="height:74%;background:#262834;"><canvas class="abar-head mascot" data-species="cat" width="56" height="56"></canvas><span class="abar-pct">74%</span></div>
+                <span class="abar-lbl">系统</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Maimemo Retention Curve -->
+          <div class="white-card" style="padding:11px 14px;">
+            <div style="font-size:12px;font-weight:800;display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span>遗忘保持率与学习记忆曲线 R(t)</span>
+              <span style="color:var(--sub);font-size:10.5px;">虚线 50% 预警</span>
+            </div>
+            <canvas id="curve-v2" width="320" height="72" style="width:100%;height:72px;display:block;"></canvas>
+          </div>
+
+          <!-- lingobud S-Path Knowledge Journey -->
+          <div class="spath-box">
+            <div style="font-size:11.5px;font-weight:800;color:#2c3b4f;">S 型知识进阶路线（点击站台刷题）</div>
+            <svg viewBox="0 0 320 130" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">
+              <path d="M55 112 C 150 112, 85 68, 225 68 C 280 68, 220 34, 105 34" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
+              <path d="M55 112 C 150 112, 85 68, 225 68 C 280 68, 220 34, 105 34" fill="none" stroke="#b9adff" stroke-width="3" stroke-dasharray="5 5"/>
+            </svg>
+            <div class="spath-node" style="left:16px;bottom:10px;"><span style="background:#ffe4d2;padding:3px 6px;border-radius:999px;">🦊</span><span>01 缓存精简抽查</span></div>
+            <div class="spath-node" style="right:14px;top:62px;border:1.5px solid #ff7048;"><span style="background:#ffe7ea;padding:3px 6px;border-radius:999px;">🦉</span><span>02 网络错题巩固</span></div>
+            <div class="spath-node" style="left:46px;top:24px;opacity:0.75;"><span style="background:#eef0ff;padding:3px 6px;border-radius:999px;">🐼</span><span>03 RAG 变式进阶</span></div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="dock-item"><span class="dock-ic">⚡</span><span>闯关</span></div>
+          <div class="dock-item"><span class="dock-ic">📁</span><span>口袋库</span></div>
+          <div class="dock-item active"><span class="dock-ic">📈</span><span>图谱</span></div>
+          <div class="dock-item"><span class="dock-ic">👤</span><span>我的</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== SCREEN 6: PROFILE & DAYPATCH CALENDAR ==================== -->
+    <div class="col">
+      <div class="cap">6. 我的档案（DAYPATCH 打卡印章日历 + 到期错题队列）</div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>5G 100%</span></div>
+        <div class="body">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <canvas class="mascot" data-species="cat" width="112" height="112" style="width:56px;height:56px;"></canvas>
+            <div style="flex:1;">
+              <div class="serif" style="font-size:21px;font-weight:800;">高同学</div>
+              <div style="font-size:11.5px;color:var(--sub);">知行动物园园长 · 累计消灭 28 道错题</div>
+            </div>
+            <span style="background:#ece8f6;padding:6px 11px;border-radius:999px;font-size:11px;font-weight:800;">🔔 已订2次</span>
+          </div>
+
+          <!-- DAYPATCH Sticker Calendar -->
+          <div class="white-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:13px;font-weight:800;">11 月复习印章</span>
+              <span style="font-size:11px;color:#6b5be6;font-weight:700;">连续 5 天 · 今日已清 3/4</span>
+            </div>
+            <div class="cal-grid">
+              <div class="cal-cell">一</div><div class="cal-cell">二</div><div class="cal-cell">三</div><div class="cal-cell">四</div><div class="cal-cell">五</div><div class="cal-cell">六</div><div class="cal-cell">日</div>
+              <div class="cal-cell">4</div><div class="cal-cell">5</div><div class="cal-cell">6</div>
+              <div class="cal-cell"><span class="stamp aha">AHA!</span></div>
+              <div class="cal-cell"><span class="stamp ok">稳!</span></div>
+              <div class="cal-cell"><span class="stamp yes">YES!</span></div>
+              <div class="cal-cell"><span class="stamp aha">🔥</span></div>
+              <div class="cal-cell" style="border:1.5px solid #6b5be6;color:#6b5be6;background:#f3f0ff;">11</div>
+              <div class="cal-cell">12</div><div class="cal-cell">13</div><div class="cal-cell">14</div><div class="cal-cell">15</div><div class="cal-cell">16</div><div class="cal-cell">17</div>
+            </div>
+          </div>
+
+          <div class="white-card" style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:13px;font-weight:800;">ARQ 错题队列（今日待刷）</div>
+              <div style="font-size:11px;color:var(--sub);margin-top:2px;">网络 2 题 · 缓存 1 题 · RAG 1 题</div>
+            </div>
+            <div style="background:#181920;color:#fff;font-size:11.5px;font-weight:800;padding:7px 12px;border-radius:999px;">开刷 →</div>
+          </div>
+
+          <div class="white-card" style="padding:12px 15px;">
+            <div style="font-size:12.5px;font-weight:800;margin-bottom:8px;">近期记录</div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+              <span>🦊 Redis 主从与缓存雪崩（3题抽查）</span><strong style="color:#0a7f4f;">100%</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;padding-top:8px;">
+              <span>🦉 TCP 拥塞与 HTTP/3（4题巩固）</span><strong style="color:#ff7048;">50%</strong>
+            </div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="dock-item"><span class="dock-ic">⚡</span><span>闯关</span></div>
+          <div class="dock-item"><span class="dock-ic">📁</span><span>口袋库</span></div>
+          <div class="dock-item"><span class="dock-ic">📈</span><span>图谱</span></div>
+          <div class="dock-item active"><span class="dock-ic">👤</span><span>我的</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Soft 3D Clay/Matte Painter for 7 Animal Species & Retention Curve -->
+  <script>
+    function drawSphere3D(ctx, x, y, r, lightCol, midCol, darkCol) {
+      const g = ctx.createRadialGradient(x - r * 0.32, y - r * 0.35, r * 0.08, x, y, r);
+      g.addColorStop(0, lightCol);
+      g.addColorStop(0.55, midCol);
+      g.addColorStop(1, darkCol);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawMascot(canvas) {
+      const species = canvas.dataset.species;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const cx = w / 2;
+      const cy = h / 2;
+      ctx.clearRect(0, 0, w, h);
+
+      // Soft ground drop shadow
+      ctx.save();
+      ctx.fillStyle = 'rgba(24, 25, 32, 0.12)';
+      ctx.beginPath();
+      ctx.ellipse(cx, h * 0.88, w * 0.25, h * 0.055, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      const s = Math.min(w, h) / 140;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(s, s);
+
+      if (species === 'bird') {
+        // Plump PIPSTEP-inspired yellow messenger bird with satchel
+        drawSphere3D(ctx, -28, -4, 18, '#ffe794', '#ffca45', '#e09819');
+        drawSphere3D(ctx, 28, -4, 18, '#ffe794', '#ffca45', '#e09819');
+        drawSphere3D(ctx, 0, 2, 42, '#fff0ad', '#ffd24c', '#e69f1a');
+        // Belly
+        drawSphere3D(ctx, 0, 16, 26, '#fffdf5', '#fff2cc', '#f3d485');
+        // Crest
+        drawSphere3D(ctx, -4, -42, 10, '#ff9f6e', '#ff7048', '#d44824');
+        // Eyes
+        drawSphere3D(ctx, -14, -8, 6, '#3c3e4c', '#181920', '#0a0b0e');
+        drawSphere3D(ctx, 14, -8, 6, '#3c3e4c', '#181920', '#0a0b0e');
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(-16, -10, 2.2, 0, Math.PI * 2); ctx.arc(12, -10, 2.2, 0, Math.PI * 2); ctx.fill();
+        // Cheek blush
+        ctx.fillStyle = 'rgba(255, 112, 92, 0.45)';
+        ctx.beginPath(); ctx.ellipse(-22, 2, 6, 3.5, 0, 0, Math.PI * 2); ctx.ellipse(22, 2, 6, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+        // Beak
+        drawSphere3D(ctx, 0, -1, 8, '#ffab76', '#ff6e40', '#c43e18');
+        // Tiny red due-review envelope
+        ctx.save();
+        ctx.translate(22, 18); ctx.rotate(-0.18);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(-14, -9, 28, 18);
+        ctx.strokeStyle = '#ff6b4a'; ctx.lineWidth = 2; ctx.strokeRect(-14, -9, 28, 18);
+        ctx.beginPath(); ctx.moveTo(-14, -9); ctx.lineTo(0, 1); ctx.lineTo(14, -9); ctx.stroke();
+        ctx.restore();
+      } else if (species === 'owl') {
+        // Wise round owl with glasses
+        drawSphere3D(ctx, -28, -32, 13, '#9d8df0', '#6b5be6', '#4638b0');
+        drawSphere3D(ctx, 28, -32, 13, '#9d8df0', '#6b5be6', '#4638b0');
+        drawSphere3D(ctx, 0, 4, 42, '#a89af5', '#7667eb', '#4c3eb8');
+        drawSphere3D(ctx, -15, -4, 15, '#ffffff', '#f5f2ff', '#dcd4f7');
+        drawSphere3D(ctx, 15, -4, 15, '#ffffff', '#f5f2ff', '#dcd4f7');
+        drawSphere3D(ctx, -14, -4, 6.5, '#3b3d4a', '#181920', '#0a0b0e');
+        drawSphere3D(ctx, 14, -4, 6.5, '#3b3d4a', '#181920', '#0a0b0e');
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(-16, -6, 2.2, 0, Math.PI * 2); ctx.arc(12, -6, 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ff8e53'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(-15, -4, 15, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(15, -4, 15, 0, Math.PI * 2); ctx.stroke();
+        drawSphere3D(ctx, 0, 5, 6, '#ffd66b', '#ff9b42', '#d46a15');
+      } else if (species === 'hippo') {
+        // Chubby lilac-blue Hippo Document Guardian
+        drawSphere3D(ctx, -28, -30, 10, '#c2c8ff', '#8e98f2', '#5f6bc9');
+        drawSphere3D(ctx, 28, -30, 10, '#c2c8ff', '#8e98f2', '#5f6bc9');
+        drawSphere3D(ctx, 0, -2, 38, '#cfd4ff', '#9aa3f5', '#6873d4');
+        // Big wide snout
+        ctx.save();
+        ctx.scale(1.25, 0.85);
+        drawSphere3D(ctx, 0, 18, 30, '#ffe3ee', '#f7bfd6', '#d88eae');
+        ctx.restore();
+        drawSphere3D(ctx, -13, -15, 5, '#2b2d3c', '#181920', '#0a0b0e');
+        drawSphere3D(ctx, 13, -15, 5, '#2b2d3c', '#181920', '#0a0b0e');
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(-14.5, -16.5, 1.8, 0, Math.PI * 2); ctx.arc(11.5, -16.5, 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#c46a8c';
+        ctx.beginPath(); ctx.arc(-11, 10, 3.2, 0, Math.PI * 2); ctx.arc(11, 10, 3.2, 0, Math.PI * 2); ctx.fill();
+      } else if (species === 'fox') {
+        drawSphere3D(ctx, -22, -28, 14, '#ffab7d', '#ff7d47', '#cc4818');
+        drawSphere3D(ctx, 22, -28, 14, '#ffab7d', '#ff7d47', '#cc4818');
+        drawSphere3D(ctx, 0, 2, 36, '#ffb68a', '#ff824d', '#d14b17');
+        drawSphere3D(ctx, -12, -2, 5.5, '#2b2d3a', '#181920', '#0a0b0e');
+        drawSphere3D(ctx, 12, -2, 5.5, '#2b2d3a', '#181920', '#0a0b0e');
+        drawSphere3D(ctx, 0, 12, 18, '#ffffff', '#fff2eb', '#ebd5c7');
+        drawSphere3D(ctx, 0, 7, 4.5, '#2b2d3a', '#181920', '#0a0b0e');
+      } else if (species === 'panda') {
+        drawSphere3D(ctx, -26, -28, 13, '#444654', '#22232c', '#0e0f14');
+        drawSphere3D(ctx, 26, -28, 13, '#444654', '#22232c', '#0e0f14');
+        drawSphere3D(ctx, 0, 2, 38, '#ffffff', '#f2f1f7', '#d8d5e3');
+        ctx.fillStyle = '#252730';
+        ctx.beginPath(); ctx.ellipse(-14, -2, 10, 12, -0.25, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(14, -2, 10, 12, 0.25, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(-13, -4, 3, 0, Math.PI * 2); ctx.arc(13, -4, 3, 0, Math.PI * 2); ctx.fill();
+      } else if (species === 'dolphin') {
+        drawSphere3D(ctx, 0, 4, 38, '#b8ecff', '#5cbce8', '#2c89bd');
+        drawSphere3D(ctx, 0, 14, 24, '#ffffff', '#e8f7ff', '#bce3f5');
+        drawSphere3D(ctx, -13, -4, 5, '#181920', '#181920', '#08090c');
+        drawSphere3D(ctx, 13, -4, 5, '#181920', '#181920', '#08090c');
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(-14.5, -5.5, 1.8, 0, Math.PI * 2); ctx.arc(11.5, -5.5, 1.8, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // Black cat (normal or holding golden trophy!)
+        drawSphere3D(ctx, -24, -30, 13, '#4d5061', '#252733', '#101118');
+        drawSphere3D(ctx, 24, -30, 13, '#4d5061', '#252733', '#101118');
+        if (species === 'cat_trophy') {
+          drawSphere3D(ctx, 0, 26, 28, '#464959', '#222430', '#101118');
+        }
+        drawSphere3D(ctx, 0, 0, 36, '#4c4f61', '#232531', '#101118');
+        drawSphere3D(ctx, -13, -2, 6.2, '#ffe994', '#ffd04d', '#cf8915');
+        drawSphere3D(ctx, 13, -2, 6.2, '#ffe994', '#ffd04d', '#cf8915');
+        ctx.fillStyle = '#14151c';
+        ctx.beginPath(); ctx.arc(-13, -2, 2.5, 0, Math.PI * 2); ctx.arc(13, -2, 2.5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255, 135, 145, 0.55)';
+        ctx.beginPath(); ctx.ellipse(-20, 9, 5, 3, 0, 0, Math.PI * 2); ctx.ellipse(20, 9, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+        if (species === 'cat_trophy') {
+          // Coral scarf + glowing golden star trophy
+          ctx.fillStyle = '#ff7048';
+          ctx.beginPath(); ctx.roundRect(-20, 24, 40, 9, 4.5); ctx.fill();
+          drawSphere3D(ctx, 34, -4, 17, '#fff6bf', '#ffd652', '#e09a16');
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 16px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('★', 34, 2);
+        }
+      }
+      ctx.restore();
+    }
+
+    document.querySelectorAll('.mascot').forEach(drawMascot);
+
+    // Retention curve on Screen 5
+    (function drawRetentionV2() {
+      const c = document.getElementById('curve-v2');
+      const ctx = c.getContext('2d');
+      ctx.strokeStyle = '#ff6b7a';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(8, 38); ctx.lineTo(312, 38); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Strong curve (Cache 82%)
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#ff8e53';
+      ctx.beginPath(); ctx.moveTo(10, 12); ctx.quadraticCurveTo(155, 18, 310, 27); ctx.stroke();
+
+      // Decaying curve (Network 46%)
+      ctx.strokeStyle = '#6b5be6';
+      ctx.beginPath(); ctx.moveTo(10, 16); ctx.quadraticCurveTo(140, 42, 310, 62); ctx.stroke();
+
+      ctx.fillStyle = '#ff6b7a';
+      ctx.beginPath(); ctx.arc(178, 38, 4.5, 0, Math.PI * 2); ctx.fill();
+    })();
+  </script>
+</body>
+</html>

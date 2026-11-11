@@ -1,6 +1,6 @@
 # 知行快刷｜系统架构、目录结构与接口设计
 
-> 本文档为 [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) 的工程细化说明书，包含完整文件树、既有代码逐文件移植清单、MySQL 7 表结构、REST API 契约与 JWT 生产加固细节。
+> 本文档为 [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) 的 V2.0 工程细化说明书，包含完整文件树、MySQL 12 表结构、REST API 契约（含知识掌握图谱与 SM-2 错题复习端点）与并发安全加固细节。
 
 ---
 
@@ -11,7 +11,7 @@
 ├── AGENTS.md                           # AI 工作规则总入口（先读谁、怎么改、何时问、如何交接）
 ├── README.md                           # 项目简介、本地与 Docker 启动命令、文档索引
 ├── .gitignore                          # 排除 .venv, .env, data/, node_modules, dist/
-├── docker-compose.yml                  # 生产/本地一键编排：mysql:8.0 + api（含数据持久卷与健康检查）
+├── docker-compose.yml                  # V2 一键编排：mysql:8.0 + redis:7-alpine + chroma(:8001) + api(--workers 2) + worker(arq)
 │
 ├── docs/
 │   ├── PRODUCT.md                      # 产品边界宪法（包含项 / 排除项 / 核心操作）
@@ -20,121 +20,54 @@
 │   ├── 01-product/
 │   │   └── PRD.md                      # 详细产品需求文档
 │   ├── 02-design/
-│   │   ├── system-architecture.md      # 本文档：完整工程目录、DB/API 契约与移植对照表
+│   │   ├── system-architecture.md      # 本文档：完整工程目录、DB/API 契约
+│   │   ├── v2-architecture-and-rationale.md # V2 技术选型白皮书
+│   │   ├── v2-ui-design-system.md      # MOVEPOP 方案 B 视觉与组件规范
 │   │   └── prototypes/
-│   │       └── README.md               # Phase 2 前端原型图存放与确认门控说明
+│   │       └── v2-editorial-3palettes.html # 三套高净度交互定调原型
 │   └── 99-archive/                     # 过时资料归档
 │
 ├── backend/                            # Python 3.12 后端服务（uv 管理）
-│   ├── pyproject.toml                  # 依赖声明、pytest 与 ruff 配置
+│   ├── pyproject.toml                  # 依赖声明（含 redis / arq）、pytest 与 ruff 配置
 │   ├── uv.lock                         # uv 锁定精确版本号
-│   ├── Dockerfile                      # 基于 uv / python:3.12-slim 的单 Worker 生产镜像
-│   ├── .env.example                    # 完整环境变量模板（含生产 JWT 门禁说明）
+│   ├── Dockerfile                      # 基于 uv / python:3.12-slim 的多 Worker/ARQ/Chroma 镜像
+│   ├── .env.example                    # 完整环境变量模板（含 Redis/Chroma/ARQ/微信订阅模板 ID）
 │   ├── scripts/
 │   │   └── init_mysql.py               # 手动建库建表入口
-│   ├── tests/                          # 20+ Pytest 测试文件（全 Mock 外部 LLM/COS/微信）
-│   │   ├── conftest.py
-│   │   ├── test_api.py
-│   │   ├── test_auth.py
-│   │   ├── test_cos_service.py
-│   │   ├── test_document_loader_service.py
-│   │   ├── test_image_service.py
-│   │   ├── test_knowledge_api.py
-│   │   ├── test_knowledge_repository.py
-│   │   ├── test_knowledge_service.py
-│   │   ├── test_models.py
-│   │   ├── test_production_hardening.py  # 新增：生产 JWT 密钥门禁、dev-login 禁令、限流、task 越权、静态降级
-│   │   ├── test_prompt_contract.py
-│   │   ├── test_quiz_doc_id_integration.py
-│   │   ├── test_quiz_image_integration.py
-│   │   ├── test_quiz_search_integration.py
-│   │   ├── test_rag_service.py
-│   │   ├── test_scoring.py
-│   │   ├── test_search_service.py
-│   │   ├── test_security.py
-│   │   ├── test_user_api.py
-│   │   └── test_vector_store_service.py
+│   ├── tests/                          # Pytest 测试集（含 V2 自适应/SM-2/LCEL/Lua限流单测）
 │   └── app/
-│       ├── __init__.py
-│       ├── main.py                     # FastAPI 入口：安全自检、MySQL 初始化、断电任务回收、/static 托管、异常拦截
+│       ├── main.py                     # FastAPI 入口：安全自检、MySQL/Redis/ARQ 生命周期、全路由挂载
+│       ├── workers/
+│       │   └── arq_worker.py           # 独立 ARQ Worker + 每小时 Cron 复习扫表
 │       ├── api/v1/routes/
 │       │   ├── health.py               # GET /api/v1/health
 │       │   ├── user.py                 # login / dev-login / profile / quizzes
 │       │   ├── knowledge.py            # documents CRUD + status
 │       │   ├── quiz.py                 # generate / generate/async / task/{task_id} / {quiz_id}/images
-│       │   └── report.py               # submit / {quiz_id} / generate
+│       │   ├── report.py               # submit / {quiz_id} / generate
+│       │   ├── mastery.py              # GET /api/v1/mastery/overview
+│       │   └── reviews.py              # GET /reviews/due + POST /reviews/mark + POST /reviews/subscribe
 │       ├── core/
 │       │   ├── config.py               # Settings + validate_runtime_security()
-│       │   ├── db.py                   # aiomysql 连接池、7 表 DDL、recover_stale_jobs()
-│       │   ├── auth.py                 # HS256 JWT 签发、解析、get_current_user (含 DB 用户存在性校验)
-│       │   ├── rate_limit.py           # 内存滑动窗口限流器（防刷 AI 余额）
+│       │   ├── db.py                   # aiomysql 连接池、GET_LOCK、12 表 DDL/回填、recover_stale_jobs()
+│       │   ├── redis_client.py         # Redis 异步连接池、ARQ Pool、60s JSON 缓存
+│       │   ├── auth.py                 # HS256 JWT 签发、解析、get_current_user
+│       │   ├── rate_limit.py           # Redis Lua 原子滑动窗口限流器（离线降级本地）
 │       │   ├── security.py             # 敏感词过滤
 │       │   └── exceptions.py           # 统一业务异常
-│       ├── models/                     # Pydantic v2 请求与响应模型
-│       │   ├── common.py
-│       │   ├── user.py
-│       │   ├── knowledge.py
-│       │   ├── quiz.py
-│       │   └── report.py
-│       ├── llm/                        # 大模型调用层
-│       │   ├── json_utils.py           # 共用 extract_json_object 容错提取器
-│       │   ├── langchain_factory.py    # 兼容硅基流动 / DeepSeek / OpenAI 的 ChatOpenAI 工厂
-│       │   ├── output_schemas.py
-│       │   ├── quiz_chain.py
-│       │   └── report_chain.py
-│       ├── prompts/                    # Prompt 模板层
-│       │   ├── quiz_prompt.py
-│       │   ├── report_prompt.py
-│       │   ├── rag_prompt.py
-│       │   └── search_prompt.py
-│       ├── repositories/               # MySQL 数据访问层（纯异步 SQL）
-│       │   ├── user_repository.py
-│       │   ├── knowledge_repository.py
-│       │   ├── quiz_repository.py
-│       │   ├── task_repository.py      # get_task 返回 user_id 供归属校验；fail_stale_tasks
-│       │   └── image_repository.py
-│       ├── services/                   # 业务编排层
-│       │   ├── user_service.py
-│       │   ├── history_service.py
-│       │   ├── document_loader_service.py
-│       │   ├── vector_store_service.py
-│       │   ├── knowledge_service.py
-│       │   ├── search_service.py
-│       │   ├── rag_service.py
-│       │   ├── quiz_service.py
-│       │   ├── scoring_service.py
-│       │   ├── report_service.py
-│       │   ├── cos_service.py
-│       │   └── image_service.py
-│       └── utils/
-│           └── id_generator.py
+│       ├── models/                     # Pydantic v2 请求与响应模型（含 mastery.py）
+│       ├── llm/                        # 大模型调用层（extract_json_object / langchain_factory）
+│       ├── prompts/                    # V2 Prompt 模板层
+│       ├── repositories/               # MySQL 异步 SQL 与 FOR UPDATE 事务仓储（含 mastery_repository）
+│       └── services/                   # 业务编排（含 adaptive/domain_classifier/mastery/review/LCEL rag&search）
 │
-└── frontend/                           # Taro 4 + React 18 + TS（pnpm 管理，已按确认原型落地）
-    ├── package.json                    # pnpm 脚本（dev:h5 / dev:weapp / build:h5 / build:weapp / typecheck）
-    ├── pnpm-lock.yaml                  # pnpm 锁定的依赖版本
-    ├── project.config.json             # 微信小程序工程配置（miniprogramRoot: dist/）
-    ├── tsconfig.json
-    ├── babel.config.js
-    ├── types/global.d.ts
-    ├── config/
-    │   ├── index.ts                    # dist-h5(hash) 与 dist(weapp) 双输出隔离
-    │   ├── dev.ts
-    │   └── prod.ts
+└── frontend/                           # Taro 4 + React 18 + TS（MOVEPOP 方案 B）
+    ├── config/                         # dist-h5(hash) 与 dist(weapp) 双输出隔离
     └── src/
-        ├── index.html
-        ├── app.ts                      # 启动自动静默登录（weapp wx.login / 开发态 H5 dev-login）
-        ├── app.config.ts               # 3 个底部 Tab（闯关 / 知识库 / 我的）+ 答题/报告二级页
-        ├── app.scss                    # :root, page 全局设计令牌与 H5 响应式基准
-        ├── assets/                     # 6 张 81×81 抗锯齿 PNG Tab 图标
-        ├── services/
-        │   ├── api.ts                  # 请求封装、4010 单飞静默续签、2 秒轮询、H5/微信双端上传
-        │   └── quizSessionStore.ts     # 本地题库与答卷缓存（解决 URL 参数过长截断）
-        └── pages/
-            ├── index/                  # Tab 1：闯关首页
-            ├── knowledge/              # Tab 2：私有知识库
-            ├── profile/                # Tab 3：我的与历史记录
-            ├── quiz/                   # 二级页：知识自测答题
-            └── report/                 # 二级页：闯关复盘报告
+        ├── custom-tab-bar/             # 微信小程序端自定义悬浮黑曜石胶囊 Dock
+        ├── components/                 # FloatingDock / GeometricProp / RetentionCurveCanvas / SevenDayRhythmBar
+        ├── services/                   # api.ts / quizSessionStore.ts / v2Adapters.ts
+        └── pages/                      # index / knowledge / mastery / profile / quiz / report
 ```
 
 ---
@@ -167,17 +100,22 @@
 
 ---
 
-## 4. 数据库表结构（MySQL 8.0 · 7 张表）
+## 4. 数据库表结构（MySQL 8.0 · 12 张表）
 
 | 表名 | 核心用途 | 主键 / 唯一键 / 外键 |
 | --- | --- | --- |
-| `users` | 用户与累计 XP | `id`, `UNIQUE(openid)` |
-| `quiz_sessions` | 生成的题库快照 JSON 与配图状态 (`image_status/image_notice`) | `id`, `UNIQUE(quiz_id)`, `FK(user_id -> users.id ON DELETE SET NULL)` |
-| `answer_records` | 答题明细与正确率 | `id`, `UNIQUE(quiz_id)`, `FK(quiz_id -> quiz_sessions.quiz_id ON DELETE CASCADE)` |
-| `reports` | AI 复盘报告 JSON 与生成状态 (`status/error_message`) | `id`, `UNIQUE(quiz_id)`, `FK(quiz_id -> quiz_sessions.quiz_id ON DELETE CASCADE)` |
-| `quiz_tasks` | 异步出题状态与阶段 (`status/stage`) | `id`, `UNIQUE(task_id)`, `IDX(user_id, status)` |
-| `kb_documents` | 私有文档状态 (`processing/ready/failed`) | `id`, `UNIQUE(doc_id)`, `FK(user_id -> users.id ON DELETE CASCADE)` |
+| `users` | 用户、累计 XP 与连续打卡 (`streak_days/last_practice_date`) | `id`, `UNIQUE(openid)` |
+| `domains` | 用户知识域归类、色标与文档计数 | `id`, `UNIQUE(user_id, name)`, `FK(user_id -> users.id)` |
+| `kb_documents` | 私有文档状态、所属领域与分块数量 | `id`, `UNIQUE(doc_id)`, `FK(user_id -> users.id)` |
+| `quiz_sessions` | 生成的题库快照、`domain_id/domain_name/source_type` 与配图状态 | `id`, `UNIQUE(quiz_id)`, `FK(user_id -> users.id)` |
+| `questions` | 规范化单题表（支持错题巩固快速联查题干与考点） | `id`, `UNIQUE(question_uid)`, `IDX(quiz_id, domain_id)` |
+| `answer_records` | 答题明细与正确率（含 `mark_review`） | `id`, `UNIQUE(quiz_id)`, `FK(quiz_id -> quiz_sessions.quiz_id)` |
+| `reports` | AI 复盘报告 JSON 与生成状态 | `id`, `UNIQUE(quiz_id)`, `FK(quiz_id -> quiz_sessions.quiz_id)` |
+| `quiz_tasks` | 异步出题状态、阶段 (`stage`) 与自适应参数 | `id`, `UNIQUE(task_id)`, `IDX(user_id, status)` |
 | `image_generation_logs` | 题目配图每日额度审计 | `id`, `IDX(user_id, created_at)` |
+| `user_knowledge_mastery` | 三维难度正确率 (E/M/H)、稳定性 `S`、即时保持率与熟练度自评 | `id`, `UNIQUE(user_id, domain_id)` |
+| `review_cards` | SM-2 间隔重复错题卡 (`ef/interval_days/repetitions/status/next_review_at`) | `id`, `UNIQUE(user_id, question_uid)`, `IDX(user_id, status, next_review_at)` |
+| `subscribe_quotas` | 微信一次性订阅消息提醒配额与偏好小时 | `id`, `UNIQUE(user_id, template_id)` |
 
 ---
 
@@ -188,15 +126,19 @@
 | `/health` | `GET` | 公开 | 无 | 探活与容器健康检查 |
 | `/user/login` | `POST` | 公开 | 调微信 `jscode2session` | 微信小程序静默登录签发 JWT |
 | `/user/dev-login` | `POST` | 公开（仅非生产 + 开关） | 生产环境 403 禁用 | H5/本地开发模拟登录 |
-| `/user/profile` | `GET` / `PUT` | 必选 JWT | 仅本人 | 获取统计档案 / 更新昵称头像 |
-| `/user/quizzes` | `GET` | 必选 JWT | 仅本人 | 分页获取历史闯关记录 |
+| `/user/profile` | `GET` / `PUT` | 必选 JWT | 仅本人 | 获取统计档案（含 `streak_days`）/ 更新昵称头像 |
+| `/user/quizzes` | `GET` | 必选 JWT | 仅本人 | 分页获取历史闯关记录（含领域与来源标签） |
 | `/user/quizzes/{quiz_id}` | `GET` | 必选 JWT | 校验 `user_id` | 回看单次题库、答卷与报告 |
-| `/knowledge/documents` | `POST` / `GET` | 必选 JWT | 10MB / 10 篇限制 | 上传异步解析 / 获取文档列表 |
-| `/knowledge/documents/{doc_id}` | `GET` / `DELETE` | 必选 JWT | 校验 `user_id` | 轮询解析状态 / 三处级联删除 |
-| `/quiz/generate/async` | `POST` | 必选 JWT | 每分钟限流 + 校验 `doc_id` | 秒级创建异步出题任务 |
-| `/quiz/task/{task_id}` | `GET` | 必选 JWT | **校验任务归属 `user_id`** | 每 2 秒轮询任务状态与阶段进度 (`stage/stage_message`) |
-| `/quiz/{quiz_id}/images` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 轮询题目后台异步配图 URL 与 `image_status` |
-| `/quiz/generate` | `POST` | 必选 JWT | 每分钟限流 + 校验 `doc_id` | 同步出题（调试/测试） |
-| `/report/submit` | `POST` | 必选 JWT | **校验归属 + 服务端重算 + 事务幂等 XP** | 秒返算分与 XP，启动后台 AI 复盘报告 |
-| `/report/{quiz_id}` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 每 2 秒轮询 AI 复盘报告生成状态与内容 |
-| `/report/generate` | `POST` | 必选 JWT | 归属当前用户 + 幂等防重复 | 同步报告接口（兼容保留，内部已幂等） |
+| `/knowledge/documents` | `POST` / `GET` | 必选 JWT | 10MB / 10 篇 + 防压缩炸弹 | 上传异步入 ARQ + Chroma HTTP 解析 / 列表 |
+| `/knowledge/documents/{doc_id}` | `GET` / `DELETE` | 必选 JWT | 校验 `user_id` | 轮询解析状态与自动归类领域 / 级联删除 |
+| `/quiz/generate/async` | `POST` | 必选 JWT | **Redis Lua 限流** + 校验 `doc_id` | 创建自适应异步出题任务并入 ARQ 队列 |
+| `/quiz/task/{task_id}` | `GET` | 必选 JWT | **校验任务归属 `user_id`** | 轮询任务阶段与完整出题结果 (`recommended_count/source_type/domain`) |
+| `/quiz/{quiz_id}/images` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 轮询题目后台异步配图 URL |
+| `/quiz/generate` | `POST` | 必选 JWT | Redis Lua 限流 + 校验 `doc_id` | 同步出题 |
+| `/report/submit` | `POST` | 必选 JWT | **校验归属 + 单事务防并发覆盖 + SM-2** | 秒返算分、更新三维画像与打卡、创建错题卡与 ARQ `_defer_by` |
+| `/report/{quiz_id}` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 轮询 AI 复盘报告生成状态与内容 |
+| `/report/generate` | `POST` | 必选 JWT | 归属当前用户 + 幂等 | 同步报告接口（向后兼容） |
+| `/mastery/overview` | `GET` | 必选 JWT | 仅本人（60s Redis 缓存） | 获取学习记忆曲线、三维矩阵、7 日节律与未来 7 天到期预测 |
+| `/reviews/due` | `GET` | 必选 JWT | 仅本人 | 获取当前到期 SM-2 错题/巩固列表 |
+| `/reviews/mark` | `POST` | 必选 JWT | **校验 `quiz_id` 归属** | 手动加入待复习 (`add`) 或标记已掌握毕业 (`skip`) |
+| `/reviews/subscribe` | `POST` | 必选 JWT | 仅本人 | 登记微信订阅消息推送配额与提醒时段 |

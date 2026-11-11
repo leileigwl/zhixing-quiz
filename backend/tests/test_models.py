@@ -29,10 +29,12 @@ class TestQuizGenerateRequest:
             QuizGenerateRequest(user_input="x" * 2001)
 
     def test_question_count_bounds(self):
+        req_max = QuizGenerateRequest(user_input="test", question_count=15)
+        assert req_max.question_count == 15
         with pytest.raises(ValidationError):
             QuizGenerateRequest(user_input="test", question_count=2)
         with pytest.raises(ValidationError):
-            QuizGenerateRequest(user_input="test", question_count=11)
+            QuizGenerateRequest(user_input="test", question_count=16)
 
     def test_invalid_difficulty_rejected(self):
         with pytest.raises(ValidationError):

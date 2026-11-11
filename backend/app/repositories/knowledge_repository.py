@@ -17,6 +17,8 @@ async def create_document(
     file_name: str,
     file_type: str,
     file_size: int,
+    domain_id: Optional[int] = None,
+    domain_name: Optional[str] = None,
 ) -> None:
     pool = get_mysql_pool()
     if pool is None:
@@ -24,9 +26,26 @@ async def create_document(
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "INSERT INTO kb_documents (doc_id, user_id, file_name, file_type, file_size, status) "
-                "VALUES (%s, %s, %s, %s, %s, 'processing')",
-                (doc_id, user_id, file_name, file_type, file_size),
+                "INSERT INTO kb_documents (doc_id, user_id, domain_id, domain_name, file_name, file_type, file_size, status) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, 'processing')",
+                (doc_id, user_id, domain_id, domain_name, file_name, file_type, file_size),
+            )
+
+
+async def update_document_domain(
+    doc_id: str,
+    domain_id: Optional[int],
+    domain_name: Optional[str],
+) -> None:
+    """更新知识文档归属领域（AI 语义归类后回写）。"""
+    pool = get_mysql_pool()
+    if pool is None:
+        return
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE kb_documents SET domain_id = %s, domain_name = %s WHERE doc_id = %s",
+                (domain_id, domain_name, doc_id),
             )
 
 
@@ -55,7 +74,7 @@ async def get_document(doc_id: str, user_id: int) -> Optional[dict]:
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT doc_id, user_id, file_name, file_type, file_size, status, "
+                "SELECT doc_id, user_id, domain_id, domain_name, file_name, file_type, file_size, status, "
                 "chunk_count, error_message, created_at "
                 "FROM kb_documents WHERE doc_id = %s AND user_id = %s",
                 (doc_id, user_id),
@@ -66,13 +85,15 @@ async def get_document(doc_id: str, user_id: int) -> Optional[dict]:
             return {
                 "doc_id": row[0],
                 "user_id": row[1],
-                "file_name": row[2],
-                "file_type": row[3],
-                "file_size": row[4],
-                "status": row[5],
-                "chunk_count": row[6],
-                "error_message": row[7],
-                "created_at": row[8].strftime("%Y-%m-%d %H:%M:%S") if row[8] else "",
+                "domain_id": row[2],
+                "domain_name": row[3],
+                "file_name": row[4],
+                "file_type": row[5],
+                "file_size": row[6],
+                "status": row[7],
+                "chunk_count": row[8],
+                "error_message": row[9],
+                "created_at": row[10].strftime("%Y-%m-%d %H:%M:%S") if row[10] else "",
             }
 
 
@@ -83,7 +104,7 @@ async def list_documents(user_id: int) -> list[dict]:
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT doc_id, file_name, file_type, file_size, status, "
+                "SELECT doc_id, domain_id, domain_name, file_name, file_type, file_size, status, "
                 "chunk_count, error_message, created_at "
                 "FROM kb_documents WHERE user_id = %s ORDER BY created_at DESC",
                 (user_id,),
@@ -92,13 +113,15 @@ async def list_documents(user_id: int) -> list[dict]:
             return [
                 {
                     "doc_id": r[0],
-                    "file_name": r[1],
-                    "file_type": r[2],
-                    "file_size": r[3],
-                    "status": r[4],
-                    "chunk_count": r[5],
-                    "error_message": r[6],
-                    "created_at": r[7].strftime("%Y-%m-%d %H:%M:%S") if r[7] else "",
+                    "domain_id": r[1],
+                    "domain_name": r[2],
+                    "file_name": r[3],
+                    "file_type": r[4],
+                    "file_size": r[5],
+                    "status": r[6],
+                    "chunk_count": r[7],
+                    "error_message": r[8],
+                    "created_at": r[9].strftime("%Y-%m-%d %H:%M:%S") if r[9] else "",
                 }
                 for r in rows
             ]

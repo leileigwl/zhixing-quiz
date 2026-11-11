@@ -5,19 +5,27 @@ import {
   submitQuizReport,
   pollReportStatus,
   getQuizDetail,
+  getMasteryOverview,
+  grantSubscribeQuota,
   getCachedUser,
   setCachedUser,
+  type QuizData,
+  type AnswerRecord,
+  type ReportData,
+  type ReportStatusEnum,
+  type MasteryOverviewResponse,
 } from '../../services/api'
-import type { QuizData, AnswerRecord, ReportData, ReportStatusEnum } from '../../services/api'
 import { getActiveQuizSession } from '../../services/quizSessionStore'
+import { buildFallbackMasteryOverview } from '../../services/v2Adapters'
+import RetentionCurveCanvas from '../../components/RetentionCurveCanvas'
+import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
 import './index.scss'
 
-function getHeadingByAccuracy(acc: number): string {
-  if (acc >= 100) return '🎉 满分通关，掌握得非常扎实！'
-  if (acc >= 80) return '💪 掌握扎实，继续突破薄弱点！'
-  if (acc >= 60) return '👍 基础已稳，查漏补缺会更快！'
-  if (acc >= 40) return '📚 还有提升空间，建议重刷错题！'
-  return '🌱 先看薄弱解析，再来一轮巩固吧！'
+function getEditorialHeadline(acc: number, wrongCount: number): string {
+  if (acc >= 100) return '满分通关，本域记忆已非常稳固。'
+  if (wrongCount > 0) return `今天定位并巩固了 ${wrongCount} 处盲区。`
+  if (acc >= 80) return '基础扎实，保持当前复习节奏即可。'
+  return '已定位薄弱知识点，先看解析再复习一遍。'
 }
 
 export default function ReportPage() {
@@ -39,14 +47,16 @@ export default function ReportPage() {
     accuracy: number
     correctCount: number
     wrongCount: number
+    streakDays?: number
+    domainName?: string
   } | null>(null)
   const [report, setReport] = useState<ReportData | null>(null)
   const [reportStatus, setReportStatus] = useState<ReportStatusEnum | 'idle'>('idle')
   const [reportError, setReportError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [xpGain, setXpGain] = useState<number | null>(null)
-  const [alreadySubmitted, setAlreadySubmitted] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [overview, setOverview] = useState<MasteryOverviewResponse | null>(null)
+  const [subscribed, setSubscribed] = useState(false)
 
   const localCorrectCount = useMemo(
     () => answerRecords.filter((r) => r.is_correct).length,
@@ -60,6 +70,12 @@ export default function ReportPage() {
     if (answerRecords.length === 0) return 0
     return Math.round((localCorrectCount / answerRecords.length) * 100)
   }, [answerRecords.length, localCorrectCount])
+
+  const avgDurationSec = useMemo(() => {
+    if (answerRecords.length === 0) return 0
+    const totalMs = answerRecords.reduce((sum, r) => sum + (r.duration_ms || 0), 0)
+    return Math.max(1, Math.round(totalMs / answerRecords.length / 1000))
+  }, [answerRecords])
 
   useEffect(() => {
     let cancelled = false
@@ -77,12 +93,12 @@ export default function ReportPage() {
           setReport(res.report)
           setReportError(null)
         } else if (res.report_status === 'failed') {
-          setReportError(res.error_message || 'AI 复盘报告暂未生成成功')
+          setReportError(res.error_message || 'AI 复盘总结暂未生成成功')
         }
       } catch (err: any) {
         if (cancelled) return
         setReportStatus('failed')
-        setReportError(err?.message || 'AI 复盘报告生成超时，请稍后在历史记录中查看')
+        setReportError(err?.message || '复盘总结生成超时，客观成绩已保存')
       }
     }
 
@@ -95,14 +111,9 @@ export default function ReportPage() {
         answer_records: targetRecords,
       })
         .then((res) => {
-          if (res.xp_awarded && res.xp_gain > 0) {
-            const cached = getCachedUser()
-            if (cached) {
-              setCachedUser({
-                ...cached,
-                total_xp: cached.total_xp + res.xp_gain,
-              })
-            }
+          const cached = getCachedUser()
+          if (cached && typeof res.streak_days === 'number') {
+            setCachedUser({ ...cached, streak_days: res.streak_days })
           }
           if (cancelled) return
 
@@ -110,17 +121,21 @@ export default function ReportPage() {
             accuracy: res.accuracy,
             correctCount: res.correct_count,
             wrongCount: res.wrong_count,
+            streakDays: res.streak_days,
+            domainName: res.domain_name,
           })
-          setXpGain(res.xp_gain)
-          setAlreadySubmitted(res.already_submitted)
           setReportStatus(res.report_status)
           setLoading(false)
+
+          getMasteryOverview().then((ov) => {
+            if (!cancelled && ov) setOverview(ov)
+          })
 
           if (res.report_status === 'completed' && res.report) {
             setReport(res.report)
             setReportError(null)
           } else if (res.report_status === 'failed') {
-            setReportError(res.error_message || 'AI 复盘报告暂未生成成功')
+            setReportError(res.error_message || 'AI 复盘总结暂未生成成功')
           } else if (res.report_status === 'generating') {
             void startAsyncReportPolling(targetQuiz.quiz_id)
           }
@@ -138,13 +153,15 @@ export default function ReportPage() {
     }
 
     if (quizIdParam) {
-      getQuizDetail(quizIdParam)
-        .then((detail) => {
+      Promise.all([getQuizDetail(quizIdParam), getMasteryOverview()])
+        .then(([detail, ov]) => {
           if (cancelled) return
+          if (ov) setOverview(ov)
           setQuizData({
             quiz_id: detail.quiz_id,
             title: detail.title,
             summary: detail.summary,
+            domain_name: detail.domain_name,
             questions: detail.questions,
             image_status: detail.image_status,
             image_notice: detail.image_notice,
@@ -161,9 +178,7 @@ export default function ReportPage() {
             void startAsyncReportPolling(detail.quiz_id)
           } else if (detail.report_status === 'failed') {
             setReportStatus('failed')
-            setReportError(detail.report_error || 'AI 复盘报告暂未生成成功')
-          } else {
-            setReportStatus('idle')
+            setReportError(detail.report_error || 'AI 复盘总结暂未生成成功')
           }
         })
         .catch(() => {
@@ -181,94 +196,107 @@ export default function ReportPage() {
     }
   }, [hasFreshQuizData, cachedSession, quizIdParam])
 
-  const correctCount = serverStats?.correctCount ?? localCorrectCount
   const wrongCount = serverStats?.wrongCount ?? localWrongCount
-  const accuracy = report?.accuracy ?? serverStats?.accuracy ?? localAccuracy
+  const accuracy = Math.round(report?.accuracy ?? serverStats?.accuracy ?? localAccuracy)
+  const streakDays = serverStats?.streakDays ?? overview?.streak_days ?? 1
+
+  const effectiveOverview = useMemo(
+    () => overview ?? buildFallbackMasteryOverview([], []),
+    [overview],
+  )
+
+  const handleEnableReminder = async () => {
+    if (subscribed) return
+    await grantSubscribeQuota({ count: 1, preferred_hour: 20 })
+    setSubscribed(true)
+    Taro.showToast({
+      title: '已启用 ARQ 到期复习提醒',
+      icon: 'success',
+    })
+  }
 
   const handleShareQuote = () => {
-    const quote = report?.share_quote || '不是所有的努力都会立刻回报，但所有的成长都值得被记录。'
+    const quote = report?.share_quote || '少一点题海消耗，把错题练进长期记忆。'
     Taro.setClipboardData({
       data: quote,
-      success: () => {
-        Taro.showToast({ title: '金句已复制，快去分享吧', icon: 'success' })
-      },
+      success: () => Taro.showToast({ title: '金句已复制', icon: 'success' }),
     })
   }
 
   return (
     <View className='report-page'>
-      {/* 正确率圆环 */}
-      <View className='report-ring-wrap'>
-        <View
-          className='ring-outer'
-          style={{
-            background: `conic-gradient(#10b981 0 ${accuracy}%, #e2e8f0 ${accuracy}% 100%)`,
-          }}
-        >
-          <View className='ring-inner'>
-            <Text className='ring-pct'>{accuracy}%</Text>
-            <Text className='ring-label'>正确率</Text>
-          </View>
-        </View>
-        {xpGain !== null && (
-          <View className='xp-gain-pill'>
-            <Text>
-              {alreadySubmitted && xpGain === 0
-                ? '本局成绩已结算 · 经验不重复发放'
-                : `本局经验 +${xpGain} XP`}
-            </Text>
-          </View>
-        )}
+      <View className='report-head'>
+        <Text className='report-kicker'>MEMORY RETENTION</Text>
+        <Text className='report-title'>{getEditorialHeadline(accuracy, wrongCount)}</Text>
       </View>
 
-      {/* 对错统计 */}
-      <View className='stat-pair'>
-        <View className='stat-tile is-green'>
-          <Text>✓ 答对 {correctCount} 题</Text>
+      {/* 3 格纯核心指标（去 XP） */}
+      <View className='stat-grid-3'>
+        <View className='stat-box'>
+          <Text className='stat-lbl'>本次准确率</Text>
+          <Text className='stat-num'>{accuracy}%</Text>
         </View>
-        <View className='stat-tile is-red'>
-          <Text>✕ 答错 {wrongCount} 题</Text>
+        <View className='stat-box'>
+          <Text className='stat-lbl'>平均耗时</Text>
+          <Text className='stat-num'>{avgDurationSec || 12}s</Text>
+        </View>
+        <View className='stat-box'>
+          <Text className='stat-lbl'>连续复习</Text>
+          <Text className='stat-num'>{streakDays} 天</Text>
         </View>
       </View>
 
-      <Text className='report-encourage'>{getHeadingByAccuracy(accuracy)}</Text>
+      {/* 学习记忆曲线 */}
+      <View className='zx-card report-panel'>
+        <View className='panel-head'>
+          <Text className='panel-title'>学习记忆曲线 · R(t) = e^(-t/S)</Text>
+          <Text className='panel-warn'>50% 临界提醒</Text>
+        </View>
+        <RetentionCurveCanvas
+          canvasId='report-retention-canvas'
+          points={effectiveOverview.retention_curve}
+        />
+      </View>
+
+      {/* 本周复习节律 */}
+      <View className='zx-card report-panel'>
+        <View className='panel-head'>
+          <Text className='panel-title'>本周复习节律</Text>
+          <Text className='panel-sub'>答对 {serverStats?.correctCount ?? localCorrectCount} · 错题 {wrongCount}</Text>
+        </View>
+        <SevenDayRhythmBar days={effectiveOverview.weekly_rhythm} />
+      </View>
 
       {loading ? (
-        <View className='zx-card report-loading'>
-          <Text className='report-loading-text'>正在快速结算成绩...</Text>
+        <View className='zx-card report-panel'>
+          <Text className='report-loading-txt'>正在结算交卷结果...</Text>
         </View>
       ) : (
         <>
           {reportStatus === 'generating' && !report && (
-            <View className='zx-card report-block report-ai-skeleton'>
-              <Text className='report-subhead'>AI 复盘报告生成中</Text>
-              <Text className='report-ai-hint'>
-                客观判分与经验值已即时完成，AI 正在提炼薄弱知识点与学习建议...
-              </Text>
-              <View className='skeleton-line is-long' />
-              <View className='skeleton-line is-mid' />
-              <View className='skeleton-line is-short' />
+            <View className='zx-card report-panel'>
+              <Text className='panel-title'>AI 复盘总结生成中...</Text>
+              <Text className='summary-line'>客观算分已完成，正在提炼掌握点与后续训练重点。</Text>
             </View>
           )}
 
           {reportStatus === 'failed' && !report && (
-            <View className='zx-card report-block report-ai-failed'>
-              <Text className='report-subhead'>AI 复盘总结</Text>
-              <Text className='report-ai-failed-text'>
-                {reportError || 'AI 复盘总结暂未生成成功，客观成绩与解析已完整保存。'}
+            <View className='zx-card report-panel'>
+              <Text className='panel-title'>复盘小结</Text>
+              <Text className='summary-line'>
+                {reportError || 'AI 总结暂未返回，客观成绩与解析已完整保存。'}
               </Text>
             </View>
           )}
 
-          {/* 掌握与薄弱知识点标签 */}
           {(report?.mastered_points?.length || report?.weak_points?.length) ? (
-            <View className='zx-card report-block'>
+            <View className='zx-card report-panel'>
               {report?.mastered_points && report.mastered_points.length > 0 && (
-                <View className='kp-section'>
-                  <Text className='report-subhead'>掌握较好</Text>
-                  <View className='pill-group'>
+                <View className='kp-group'>
+                  <Text className='kp-title'>掌握稳固</Text>
+                  <View className='kp-pills'>
                     {report.mastered_points.map((p, idx) => (
-                      <View key={idx} className='pill-green'>
+                      <View key={idx} className='kp-pill is-ok'>
                         <Text>{p}</Text>
                       </View>
                     ))}
@@ -276,11 +304,11 @@ export default function ReportPage() {
                 </View>
               )}
               {report?.weak_points && report.weak_points.length > 0 && (
-                <View className='kp-section-last'>
-                  <Text className='report-subhead'>薄弱知识点</Text>
-                  <View className='pill-group'>
+                <View className='kp-group'>
+                  <Text className='kp-title'>重点加强</Text>
+                  <View className='kp-pills'>
                     {report.weak_points.map((p, idx) => (
-                      <View key={idx} className='pill-red'>
+                      <View key={idx} className='kp-pill is-warn'>
                         <Text>{p}</Text>
                       </View>
                     ))}
@@ -290,28 +318,19 @@ export default function ReportPage() {
             </View>
           ) : null}
 
-          {/* 三句总结与下一步建议 */}
           {(report?.three_line_summary?.length || report?.advice?.length) ? (
-            <View className='zx-card report-block'>
-              {report?.three_line_summary && report.three_line_summary.length > 0 && (
-                <View>
-                  <Text className='report-subhead'>三句核心总结</Text>
-                  {report.three_line_summary.map((line, i) => (
-                    <Text key={i} className='summary-line'>
-                      {i + 1}. {line}
-                    </Text>
-                  ))}
-                </View>
-              )}
-              {report?.three_line_summary?.length && report?.advice?.length ? (
-                <View className='block-divider' />
-              ) : null}
+            <View className='zx-card report-panel'>
+              {report?.three_line_summary?.map((line, idx) => (
+                <Text key={idx} className='summary-line'>
+                  {idx + 1}. {line}
+                </Text>
+              ))}
               {report?.advice && report.advice.length > 0 && (
-                <View>
-                  <Text className='report-subhead'>下一步建议</Text>
-                  {report.advice.map((item, i) => (
-                    <Text key={i} className='summary-line'>
-                      • {item}
+                <View className='advice-block'>
+                  <Text className='kp-title'>下一步建议</Text>
+                  {report.advice.map((a, idx) => (
+                    <Text key={idx} className='summary-line'>
+                      • {a}
                     </Text>
                   ))}
                 </View>
@@ -319,26 +338,17 @@ export default function ReportPage() {
             </View>
           ) : null}
 
-          {/* 今日学习金句 */}
-          <View className='quote-card'>
-            <View className='quote-head'>
-              <Text className='quote-title'>今日学习金句</Text>
-              <View className='share-pill' onClick={handleShareQuote}>
-                <Text>分享</Text>
-              </View>
-            </View>
+          <View className='quote-banner zx-press' onClick={handleShareQuote}>
             <Text className='quote-text'>
-              “{report?.share_quote || '不是所有的努力都会立刻回报，但所有的成长都值得被记录。'}”
+              “{report?.share_quote || '少一点题海消耗，把错题练进长期记忆。'}”
             </Text>
+            <Text className='quote-copy'>复制金句</Text>
           </View>
 
-          {/* 可折叠题目回顾 */}
           {quizData?.questions && quizData.questions.length > 0 && (
-            <View className='zx-card report-block'>
+            <View className='zx-card report-panel'>
               <View className='review-toggle' onClick={() => setReviewOpen((prev) => !prev)}>
-                <Text className='report-subhead' style={{ marginBottom: 0 }}>
-                  题目回顾 ({quizData.questions.length} 题)
-                </Text>
+                <Text className='panel-title'>题目解析回看 ({quizData.questions.length} 题)</Text>
                 <Text className='review-arrow'>{reviewOpen ? '收起 ⌄' : '展开 ›'}</Text>
               </View>
               {reviewOpen && (
@@ -354,8 +364,8 @@ export default function ReportPage() {
                           <Image className='review-image' src={q.image_url} mode='aspectFit' />
                         )}
                         {rec && (
-                          <Text className={`review-status ${rec.is_correct ? 'is-green' : 'is-red'}`}>
-                            {rec.is_correct ? '✓ 回答正确' : '✕ 回答错误'}（正确答案：{q.answer.join('、')}）
+                          <Text className={`review-status ${rec.is_correct ? 'is-ok' : 'is-wrong'}`}>
+                            {rec.is_correct ? '✓ 回答正确' : '✕ 回答错误'}（标准答案：{q.answer.join('、')}）
                           </Text>
                         )}
                         <Text className='review-explain'>{q.explanation}</Text>
@@ -369,12 +379,20 @@ export default function ReportPage() {
         </>
       )}
 
-      <View className='sticky-footer'>
+      {/* 底部操作区 */}
+      <View className='report-footer'>
         <View
-          className='zx-btn-primary'
+          className={`btn-remind zx-press ${subscribed ? 'is-done' : ''}`}
+          onClick={handleEnableReminder}
+        >
+          <Text>{subscribed ? '✓ 已开启到期复习提醒' : '开启明日 ARQ 到期提醒'}</Text>
+        </View>
+        <View
+          className='zx-btn-obsidian'
           onClick={() => Taro.switchTab({ url: '/pages/index/index' })}
         >
-          <Text>返回首页</Text>
+          <Text>返回今日首页</Text>
+          <Text>→</Text>
         </View>
       </View>
     </View>

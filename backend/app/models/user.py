@@ -1,4 +1,4 @@
-"""用户相关数据模型"""
+"""用户相关数据模型（V2 扩展连续打卡天数与历史领域/来源标识）"""
 
 from typing import Optional
 
@@ -34,6 +34,7 @@ class UserBrief(BaseModel):
     nickname: str
     avatar_url: str
     total_xp: int
+    streak_days: int = 0
 
 
 class UserProfile(BaseModel):
@@ -41,6 +42,7 @@ class UserProfile(BaseModel):
     nickname: str
     avatar_url: str
     total_xp: int
+    streak_days: int = 0
     quiz_count: int
     correct_count: int
     average_accuracy: int
@@ -56,6 +58,8 @@ class QuizHistoryItem(BaseModel):
     title: str
     accuracy: float
     question_count: int
+    domain_name: Optional[str] = None
+    source_type: Optional[str] = None
     created_at: str
 
 
@@ -71,6 +75,8 @@ class QuizDetailResponse(BaseModel):
     title: str
     summary: str
     user_input: Optional[str] = None
+    domain_name: Optional[str] = None
+    source_type: Optional[str] = None
     questions: list
     answer_records: Optional[list] = None
     report: Optional[dict] = None

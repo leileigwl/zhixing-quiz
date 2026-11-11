@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { View, Text } from '@tarojs/components'
-import Taro, { useDidShow } from '@tarojs/taro'
+import Taro, { useDidHide, useDidShow } from '@tarojs/taro'
 import {
   ensureLogin,
   getKnowledgeDocuments,
@@ -10,17 +10,21 @@ import {
   deleteKnowledgeDocument,
   generateQuizAsync,
   pollQuizTask,
+  getMasteryOverview,
   waitForLogin,
+  type KnowledgeDocumentItem,
+  type MasteryOverviewResponse,
 } from '../../services/api'
-import type { KnowledgeDocumentItem } from '../../services/api'
 import { setActiveQuizSession } from '../../services/quizSessionStore'
+import { groupDocumentsToPockets } from '../../services/v2Adapters'
+import FloatingDock from '../../components/FloatingDock'
 import './index.scss'
 
 const SUPPORTED_EXTENSIONS = ['pdf', 'docx', 'md', 'txt']
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  processing: { label: '解析中...', cls: 'is-processing' },
+  processing: { label: '切片归类中', cls: 'is-processing' },
   ready: { label: '已就绪', cls: 'is-ready' },
   failed: { label: '解析失败', cls: 'is-failed' },
 }
@@ -33,7 +37,10 @@ function formatFileSize(bytes: number): string {
 
 export default function KnowledgePage() {
   const [documents, setDocuments] = useState<KnowledgeDocumentItem[]>([])
+  const [overview, setOverview] = useState<MasteryOverviewResponse | null>(null)
+  const [activeDomain, setActiveDomain] = useState<string>('全部')
   const [uploading, setUploading] = useState(false)
+  const [dockVisible, setDockVisible] = useState(true)
   const [generatingDocId, setGeneratingDocId] = useState<string | null>(null)
   const [generatingText, setGeneratingText] = useState('正在创建出题任务...')
 
@@ -42,16 +49,22 @@ export default function KnowledgePage() {
 
   const loadDocuments = useCallback(async () => {
     await waitForLogin()
-    try {
-      const res = await getKnowledgeDocuments()
-      setDocuments(res.items)
-    } catch {
-      // ignore silent refresh errors
-    }
+    const [docsRes, masteryRes] = await Promise.all([
+      getKnowledgeDocuments().catch(() => null),
+      getMasteryOverview(),
+    ])
+    if (docsRes) setDocuments(docsRes.items)
+    if (masteryRes) setOverview(masteryRes)
   }, [])
 
   useDidShow(() => {
+    setDockVisible(true)
+    Taro.eventCenter.trigger('zx:tab-change', 'knowledge')
     void loadDocuments()
+  })
+
+  useDidHide(() => {
+    setDockVisible(false)
   })
 
   useEffect(() => {
@@ -59,6 +72,17 @@ export default function KnowledgePage() {
       Object.values(pollTimers.current).forEach((timer) => clearInterval(timer))
     }
   }, [])
+
+  const pockets = useMemo(
+    () => groupDocumentsToPockets(documents, overview),
+    [documents, overview],
+  )
+
+  const filteredDocs = useMemo(() => {
+    if (activeDomain === '全部') return documents
+    const targetBucket = pockets.find((p) => p.name === activeDomain)
+    return targetBucket ? targetBucket.docs : documents
+  }, [documents, pockets, activeDomain])
 
   const pollDocumentStatus = useCallback((docId: string) => {
     if (pollTimers.current[docId]) {
@@ -76,6 +100,8 @@ export default function KnowledgePage() {
                   ...doc,
                   status: status.status,
                   chunk_count: status.chunk_count,
+                  domain_id: status.domain_id ?? doc.domain_id,
+                  domain_name: status.domain_name ?? doc.domain_name,
                   error_message: status.error_message,
                 }
               : doc,
@@ -93,7 +119,13 @@ export default function KnowledgePage() {
     pollTimers.current[docId] = timer
   }, [])
 
-  const prependUploadedDoc = (docId: string, fileName: string, ext: string, size: number) => {
+  const prependUploadedDoc = (
+    docId: string,
+    fileName: string,
+    ext: string,
+    size: number,
+    domainName?: string,
+  ) => {
     setDocuments((prev) => [
       {
         doc_id: docId,
@@ -102,19 +134,20 @@ export default function KnowledgePage() {
         file_size: size,
         status: 'processing',
         chunk_count: 0,
+        domain_name: domainName,
         error_message: null,
         created_at: new Date().toISOString(),
       },
       ...prev,
     ])
-    Taro.showToast({ title: '上传成功，正在后台解析', icon: 'success' })
+    Taro.showToast({ title: '已装入口袋，正在后台切片', icon: 'success' })
     pollDocumentStatus(docId)
   }
 
   const validateFileMeta = (fileName: string, size: number): string | null => {
     const ext = (fileName.split('.').pop() || '').toLowerCase()
     if (!SUPPORTED_EXTENSIONS.includes(ext)) {
-      Taro.showToast({ title: '仅支持 PDF/Word/Markdown/TXT 文件', icon: 'none' })
+      Taro.showToast({ title: '仅支持 PDF / Word / Markdown / TXT 文件', icon: 'none' })
       return null
     }
     if (size === 0) {
@@ -149,7 +182,7 @@ export default function KnowledgePage() {
 
       setUploading(true)
       const result = await uploadKnowledgeDocumentFromPath(file.path, file.name)
-      prependUploadedDoc(result.doc_id, result.file_name, ext, file.size)
+      prependUploadedDoc(result.doc_id, result.file_name, ext, file.size, result.domain_name)
     } catch (err: any) {
       if (err?.errMsg?.includes('cancel')) return
       Taro.showToast({ title: err?.message || '上传失败，请稍后重试', icon: 'none' })
@@ -174,7 +207,7 @@ export default function KnowledgePage() {
         return
       }
       const result = await uploadKnowledgeDocumentFromWebFile(file)
-      prependUploadedDoc(result.doc_id, result.file_name, ext, file.size)
+      prependUploadedDoc(result.doc_id, result.file_name, ext, file.size, result.domain_name)
     } catch (err: any) {
       Taro.showToast({ title: err?.message || '上传失败，请稍后重试', icon: 'none' })
     } finally {
@@ -192,14 +225,14 @@ export default function KnowledgePage() {
 
   const handleDelete = (doc: KnowledgeDocumentItem) => {
     Taro.showModal({
-      title: '删除文档',
-      content: `确定删除《${doc.file_name}》吗？删除后知识库内容将无法恢复`,
+      title: '移出知识口袋',
+      content: `确定删除《${doc.file_name}》吗？删除后向量切片无法恢复`,
       success: async (res) => {
         if (!res.confirm) return
         try {
           await deleteKnowledgeDocument(doc.doc_id)
           setDocuments((prev) => prev.filter((item) => item.doc_id !== doc.doc_id))
-          Taro.showToast({ title: '已删除', icon: 'success' })
+          Taro.showToast({ title: '已移出', icon: 'success' })
         } catch (err: any) {
           Taro.showToast({ title: err?.message || '删除失败', icon: 'none' })
         }
@@ -211,17 +244,21 @@ export default function KnowledgePage() {
     if (doc.status !== 'ready' || generatingDocId) return
 
     setGeneratingDocId(doc.doc_id)
-    setGeneratingText('正在创建出题任务...')
+    setGeneratingText('正在按文档主题检索关键段落...')
     try {
-      const userInput = `请基于我上传的知识库文档《${doc.file_name}》生成一套闯关题`
-      const { task_id } = await generateQuizAsync(userInput, 5, doc.doc_id, false)
+      const { task_id } = await generateQuizAsync({
+        user_input: `请基于我的知识库文档《${doc.file_name}》生成一套高质量自适应自测题`,
+        question_count: 5,
+        adaptive_mode: true,
+        doc_id: doc.doc_id,
+        domain_id: doc.domain_id,
+      })
 
-      setGeneratingText('AI 正在检索知识库片段并生成题目...')
       const quizData = await pollQuizTask(task_id, (status, task) => {
         if (task?.stage_message) {
           setGeneratingText(task.stage_message)
         } else if (status === 'running') {
-          setGeneratingText('AI 正在编排题目与解析，请稍候...')
+          setGeneratingText('AI 正在结合文档语义出题...')
         }
       })
 
@@ -239,24 +276,14 @@ export default function KnowledgePage() {
 
   return (
     <View className='knowledge-page'>
-      <Text className='page-h1'>私有知识库</Text>
-
-      {/* 上传规范提示条 */}
-      <View className='kb-notice'>
+      <View className='kb-header'>
         <View>
-          <Text className='kb-notice-title'>支持 PDF / Word / MD / TXT</Text>
-          <Text className='kb-notice-sub'>单文件 ≤ 10MB · 最多 10 篇</Text>
+          <Text className='kb-kicker'>PRIVATE LIBRARY</Text>
+          <Text className='kb-title'>你的知识口袋</Text>
         </View>
-        <Text className='kb-notice-icon'>ⓘ</Text>
-      </View>
-
-      {/* 上传区域（兼容小程序选文件与 H5 原生选择） */}
-      <View className='upload-box' onClick={handleTriggerUpload}>
-        <Text className='upload-icon'>☁</Text>
-        <Text className='upload-title'>{uploading ? '正在上传...' : '点击上传学习资料'}</Text>
-        <Text className='upload-sub'>
-          {process.env.TARO_ENV === 'h5' ? '支持从本地选取文档' : '支持从微信聊天或本地选择文件'}
-        </Text>
+        <View className='kb-upload-pill zx-press' onClick={handleTriggerUpload}>
+          <Text>{uploading ? '上传中...' : '+ 上传文档'}</Text>
+        </View>
       </View>
 
       {process.env.TARO_ENV === 'h5' && (
@@ -269,62 +296,112 @@ export default function KnowledgePage() {
         />
       )}
 
-      {/* 文档列表 */}
-      <View className='list-head'>
-        <Text className='list-title'>我的文档 ({documents.length}/10)</Text>
+      <View className='kb-summary-strip'>
+        <Text className='kb-strip-text'>支持 PDF / Word / MD 自动切片归档</Text>
+        <Text className='kb-strip-badge'>已分 {pockets.length} 域</Text>
       </View>
 
-      {documents.length === 0 ? (
-        <View className='zx-card empty-docs'>
-          <Text className='empty-docs-text'>还没有上传资料，上传笔记后即可针对指定文档智能出题</Text>
-        </View>
-      ) : (
-        documents.map((doc) => {
-          const st = STATUS_MAP[doc.status] || { label: doc.status, cls: 'is-processing' }
-          const extCls = doc.file_type === 'pdf' ? 'is-pdf' : doc.file_type === 'docx' ? 'is-docx' : 'is-md'
+      <View className='pockets-grid'>
+        {pockets.map((bucket, idx) => {
+          const isSelected = activeDomain === bucket.name
           return (
-            <View key={doc.doc_id} className='zx-card doc-card'>
-              <View className={`file-badge ${extCls}`}>
-                <Text>{doc.file_type.toUpperCase()}</Text>
+            <View
+              key={bucket.name}
+              className={`pocket-card is-${bucket.theme} ${isSelected ? 'is-selected' : ''} zx-press`}
+              onClick={() =>
+                setActiveDomain((prev) => (prev === bucket.name ? '全部' : bucket.name))
+              }
+            >
+              <View className={`pocket-paper ${idx % 2 === 1 ? 'is-tilt-right' : ''}`}>
+                <Text className='paper-title'>{bucket.previewTitle}</Text>
+                <Text className='paper-sub'>{bucket.previewSnippet}</Text>
               </View>
-              <View className='doc-body'>
-                <Text className='doc-name'>{doc.file_name}</Text>
-                <Text className='doc-meta'>
-                  {formatFileSize(doc.file_size)} · {doc.chunk_count} 片段
+              <View className='pocket-lip'>
+                <View className='pocket-stitch' />
+                <Text className='pocket-name'>{bucket.name}</Text>
+                <Text className='pocket-meta'>
+                  {bucket.docs.length} 份文档 · 保持 {bucket.retentionPct}%
                 </Text>
-                {doc.status === 'failed' && doc.error_message && (
-                  <Text className='doc-error'>{doc.error_message}</Text>
-                )}
-                <View className='doc-footer'>
-                  <View className={`status-pill ${st.cls}`}>
-                    <Text>● {st.label}</Text>
-                  </View>
-                  <View className='doc-actions'>
-                    {doc.status === 'ready' && (
-                      <View
-                        className='btn-mini-primary'
-                        onClick={() => handleStartQuiz(doc)}
-                      >
-                        <Text>开始闯关 ›</Text>
-                      </View>
-                    )}
-                    <View className='btn-del' onClick={() => handleDelete(doc)}>
-                      <Text>🗑</Text>
-                    </View>
-                  </View>
-                </View>
               </View>
             </View>
           )
-        })
+        })}
+        {pockets.length % 2 === 1 && (
+          <View className='pocket-card pocket-ghost zx-press' onClick={handleTriggerUpload}>
+            <Text className='pocket-ghost-plus'>+</Text>
+            <Text className='pocket-ghost-title'>拓展新领域</Text>
+            <Text className='pocket-ghost-sub'>上传新主题资料自动新建口袋</Text>
+          </View>
+        )}
+      </View>
+
+      <View className='docs-head'>
+        <Text className='docs-title'>
+          {activeDomain === '全部' ? `全部文档 (${documents.length}/10)` : `${activeDomain} (${filteredDocs.length})`}
+        </Text>
+        {activeDomain !== '全部' && (
+          <Text className='docs-reset' onClick={() => setActiveDomain('全部')}>
+            查看全部
+          </Text>
+        )}
+      </View>
+
+      {filteredDocs.length === 0 ? (
+        <View className='zx-card empty-docs' onClick={handleTriggerUpload}>
+          <Text className='empty-docs-text'>暂无资料，点此上传 PDF / Markdown / Word 装入口袋</Text>
+        </View>
+      ) : (
+        <View className='docs-list'>
+          {filteredDocs.map((doc) => {
+            const st = STATUS_MAP[doc.status] || { label: doc.status, cls: 'is-processing' }
+            return (
+              <View key={doc.doc_id} className='zx-card doc-row'>
+                <View className='doc-ext-pill'>
+                  <Text>{doc.file_type.toUpperCase()}</Text>
+                </View>
+
+                <View className='doc-info'>
+                  <Text className='doc-name'>{doc.file_name}</Text>
+                  <Text className='doc-meta'>
+                    {formatFileSize(doc.file_size)} · {doc.chunk_count} 片段
+                    {doc.domain_name ? ` · ${doc.domain_name}` : ''}
+                  </Text>
+                  {doc.status === 'failed' && doc.error_message && (
+                    <Text className='doc-err'>{doc.error_message}</Text>
+                  )}
+                </View>
+
+                <View className='doc-actions'>
+                  {doc.status === 'ready' ? (
+                    <View
+                      className='btn-doc-quiz zx-press'
+                      onClick={() => handleStartQuiz(doc)}
+                    >
+                      <Text>出题 →</Text>
+                    </View>
+                  ) : (
+                    <View className={`doc-status ${st.cls}`}>
+                      <Text>{st.label}</Text>
+                    </View>
+                  )}
+                  <View className='btn-doc-del zx-press' onClick={() => handleDelete(doc)}>
+                    <Text>×</Text>
+                  </View>
+                </View>
+              </View>
+            )
+          })}
+        </View>
       )}
 
+      {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='knowledge' />}
+
       {generatingDocId && (
-        <View className='loading-overlay'>
-          <View className='loading-modal'>
-            <View className='loading-spinner' />
-            <Text className='loading-title'>AI 正在阅读文档出题</Text>
-            <Text className='loading-sub'>{generatingText}</Text>
+        <View className='zx-loading-overlay'>
+          <View className='zx-loading-modal'>
+            <View className='zx-spinner' />
+            <Text className='zx-loading-title'>AI 正在阅读口袋资料</Text>
+            <Text className='zx-loading-sub'>{generatingText}</Text>
           </View>
         </View>
       )}

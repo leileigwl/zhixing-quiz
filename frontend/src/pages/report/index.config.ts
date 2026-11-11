@@ -1,3 +1,4 @@
 export default definePageConfig({
-  navigationBarTitleText: '闯关复盘报告',
+  navigationBarTitleText: '复盘报告',
+  usingComponents: {},
 })

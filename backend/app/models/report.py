@@ -1,4 +1,4 @@
-"""报告相关数据模型"""
+"""报告相关数据模型（V2 新增连续打卡、知识域跃迁与到期错题收录统计）"""
 
 from typing import Literal, Optional
 
@@ -21,6 +21,7 @@ class SubmittedAnswerItem(BaseModel):
     selected_answers: list[str]
     duration_ms: int = Field(default=0, ge=0)
     is_correct: Optional[bool] = None
+    mark_review: bool = False
 
 
 class ReportSubmitRequest(BaseModel):
@@ -57,6 +58,10 @@ class ReportSubmitResponse(BaseModel):
     xp_gain: int
     xp_awarded: bool
     already_submitted: bool = False
+    streak_days: int = 0
+    domain_name: Optional[str] = None
+    domain_mastery_after: Optional[float] = None
+    due_cards_created: int = 0
     report_status: Literal["generating", "completed", "failed"]
     report: Optional[ReportGenerateResponse] = None
     error_message: Optional[str] = None

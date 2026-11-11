@@ -62,6 +62,7 @@ async def _issue_login_response(user: dict) -> LoginResponse:
             nickname=user["nickname"],
             avatar_url=user["avatar_url"],
             total_xp=user["total_xp"],
+            streak_days=int(user.get("streak_days") or 0),
         ),
     )
 
@@ -108,6 +109,7 @@ async def get_profile(user_id: int) -> UserProfile:
         nickname=user["nickname"],
         avatar_url=user["avatar_url"],
         total_xp=user["total_xp"],
+        streak_days=int(user.get("streak_days") or 0),
         quiz_count=quiz_count,
         correct_count=answer_stats["correct_count"],
         average_accuracy=answer_stats["average_accuracy"],

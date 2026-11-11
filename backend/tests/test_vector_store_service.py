@@ -15,9 +15,9 @@ def fake_embeddings():
 @pytest.fixture
 def persist_dir(tmp_path, monkeypatch):
     dir_path = tmp_path / "chroma"
-    monkeypatch.setattr(
-        vector_store_service.get_settings(), "chroma_persist_dir", str(dir_path)
-    )
+    settings = vector_store_service.get_settings()
+    monkeypatch.setattr(settings, "chroma_host", "")
+    monkeypatch.setattr(settings, "chroma_persist_dir", str(dir_path))
     return str(dir_path)
 
 

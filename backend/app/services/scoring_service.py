@@ -54,6 +54,7 @@ def grade_submitted_answers(
                 selected_answers=list(item.selected_answers),
                 is_correct=is_correct,
                 duration_ms=item.duration_ms,
+                mark_review=bool(getattr(item, "mark_review", False)),
             )
         )
 

@@ -1,51 +1,47 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-11
+> 最后更新：2026-11-12
 
 ## 当前阶段
 
-**OpenSpec 变更 [`async-pipeline-and-kb-upgrade`](../openspec/changes/async-pipeline-and-kb-upgrade/proposal.md)（MySQL 8.0 幂等列迁移与自愈 + 异步出题阶段进度与文字先出/配图后台补齐 + 服务端重判/XP 幂等/秒返算分与异步 AI 复盘 + 知识库 GBK/UTF-8-SIG 多编码解析、Markdown 章节切分、Chroma 并发锁与分批写入、非阻塞 `asyncio.to_thread` RAG + 前端 H5/微信小程序渐进式交互）已全部开发完成并完成真库/大模型/浏览器端到端验收；当前后端（`:8000`）与 H5 前端（`:10086`）常驻运行，`frontend/dist/` 已构建指向 `http://127.0.0.1:8000/api/v1` 的本地微信开发者工具调试包。**
+**`zhixing-quiz` V2.0（`openspec/changes/v2-adaptive-platform-upgrade/`）已完成前端重构、后端架构升级、分布式 Redis/ARQ/Chroma HTTP 多进程联调、Skill 安全/架构审计加固与全端编译验收，所有 OpenSpec 任务（Stage 0–4）均已 `[x]` 收口并通过 `--strict` 校验。**
 
-## 已完成事项
+## 已完成核心改造
 
-1. **工程文档与原型归档**：
-   - [`AGENTS.md`](../AGENTS.md)、[`docs/PRODUCT.md`](PRODUCT.md)、[`docs/ARCHITECTURE.md`](ARCHITECTURE.md)、[`docs/01-product/PRD.md`](01-product/PRD.md)、[`docs/02-design/system-architecture.md`](02-design/system-architecture.md)。
-   - 用户 UI 参考图归档于 [`docs/99-archive/references/ui-reference-v1.jpg`](99-archive/references/ui-reference-v1.jpg)，交互式 5 屏原型图位于 [`docs/02-design/prototypes/zhixing-quiz-prototype.html`](02-design/prototypes/zhixing-quiz-prototype.html)。
-2. **后端服务（[`backend/`](../backend) + [`docker-compose.yml`](../docker-compose.yml)）**：
-   - `uv` 管理依赖与虚拟环境（`pyproject.toml` + `uv.lock`），本地 `.env` 已配置真实硅基流动 `DeepSeek-V3`（出题/报告）与 `BAAI/bge-m3`（向量入库），OrbStack `zhixing-quiz-mysql-1`（MySQL 8.0，已配置 `+08:00` 时区并自动初始化全部 7 张表）健康运行于 `127.0.0.1:3306`。
-   - **联调修复**：[`quiz_repository.py`](../backend/app/repositories/quiz_repository.py) `get_user_quiz_list` 改用 `COALESCE(ar.total_questions, JSON_LENGTH(qs.questions_json), 0)`，确保未交卷记录也能正确显示题数而非 `共 0 题`；[`docker-compose.yml`](../docker-compose.yml) MySQL 增加 `--default-time-zone=+08:00`。
-3. **前端服务（[`frontend/`](../frontend)）**：
-   - 统一使用 `pnpm` 管理依赖（已生成 `pnpm-lock.yaml`，无 `npm` 产物）；[`package.json`](../frontend/package.json) 修正 `dev:h5` / `dev:weapp` 监听参数并新增 `build:weapp:local`，[`config/index.ts`](../frontend/config/index.ts) 关闭 Taro 4 `prebundle` 规避 pnpm 下 `webpack-dev-server` watch 崩溃，并强制在生产构建校验 `TARO_APP_API_BASE_URL`（禁止误打入 `api.example.com` 占位域名）；[`project.config.json`](../frontend/project.config.json) 关闭本地 `urlCheck`。
-   - **联调与 UI 对齐修复**：
-     - [`api.ts`](../frontend/src/services/api.ts)：`ensureAuthToken()` 在 `request()` 与文档上传前置阻塞无 token 并发请求并加 `3s` 登录失败冷却防接口风暴；`weapp` 端严格仅走 `Taro.login()` -> `/user/login` 真实微信登录（无 `dev-login` 回落分支），`H5` 仅在开发态使用 `/user/dev-login`；[`config/dev.ts`](../frontend/config/dev.ts) 默认指向 `http://127.0.0.1:8000/api/v1`。
-     - [`app.scss`](../frontend/src/app.scss)：修复 `html` `clamp(16Px, 5.3333vw, 22Px)` 及 `:root` 意外覆写 `1rem` 导致的 H5 全局缩放缩小（修复后 `390px` 视口实测 `htmlFontSize = 20.8px`、`textarea = 14.56px`），同时锁定 `taro-textarea-core` 内层文本域字体继承与禁用右下角拖拽缩放手柄。
-     - [`api.ts`](../frontend/src/services/api.ts) 与 [`pages/index/index.tsx`](../frontend/src/pages/index/index.tsx)：`request()` 与 `useDidShow()` 在无 token 时等待 `ensureLogin()`，消除首屏并发 `401` 竞态，并保证答题返程实时刷新头部 `XP` 经验徽章。
-     - [`pages/report/index.tsx`](../frontend/src/pages/report/index.tsx) 与 [`pages/report/index.scss`](../frontend/src/pages/report/index.scss)：统一报告页卡片纵向间距，补齐答对/答错统计块边框与分栏间距。
-     - [`pages/profile/index.tsx`](../frontend/src/pages/profile/index.tsx)：为编辑态/展示态行添加独立 `key` 并阻止点击冒泡，修复“保存昵称后立刻再次触发编辑框”的 React DOM 节点复用问题。
+1. **Stage 1：前端 MOVEPOP 方案 B 全量重构（[`frontend/src/`](../frontend/src)）**：
+   - 严格对齐 [`v2-ui-design-system.md`](02-design/v2-ui-design-system.md)：暖石膏画布 (`#F6F5F1`) × 奶油黄 (`#F4D06F`) × 雾天蓝 (`#CBE5F5`) × 黑曜石悬浮胶囊 (`#18191E`)，全端零竞品名称残留、零 `XP` 外露、统一纯 CSS 层叠几何图标。
+   - **4 Tab 黑曜石悬浮胶囊 Dock**：`今日` (`pages/index`) / `口袋` (`pages/knowledge`) / `曲线` (`pages/mastery`) / `我的` (`pages/profile`)；微信小程序走 `src/custom-tab-bar`，H5 通过 `useDidShow`/`useDidHide` 单例门控渲染；跨端 `<Canvas type="2d">` 真实绘制 `R(t)=e^(-t/S)` 学习记忆曲线与 `7 日复习节律柱图`。
+   - 答题页修复「`< 上一题`」只读回看与锁题逻辑（`currentIndex === 0` 保持布局稳定防穿透），并支持 DeepSeek 式「联网搜索」独立胶囊行 + 题目数量 `3/自适应/5/10/15`。
+2. **Stage 2 & 3：后端分布式基础设施、自适应引擎与 SM-2 延迟召回（[`backend/`](../backend) + [`docker-compose.yml`](../docker-compose.yml)）**：
+   - **基础设施**：新增 `redis:7-alpine` (`:6379`)、独立 Chroma HTTP 服务（`chromadb` 1.5.9 on `:8001`）、ARQ 异步 Worker 进程（[`arq_worker.py`](../backend/app/workers/arq_worker.py)），支持 Uvicorn `--workers 2` 安全运行。
+   - **MySQL 12 表与无损回填**：[`db.py`](../backend/app/core/db.py) 新增 `domains`、`questions`、`user_knowledge_mastery`、`review_cards`、`subscribe_quotas`，以 `GET_LOCK` 串行化初始化、`17` 项幂等列迁移及存量 V1 `backfill_v1_data()`。
+   - **核心引擎**：[`adaptive_service.py`](../backend/app/services/adaptive_service.py)（倒 U 题量与 E/M/H 配比）、[`domain_classifier.py`](../backend/app/services/domain_classifier.py)（关键词秒分 + LLM 语义归并）、[`search_service.py`](../backend/app/services/search_service.py) & [`rag_service.py`](../backend/app/services/rag_service.py)（LCEL `RunnableBranch` 可控路由）、[`review_service.py`](../backend/app/services/review_service.py)（SM-2 `1→3→7→15→30` + ARQ `_defer_by` + 小时级 Cron + 微信订阅推送）、[`mastery_service.py`](../backend/app/services/mastery_service.py)（60s Redis 缓存 + 图谱总览）。
+3. **Stage 4：Skill 审计加固**：
+   - [`rate_limit.py`](../backend/app/core/rate_limit.py)：Redis Lua 原子滑动窗口脚本消除多 Worker TOCTOU 竞态。
+   - [`mastery_repository.py`](../backend/app/repositories/mastery_repository.py)：`upsert_mastery_after_submission` 增加 `conn.begin() + SELECT ... FOR UPDATE` 事务行锁防同域并发覆盖丢失更新。
+   - [`document_loader_service.py`](../backend/app/services/document_loader_service.py) & [`knowledge_service.py`](../backend/app/services/knowledge_service.py)：上传文件名清洗防控制字符/路径前缀注入，`.docx` 解压总体积上限 50MB 防压缩炸弹。
+   - [`task_repository.py`](../backend/app/repositories/task_repository.py)：统一异步任务缓存/查询字段 `result_json`，修复跨 Worker/ARQ 轮询完成状态时 `result` 为空的联调缺陷。
 
-## 已执行的真实校验（2026-11-11，全部基于最终代码重跑确认）
+## 已执行的真实校验（2026-11-12，全部基于最终代码重跑）
 
-- **真实基础设施**：OrbStack `zhixing-quiz-mysql-1`（MySQL 8.0）容器运行正常（`Up` / `healthy`），已通过重启与二次冷启动验证基于 `INFORMATION_SCHEMA.COLUMNS` 的幂等列迁移（`quiz_tasks.stage`、`quiz_sessions.image_status` / `image_notice`、`reports.status` / `error_message`），存量数据零丢失（`users=5`、`quiz_sessions=9`、`reports=8` 迁移前核验保留）。
+- **OpenSpec**：`openspec validate "v2-adaptive-platform-upgrade" --strict` -> 通过（全部 Task 已勾选）。
 - **后端静态检查与单测**：
-  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run ruff check app tests`：**`All checks passed!`**
-  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run pytest`：**23 个测试文件共 174 个用例全部通过**（`174 passed, 1 warning in 2.11s`；含 `test_db_migrations.py`、`test_async_quiz_pipeline.py`、`test_async_report_and_xp.py` 及 Chroma 并发锁/分批写入/GBK/Markdown/async RAG 等新增测试）。
-- **真实全链路 API 端到端集成测试（无 Mock，连接真实 MySQL + Chroma + 硅基流动 LLM & Embedding）**：
-  - 验证并发上传 `GBK` `.txt` 与多章节 `# / ## / ###` `.md` 至 `ready`（Chroma `_chroma_init_lock` 修复了多线程并发初始化 `RustBindingsAPI` 竞态问题，`chunk_count` 分别为 `1` 和 `3`）；
-  - 验证异步出题实时阶段迁移 `queued -> fetching_context -> generating_quiz -> completed`、文字先就绪且跨用户查询 `/quiz/{quiz_id}/images` 返回 `403`、未配置生图 Key 时后台非阻塞降级至 `image_status=failed` 与友好提示；
-  - 验证 `POST /api/v1/report/submit` 约 **15.1ms** 秒返且无视客户端篡改的 `is_correct: true` 严格按标准答案重算 `accuracy`、二次重复提交返回 `already_submitted=True` / `xp_gain=0` 不重复加分、`GET /api/v1/report/{quiz_id}` 跨用户拦截 `403` 并轮询至 `completed`。
-- **前端构建与真浏览器 5 屏 UI/交互全链路测试**：
-  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/frontend && pnpm typecheck`：**通过**（0 TS 错误）。
-  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/frontend && pnpm build:weapp:local`：**通过**（编译输出至 `frontend/dist/`，`dist/common.js` 仅包含 `http://127.0.0.1:8000/api/v1`，无 `api.example.com`）；`NODE_ENV=development pnpm build:h5` 编译通过。
-  - Playwright + `chromium_headless_shell`（`390×844` 移动端视口，`2x` DPR）实测 `http://localhost:10086`：覆盖 `Index -> Knowledge -> 异步出题阶段遮罩 -> Quiz 逐题作答 -> Report 秒级算分 + XP(+16 XP) + 异步复盘报告完成 -> Profile 累计 XP/历史同步`。
-  - 全程 5 屏 **0 Console Error、0 Page Error、0 HTTP >= 400 错误、0 横向溢出（`scrollWidth=390 === innerWidth=390`）**。
+  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run ruff check app tests` -> **`All checks passed!`**
+  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run pytest -q` -> **`183 passed in 1.55s`**（含 LCEL 分支、倒 U 自适应、SM-2、ARQ `_defer_by`、Redis Lua 限流、`docx` 压缩炸弹、并发幂等及 HTTP Mock 微信推送；注：`endorctl` CLI 未在本机安装且本地 `.env` 的 `TAVILY_API_KEY` / `WECHAT_SUBSCRIBE_TEMPLATE_ID` 为空，该两项外部通道通过单测 Mock 验证并按设计优雅降级）。
+- **真实多进程运行时全链路联调（MySQL 8.0 + Redis 7 + Chroma HTTP `:8001` + ARQ Worker + Uvicorn `--workers 2`）**：
+  - **限流与新接口**：`GET /api/v1/health`、`GET /api/v1/mastery/overview`、`GET /api/v1/reviews/due` 均返回 `200`；连续 6 次请求 `/quiz/generate/async` 精确返回 `[200, 200, 200, 200, 200, 429]`。
+  - **真实上传/自适应出题/提交/SM-2**：上传 `hybrid_rag_notes.md` 经 ARQ + Chroma HTTP 解析为 `ready` 并自动归类至 `RAG 架构`；自适应出题（冷启动陌生模式）经 ARQ 返回 `4` 题 (`source_type=kb_rag`)；交卷秒返 `streak_days=1`、`domain_mastery_after=77.27`、`due_cards_created=1`，二次提交严格返回 `already_submitted=True, xp_awarded=False, xp_gain=0`；ARQ 后台报告生成完成。
+- **前端构建与 Playwright 6 屏全链路 E2E**：
+  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/frontend && pnpm typecheck && pnpm build:weapp:local && NODE_ENV=development pnpm build:h5` -> 全部通过（0 TS 错误，双端打包成功）。
+  - Playwright（`390×844` · `2x` DPR）重跑最终代码：覆盖 `Home -> Knowledge -> Mastery -> Profile -> QuizPrevReadonly -> Report`，`PAGE_ERRORS: 0`、`CONSOLE_ERRORS: 0`、`HTTP_ERRORS: 0`，6 屏均无横向溢出 (`scrollW=390`)，Curve Canvas 渲染 `39,839` 非透明像素，答题页实测「`中等难度 · 只读回看`」。
 
-## 本地已启动的查看入口
+## 本地已启动服务状态
 
-- **H5 前端预览**：`http://localhost:10086`（`pnpm dev:h5` Watch 模式后台运行中）
-- **FastAPI 后端健康检查 & Swagger 文档**：`http://127.0.0.1:8000/api/v1/health` / `http://127.0.0.1:8000/docs`（`uv run uvicorn app.main:app` 后台运行中）
-- **MySQL 8.0 容器**：`zhixing-quiz-mysql-1`（`127.0.0.1:3306`）
+- `zhixing-quiz-mysql-1` (`127.0.0.1:3306`, Healthy) & `zhixing-quiz-redis-1` (`127.0.0.1:6379`, Healthy)
+- Standalone Chroma HTTP Server (`127.0.0.1:8001`)
+- ARQ Worker (`uv run arq app.workers.arq_worker.WorkerSettings`)
+- FastAPI 2-Worker API (`http://127.0.0.1:8000`) & Taro H5 Dev Server (`http://127.0.0.1:10086`)
 
-## 尚待用户实机/生产确认项
+## 尚待生产部署确认项
 
-- **微信开发者工具真机预览**：使用微信开发者工具导入 [`frontend/`](../frontend)，勾选「不校验合法域名」即可调用本地 `http://localhost:8000/api/v1` 并实测 `wx.login`（需在 `backend/.env` 配置真实 `WECHAT_APP_ID` / `WECHAT_APP_SECRET`）。
-- **云端生产部署**：按 [`docker-compose.yml`](../docker-compose.yml) 在云主机 1Panel 部署时设置 `APP_ENV=production`、32 位以上随机 `JWT_SECRET`、`ALLOW_DEV_LOGIN=false` 及 HTTPS 域名反代，再用 `TARO_APP_API_BASE_URL=https://你的域名/api/v1 pnpm build:weapp` 构建体验版。
+- 若启用真实在线联网搜索与微信一次性订阅消息提醒，需在 `.env` 填入 `TAVILY_API_KEY` 与 `WECHAT_SUBSCRIBE_TEMPLATE_ID`（及对应小程序 `WECHAT_APP_ID` / `WECHAT_APP_SECRET`），并结合微信开发者工具做真机授权测试；若需使用 Endor 云端漏洞审计，请先在本机安装并登录 `endorctl`。

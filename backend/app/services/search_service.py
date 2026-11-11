@@ -1,183 +1,169 @@
-"""知识获取服务 - 使用 AI Agent 联网搜索获取最新知识"""
+"""可控知识检索路由服务 - 基于 LangChain LCEL RunnableBranch 取代慢速 ReAct 循环"""
+
+from __future__ import annotations
 
 import asyncio
-import time
+import re
+from typing import Any
 
 import structlog
+from langchain_core.runnables import RunnableBranch, RunnableLambda
 
-from app.core.config import get_settings, resolve_llm_config
-from app.prompts.search_prompt import SEARCH_AGENT_SYSTEM_PROMPT
+from app.core.config import get_settings
 
 logger = structlog.get_logger()
 
 MAX_CONTEXT_LENGTH = 5000
-AGENT_TIMEOUT_SECONDS = 120
+SEARCH_TIMEOUT_SECONDS = 20
+
+_URL_PATTERN = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+_RECENCY_KEYWORDS = ("最新", "最近", "今日", "今年", "2025", "2026", "刚刚", "新发布", "changelog")
 
 
-def _build_agent():
-    """构建知识获取 Agent（带 3 个 Tavily 工具与调用埋点）。"""
-    from langchain_core.callbacks import AsyncCallbackHandler
-    from langchain_openai import ChatOpenAI
-    from langchain_tavily import TavilyExtract, TavilySearch
-    from langgraph.prebuilt import create_react_agent
+def extract_urls(text: str) -> list[str]:
+    return _URL_PATTERN.findall(text or "")[:3]
 
-    settings = get_settings()
 
-    class _ToolLogger(AsyncCallbackHandler):
-        """记录每个工具调用的参数和结果"""
+def has_recency_signal(text: str) -> bool:
+    lower = (text or "").lower()
+    return any(kw in lower for kw in _RECENCY_KEYWORDS)
 
-        async def on_tool_start(self, serialized, input_str, *, run_id, **kwargs):
-            tool_name = serialized.get("name", "unknown")
-            logger.info("tool_call_start", tool=tool_name, input=str(input_str)[:500])
 
-        async def on_tool_end(self, output, *, run_id, **kwargs):
-            logger.info(
-                "tool_call_end",
-                output_length=len(str(output)),
-                output_preview=str(output)[:500],
-            )
+def _format_tavily_results(raw: Any) -> str:
+    if raw is None:
+        return ""
+    if isinstance(raw, str):
+        return raw.strip()
+    if isinstance(raw, dict) and "results" in raw:
+        items = raw.get("results") or []
+    elif isinstance(raw, list):
+        items = raw
+    else:
+        return str(raw)
 
-        async def on_tool_error(self, error, *, run_id, **kwargs):
-            logger.warning("tool_call_error", error=str(error)[:300])
+    parts: list[str] = []
+    for item in items[:6]:
+        if isinstance(item, dict):
+            title = str(item.get("title") or "").strip()
+            url = str(item.get("url") or "").strip()
+            content = str(item.get("raw_content") or item.get("content") or "").strip()
+            if content:
+                head = f"【{title}】({url})\n" if title else ""
+                parts.append(f"{head}{content[:900]}")
+        else:
+            parts.append(str(item)[:800])
+    return "\n\n".join(parts).strip()
 
-        async def on_llm_start(self, serialized, prompts, *, run_id, **kwargs):
-            logger.debug(
-                "llm_call_start",
-                model=serialized.get("kwargs", {}).get("model", "unknown"),
-            )
 
-        async def on_llm_end(self, response, *, run_id, **kwargs):
-            try:
-                gen = response.generations[0][0]
-                msg = getattr(gen, "message", None)
-                if msg and getattr(msg, "tool_calls", None):
-                    logger.info(
-                        "llm_tool_decision",
-                        tool_calls=[
-                            {"name": tc["name"], "args": str(tc["args"])[:200]}
-                            for tc in msg.tool_calls
-                        ],
-                    )
-                else:
-                    content = getattr(msg, "content", "") if msg else str(gen)[:200]
-                    logger.debug("llm_call_end", content_preview=str(content)[:200])
-            except Exception:
-                logger.debug("llm_call_end", raw=str(response)[:200])
+async def _run_tavily_extract(urls: list[str], api_key: str) -> str:
+    from langchain_tavily import TavilyExtract
 
-    tool_logger = _ToolLogger()
+    extractor = TavilyExtract(extract_depth="basic", tavily_api_key=api_key)
+    raw = await asyncio.wait_for(
+        extractor.ainvoke({"urls": urls}),
+        timeout=SEARCH_TIMEOUT_SECONDS,
+    )
+    return _format_tavily_results(raw)
 
-    tavily_search_basic = TavilySearch(
-        name="tavily_search_basic",
-        description="轻量搜索，返回最多 10 条结果的摘要。适合首轮广泛搜索，快速了解主题全貌，帮助判断正确领域。",
-        max_results=10,
+
+async def _run_tavily_search(query: str, api_key: str) -> str:
+    from langchain_tavily import TavilySearch
+
+    searcher = TavilySearch(
+        max_results=5,
         include_raw_content=False,
         include_answer=False,
-        tavily_api_key=settings.tavily_api_key,
+        tavily_api_key=api_key,
+    )
+    raw = await asyncio.wait_for(
+        searcher.ainvoke({"query": query[:300]}),
+        timeout=SEARCH_TIMEOUT_SECONDS,
+    )
+    return _format_tavily_results(raw)
+
+
+def _build_lcel_search_router():
+    """构建确定性 LCEL 意图分支：URL 抓取 / 显式或时效性联网 / 默认直出。"""
+
+    async def _branch_url_extract(payload: dict) -> dict:
+        urls = payload["urls"]
+        api_key = payload["tavily_api_key"]
+        try:
+            text = await _run_tavily_extract(urls, api_key)
+            return {
+                "context": text[:MAX_CONTEXT_LENGTH],
+                "source_type": "web_search" if text else "llm_direct",
+            }
+        except Exception as exc:
+            logger.warning("lcel_tavily_extract_failed", error=str(exc))
+            return {"context": "", "source_type": "llm_direct"}
+
+    async def _branch_web_search(payload: dict) -> dict:
+        query = payload["user_input"]
+        api_key = payload["tavily_api_key"]
+        try:
+            text = await _run_tavily_search(query, api_key)
+            return {
+                "context": text[:MAX_CONTEXT_LENGTH],
+                "source_type": "web_search" if text else "llm_direct",
+            }
+        except Exception as exc:
+            logger.warning("lcel_tavily_search_failed", error=str(exc))
+            return {"context": "", "source_type": "llm_direct"}
+
+    async def _branch_direct(_payload: dict) -> dict:
+        return {"context": "", "source_type": "llm_direct"}
+
+    return RunnableBranch(
+        (
+            lambda x: bool(x.get("urls")) and bool(x.get("can_search")),
+            RunnableLambda(_branch_url_extract),
+        ),
+        (
+            lambda x: bool(x.get("can_search"))
+            and (bool(x.get("enable_web_search")) or bool(x.get("has_recency"))),
+            RunnableLambda(_branch_web_search),
+        ),
+        RunnableLambda(_branch_direct),
     )
 
-    tavily_search_deep = TavilySearch(
-        name="tavily_search_deep",
-        description="深度搜索，返回最多 10 条结果的完整页面内容。适合深入了解专业、小众或容易混淆的主题，获取详细知识。",
-        max_results=10,
-        include_raw_content=True,
-        include_answer=False,
-        tavily_api_key=settings.tavily_api_key,
-    )
 
-    tavily_extract = TavilyExtract(
-        name="tavily_extract",
-        description="从指定 URL 提取页面完整内容。当用户输入包含网址时使用。",
-        extract_depth="basic",
-        tavily_api_key=settings.tavily_api_key,
-    )
-
-    tools = [tavily_search_basic, tavily_search_deep, tavily_extract]
-
-    api_key, base_url, model = resolve_llm_config(settings)
-    llm = ChatOpenAI(
-        model=model,
-        base_url=base_url,
-        api_key=api_key,
-        temperature=0.1,
-        callbacks=[tool_logger],
-    )
-
-    agent = create_react_agent(
-        llm,
-        tools=tools,
-        prompt=SEARCH_AGENT_SYSTEM_PROMPT,
-    )
-
-    return agent, tool_logger
-
-
-async def fetch_knowledge_context(user_input: str) -> str:
-    """获取知识上下文：使用 AI Agent 联网搜索/提取最新知识。"""
+async def resolve_knowledge_context(
+    user_input: str,
+    enable_web_search: bool = False,
+) -> tuple[str, str]:
+    """执行可控 LCEL 检索路由，返回 (context, source_type)。"""
     settings = get_settings()
+    tavily_key = (getattr(settings, "tavily_api_key", "") or "").strip()
+    global_enabled = bool(getattr(settings, "enable_web_search", False))
+    can_search = global_enabled and bool(tavily_key)
 
-    if not settings.enable_web_search:
-        logger.info("web_search_disabled")
-        return ""
+    payload = {
+        "user_input": user_input,
+        "enable_web_search": enable_web_search,
+        "urls": extract_urls(user_input),
+        "has_recency": has_recency_signal(user_input),
+        "can_search": can_search,
+        "tavily_api_key": tavily_key,
+    }
 
-    if not settings.tavily_api_key:
-        logger.warning("tavily_api_key_not_configured")
-        return ""
+    if not can_search:
+        if enable_web_search:
+            logger.info("lcel_web_search_skipped_missing_key")
+        return "", "llm_direct"
 
-    t1 = time.monotonic()
-    try:
-        logger.info("search_agent_starting", user_input=user_input[:100])
+    router = _build_lcel_search_router()
+    result = await router.ainvoke(payload)
+    ctx = str(result.get("context") or "")[:MAX_CONTEXT_LENGTH]
+    src = str(result.get("source_type") or "llm_direct")
+    logger.info("lcel_search_routed", source_type=src, context_len=len(ctx))
+    return ctx, src
 
-        t0 = time.monotonic()
-        agent, tool_logger = _build_agent()
-        logger.debug("search_agent_built", elapsed_ms=round((time.monotonic() - t0) * 1000))
 
-        t1 = time.monotonic()
-        result = await asyncio.wait_for(
-            agent.ainvoke(
-                {"messages": [{"role": "user", "content": user_input}]},
-                config={"recursion_limit": 10, "callbacks": [tool_logger]},
-            ),
-            timeout=AGENT_TIMEOUT_SECONDS,
-        )
-        elapsed = round((time.monotonic() - t1) * 1000)
-
-        messages = result.get("messages", [])
-        logger.info(
-            "search_agent_completed",
-            elapsed_ms=elapsed,
-            message_count=len(messages),
-            message_types=[type(m).__name__ for m in messages],
-        )
-
-        content = result["messages"][-1].content
-        if not content:
-            logger.warning("search_agent_empty_response")
-            return ""
-
-        if len(content) > MAX_CONTEXT_LENGTH:
-            content = content[:MAX_CONTEXT_LENGTH]
-            logger.info(
-                "search_context_truncated",
-                original_length=len(result["messages"][-1].content),
-            )
-
-        logger.info("search_context_fetched", length=len(content))
-        return content
-
-    except asyncio.TimeoutError:
-        elapsed = round((time.monotonic() - t1) * 1000)
-        logger.warning(
-            "search_agent_timeout",
-            timeout=AGENT_TIMEOUT_SECONDS,
-            elapsed_ms=elapsed,
-            user_input=user_input[:100],
-        )
-        return ""
-    except Exception as e:
-        logger.warning(
-            "search_agent_error",
-            error=str(e),
-            error_type=type(e).__name__,
-            user_input=user_input[:100],
-        )
-        return ""
+async def fetch_knowledge_context(
+    user_input: str,
+    enable_web_search: bool = False,
+) -> str:
+    """兼容接口：返回纯参考资料文本（超时或失败降级为空字符串）。"""
+    context, _ = await resolve_knowledge_context(user_input, enable_web_search=enable_web_search)
+    return context

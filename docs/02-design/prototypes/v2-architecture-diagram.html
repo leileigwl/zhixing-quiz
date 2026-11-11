@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>知行快刷 V2.0｜高并发架构演进图与数据库 ER 蓝图</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f1f5f9;
+      color: #0f172a;
+      padding: 28px;
+    }
+    .canvas {
+      max-width: 1420px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .header {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 22px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 { font-size: 22px; font-weight: 800; color: #0f172a; }
+    .header p { font-size: 13px; color: #475569; margin-top: 6px; }
+    .tag-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill {
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #eef2ff;
+      color: #4f46e5;
+    }
+    .pill.green { background: #ecfdf5; color: #059669; }
+    .pill.amber { background: #fffbeb; color: #b45309; }
+
+    .section {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 24px 28px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title span {
+      display: inline-block;
+      width: 6px;
+      height: 18px;
+      background: #4f46e5;
+      border-radius: 4px;
+    }
+
+    /* Architecture grid */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: 205px 46px 220px 46px 260px 46px 1fr;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .arrow-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      gap: 4px;
+    }
+    .arrow-col .arrow { font-size: 22px; color: #4f46e5; }
+    .layer-box {
+      border: 1.5px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 14px;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .layer-box.accent {
+      background: #eef2ff;
+      border-color: #c7d2fe;
+    }
+    .layer-box.warn {
+      background: #fffbeb;
+      border-color: #fde68a;
+    }
+    .layer-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .node {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .node h4 { font-size: 13px; font-weight: 700; color: #0f172a; }
+    .node p { font-size: 11px; color: #64748b; margin-top: 4px; line-height: 1.45; }
+    .node.new { border-color: #4f46e5; box-shadow: 0 2px 8px rgba(79,70,229,0.08); }
+    .badge-new {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      background: #4f46e5;
+      color: #fff;
+      padding: 1px 6px;
+      border-radius: 6px;
+      margin-left: 4px;
+    }
+
+    /* Pipeline row */
+    .pipeline-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .pipe-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      position: relative;
+    }
+    .pipe-step {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      color: #4f46e5;
+      background: #eef2ff;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+    .pipe-card h4 { font-size: 13.5px; font-weight: 800; margin-bottom: 6px; }
+    .pipe-card p { font-size: 12px; color: #475569; line-height: 1.55; }
+
+    /* ER Grid */
+    .er-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .table-card {
+      border: 1.5px solid #cbd5e1;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .table-card.v2 { border-color: #4f46e5; }
+    .table-head {
+      background: #0f172a;
+      color: #ffffff;
+      padding: 8px 12px;
+      font-size: 12.5px;
+      font-weight: 800;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .table-card.v2 .table-head { background: #4f46e5; }
+    .table-head span { font-size: 10px; opacity: 0.9; font-weight: 600; }
+    .table-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+    .col-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      line-height: 1.45;
+      border-bottom: 1px dashed #f1f5f9;
+      padding-bottom: 3px;
+    }
+    .col-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .col-name { font-family: "SF Mono", Menlo, monospace; font-weight: 600; color: #0f172a; }
+    .col-type { color: #64748b; font-size: 10.5px; }
+    .col-new { color: #4f46e5; }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="header">
+      <div>
+        <h1>知行快刷 V2.0｜分布式异步架构与自适应数据库蓝图</h1>
+        <p>V1 单体无中间件基线 → V2 多 Worker + Redis + ARQ 延迟队列 + 独立 Chroma + 画像驱动 LCEL 路由</p>
+      </div>
+      <div class="tag-row">
+        <span class="pill">FastAPI 多 Worker</span>
+        <span class="pill green">Redis + ARQ 延迟队列</span>
+        <span class="pill amber">LCEL 意图路由（无 ReAct 循环）</span>
+      </div>
+    </div>
+
+    <!-- Section 1: System Topology -->
+    <div class="section">
+      <div class="section-title"><span></span>1. 系统部署与高并发解耦拓扑（为什么引入 Redis + ARQ + 独立 Chroma）</div>
+      <div class="arch-grid">
+        <div class="layer-box">
+          <div class="layer-title">客户端</div>
+          <div class="node">
+            <h4>微信小程序</h4>
+            <p>Taro 4 + React 18<br/>2s 阶段轮询 + 上一题回看<br/>订阅消息定时复习召回</p>
+          </div>
+          <div class="node">
+            <h4>H5 预览调试端</h4>
+            <p>同源页面共享<br/>轻量原生 SVG 记忆曲线与图谱</p>
+          </div>
+        </div>
+
+        <div class="arrow-col">
+          <span>HTTPS<br/>Bearer JWT</span>
+          <span class="arrow">→</span>
+          <span>1Panel<br/>反代限流</span>
+        </div>
+
+        <div class="layer-box accent">
+          <div class="layer-title">API 接入层（可水平扩容）</div>
+          <div class="node new">
+            <h4>FastAPI × N Workers <span class="badge-new">V2</span></h4>
+            <p>解除 V1 单 Worker 瓶颈<br/>只负责鉴权/快速算分/入队/查状态</p>
+          </div>
+          <div class="node new">
+            <h4>自适应出题决策器 <span class="badge-new">V2</span></h4>
+            <p>O(1) 读 Redis 画像，计算推荐题量 (3~15) 与 Easy/Med/Hard 配比</p>
+          </div>
+        </div>
+
+        <div class="arrow-col">
+          <span>入队 / 限流<br/>缓存读写</span>
+          <span class="arrow">⇄</span>
+          <span>Pub/Sub<br/>毫秒响应</span>
+        </div>
+
+        <div class="layer-box warn">
+          <div class="layer-title">中间件核心层（Redis）</div>
+          <div class="node new">
+            <h4>Redis 7（三合一底座）<span class="badge-new">V2</span></h4>
+            <p>1. ARQ 持久化任务队列 + 延迟队列 (defer_by)<br/>2. 多 Worker 共享滑动窗口限流<br/>3. 用户知识域掌握画像读缓存</p>
+          </div>
+          <div class="node new">
+            <h4>ARQ Worker 异步池 <span class="badge-new">V2</span></h4>
+            <p>出题 / 文档向量化 + AI归类 / 配图 / AI复盘 / 延迟错题激活 + Cron 补偿兜底</p>
+          </div>
+        </div>
+
+        <div class="arrow-col">
+          <span>事务读写<br/>向量 HTTP</span>
+          <span class="arrow">⇄</span>
+          <span>可控外部<br/>AI 调用</span>
+        </div>
+
+        <div class="layer-box">
+          <div class="layer-title">数据与独立 AI 服务层</div>
+          <div class="node new">
+            <h4>独立 Chroma HTTP Server <span class="badge-new">V2</span></h4>
+            <p>独立容器托管，彻底消灭多 Worker 写本地 SQLite/HNSW 竞态锁</p>
+          </div>
+          <div class="node">
+            <h4>MySQL 8.0（12 张业务表）</h4>
+            <p>aiomysql 事务 + INSERT IGNORE 幂等保护，唯一事实来源</p>
+          </div>
+          <div class="node new">
+            <h4>LangChain LCEL 路由 <span class="badge-new">V2</span></h4>
+            <p>去掉 ReAct 循环：URL/时效/开关命中才走 Tavily，否则知识库直检或 DeepSeek 直出（5~12s）</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Adaptive + ARQ Flow -->
+    <div class="section">
+      <div class="section-title"><span></span>2. 核心业务双闭环：知识画像自适应出题 + 错题遗忘延迟召回</div>
+      <div class="pipeline-grid">
+        <div class="pipe-card">
+          <span class="pipe-step">闭环 A1 · AI 自动归类</span>
+          <h4>文档/自由主题 → 知识域字典</h4>
+          <p>上传文档或出题完成时，Worker 异步识别所属领域（如“分布式缓存”、“考研英语”），优先语义归并到用户已有 <b>domains</b>，防标签碎片化。</p>
+        </div>
+        <div class="pipe-card">
+          <span class="pipe-step">闭环 A2 · 后端看数定题</span>
+          <h4>冷启动自评 + 历史掌握驱动</h4>
+          <p>未知领域按「陌生/略懂/熟悉」推 3~5 题偏基础摸底；已有画像则依 <b>mastery_score</b> 与难度准确率自动调至 5~15 题与高阶变式比。</p>
+        </div>
+        <div class="pipe-card">
+          <span class="pipe-step">闭环 B1 · 秒算与三维画像</span>
+          <h4>交卷即更新熟练度 & 收录错题</h4>
+          <p>服务端重判秒返结果；ARQ 异步聚合 <b>E/M/H 难度准确率与耗时</b>，更新遗忘稳定性 <b>S</b> 与保持率 <b>R(t)=e^(-t/S)</b> 供前端学习记忆曲线图谱绘制。</p>
+        </div>
+        <div class="pipe-card">
+          <span class="pipe-step">闭环 B2 · ARQ 延迟与补偿</span>
+          <h4>精确延迟召回 + 订阅/横幅双达</h4>
+          <p>错题写入 <b>review_cards</b> 后投递 ARQ `_defer_by` 延迟任务，叠加每小时 Cron 扫表防漏补偿；有配额发微信服务消息，无配额首页横幅提醒。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: V2 Database ER -->
+    <div class="section">
+      <div class="section-title"><span></span>3. V2 数据库演进 ER（紫色为 V2 新增核心表，黑色为 V1 保留平滑扩展表）</div>
+      <div class="er-grid">
+        <div class="table-card v2">
+          <div class="table-head">domains <span>V2 新增 · AI 领域归类</span></div>
+          <div class="table-body">
+            <div class="col-row"><span class="col-name">id (PK)</span><span class="col-type">BIGINT AUTO_INC</span></div>
+            <div class="col-row"><span class="col-name">user_id</span><span class="col-type">0=通用 / &gt;0私有</span></div>
+            <div class="col-row"><span class="col-name">name / slug</span><span class="col-type">VARCHAR(64) 唯一域</span></div>
+            <div class="col-row"><span class="col-name">color_hex</span><span class="col-type">图谱曲线配色</span></div>
+          </div>
+        </div>
+
+        <div class="table-card v2">
+          <div class="table-head">user_knowledge_mastery <span>V2 核心画像</span></div>
+          <div class="table-body">
+            <div class="col-row"><span class="col-name">uk(user_id, domain_id)</span><span class="col-type">唯一画像键</span></div>
+            <div class="col-row"><span class="col-name">self_rated_level</span><span class="col-type">unknown/basic/familiar</span></div>
+            <div class="col-row"><span class="col-name">mastery_score / stability_s</span><span class="col-type">掌握分 &amp; 遗忘稳定性</span></div>
+            <div class="col-row"><span class="col-name">easy/med/hard_stats</span><span class="col-type">三维题数与答对数</span></div>
+            <div class="col-row"><span class="col-name">avg_duration_ms</span><span class="col-type">平均作答耗时</span></div>
+          </div>
+        </div>
+
+        <div class="table-card v2">
+          <div class="table-head">questions <span>V2 单题规范化</span></div>
+          <div class="table-body">
+            <div class="col-row"><span class="col-name">id / question_uid</span><span class="col-type">PK / 全局题号</span></div>
+            <div class="col-row"><span class="col-name">quiz_id / domain_id</span><span class="col-type">所属场次与领域</span></div>
+            <div class="col-row"><span class="col-name">difficulty / type</span><span class="col-type">easy/med/hard</span></div>
+            <div class="col-row"><span class="col-name">knowledge_point</span><span class="col-type">细粒度考点</span></div>
+            <div class="col-row"><span class="col-name">stem / answer / explain</span><span class="col-type">拆出 JSON 独立检索</span></div>
+          </div>
+        </div>
+
+        <div class="table-card v2">
+          <div class="table-head">review_cards <span>V2 间隔重复队列</span></div>
+          <div class="table-body">
+            <div class="col-row"><span class="col-name">uk(user_id, question_id)</span><span class="col-type">单题复习卡</span></div>
+            <div class="col-row"><span class="col-name">repetition / interval_days</span><span class="col-type">1 → 3 → 7 → 15d</span></div>
+            <div class="col-row"><span class="col-name">ease_factor</span><span class="col-type">DECIMAL 默认 2.5</span></div>
+            <div class="col-row"><span class="col-name">next_review_at (IDX)</span><span class="col-type">ARQ/Cron 调度索引</span></div>
+            <div class="col-row"><span class="col-name">status / trigger_source</span><span class="col-type">active/mastered</span></div>
+          </div>
+        </div>
+
+        <div class="table-card v2">
+          <div class="table-head">subscribe_quotas <span>V2 微信召回配额</span></div>
+          <div class="table-body">
+            <div class="col-row"><span class="col-name">user_id (PK)</span><span class="col-type">关联用户</span></div>
+            <div class="col-row"><span class="col-name">template_id</span><span class="col-type">微信订阅模板 ID</span></div>
+            <div class="col-row"><span class="col-name">remaining_count</span><span class="col-type">可用一次性次数</span></div>
+            <div class="col-row"><span class="col-name">preferred_hour</span><span class="col-type">每日偏好推送小时</span></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-head">users &amp; kb_documents <span>V1 扩展列</span></div>
+          <div class="table-body">
+            <div class="col-row"><span class="col-name col-new">+ users.streak_days</span><span class="col-type">连续打卡天数</span></div>
+            <div class="col-row"><span class="col-name col-new">+ users.last_active_date</span><span class="col-type">断签判定</span></div>
+            <div class="col-row"><span class="col-name col-new">+ kb_documents.domain_id</span><span class="col-type">AI 自动归类结果</span></div>
+            <div class="col-row"><span class="col-name col-new">+ kb_documents.auto_tags_json</span><span class="col-type">核心知识点标签</span></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-head">quiz_sessions &amp; answer_records <span>V1 扩展</span></div>
+          <div class="table-body">
+            <div class="col-row"><span class="col-name col-new">+ quiz_sessions.domain_id</span><span class="col-type">关联掌握画像</span></div>
+            <div class="col-row"><span class="col-name col-new">+ quiz_sessions.source_type</span><span class="col-type">rag / web / llm</span></div>
+            <div class="col-row"><span class="col-name col-new">+ quiz_sessions.strategy_badge</span><span class="col-type">自适应出题说明</span></div>
+            <div class="col-row"><span class="col-name">answer_records</span><span class="col-type">保留幂等防重唯一键</span></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-head">quiz_tasks / reports / img_logs <span>V1 保留</span></div>
+          <div class="table-body">
+            <div class="col-row"><span class="col-name">quiz_tasks</span><span class="col-type">阶段状态双写 Redis</span></div>
+            <div class="col-row"><span class="col-name">reports</span><span class="col-type">异步 AI 复盘表</span></div>
+            <div class="col-row"><span class="col-name">image_generation_logs</span><span class="col-type">配图日限额审计</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

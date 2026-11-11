@@ -1,4 +1,4 @@
-"""用户数据访问层"""
+"""用户数据访问层（V2 支持 streak_days 连续打卡追踪）"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ async def find_user_by_openid(openid: str) -> Optional[dict]:
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT id, openid, nickname, avatar_url, total_xp, created_at, updated_at "
+                "SELECT id, openid, nickname, avatar_url, total_xp, streak_days, created_at, updated_at "
                 "FROM users WHERE openid = %s",
                 (openid,),
             )
@@ -31,8 +31,9 @@ async def find_user_by_openid(openid: str) -> Optional[dict]:
                 "nickname": row[2],
                 "avatar_url": row[3],
                 "total_xp": row[4],
-                "created_at": row[5],
-                "updated_at": row[6],
+                "streak_days": int(row[5] or 0),
+                "created_at": row[6],
+                "updated_at": row[7],
             }
 
 
@@ -53,6 +54,7 @@ async def create_user(openid: str) -> dict:
                 "nickname": "学习者",
                 "avatar_url": "",
                 "total_xp": 0,
+                "streak_days": 0,
             }
 
 
@@ -98,7 +100,7 @@ async def get_user_by_id(user_id: int) -> Optional[dict]:
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT id, openid, nickname, avatar_url, total_xp FROM users WHERE id = %s",
+                "SELECT id, openid, nickname, avatar_url, total_xp, streak_days FROM users WHERE id = %s",
                 (user_id,),
             )
             row = await cur.fetchone()
@@ -110,4 +112,5 @@ async def get_user_by_id(user_id: int) -> Optional[dict]:
                 "nickname": row[2],
                 "avatar_url": row[3],
                 "total_xp": row[4],
+                "streak_days": int(row[5] or 0),
             }

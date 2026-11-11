@@ -1,3 +1,4 @@
 export default definePageConfig({
-  navigationBarTitleText: '私有知识库',
+  navigationBarTitleText: '知识口袋',
+  usingComponents: {},
 })

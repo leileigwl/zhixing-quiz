@@ -1,171 +1,105 @@
-"""知识库 Agentic RAG 检索服务 - 结合知识库向量检索与按需联网搜索"""
+"""知识库 RAG 检索服务 - 基于 LCEL RunnableBranch 直连 Chroma HTTP 与按需联网增强"""
+
+from __future__ import annotations
 
 import asyncio
-import time
 
 import structlog
+from langchain_core.runnables import RunnableBranch, RunnableLambda
 
-from app.core.config import get_settings, resolve_llm_config
-from app.prompts.rag_prompt import RAG_AGENT_SYSTEM_PROMPT
-from app.services import vector_store_service
+from app.services import search_service, vector_store_service
 
 logger = structlog.get_logger()
 
-MAX_CONTEXT_LENGTH = 3000
-AGENT_TIMEOUT_SECONDS = 60
+MAX_CONTEXT_LENGTH = 3500
+MIN_KB_SUFFICIENT_CHARS = 280
 
 
-def _build_knowledge_base_tool(user_id: int, doc_id: str):
-    """通过 Python 闭包锁定 user_id / doc_id，并以异步工具调度检索避免阻塞事件循环。"""
-    from langchain_core.tools import StructuredTool
-
-    def _format_docs(docs: list) -> str:
-        if not docs:
-            return "知识库中未检索到相关内容。"
-        return "\n\n".join(doc.page_content for doc in docs)
-
-    def _search_sync(query: str) -> str:
-        try:
-            docs = vector_store_service.similarity_search(
-                user_id=user_id, doc_id=doc_id, query=query
-            )
-        except Exception as e:
-            logger.warning("kb_retrieval_failed", user_id=user_id, doc_id=doc_id, error=str(e))
-            return "知识库检索失败，未获取到内容。"
-        return _format_docs(docs)
-
-    async def _search_async(query: str) -> str:
-        try:
-            docs = await asyncio.to_thread(
-                vector_store_service.similarity_search,
-                user_id=user_id,
-                doc_id=doc_id,
-                query=query,
-            )
-        except Exception as e:
-            logger.warning("kb_retrieval_failed", user_id=user_id, doc_id=doc_id, error=str(e))
-            return "知识库检索失败，未获取到内容。"
-        return _format_docs(docs)
-
-    return StructuredTool.from_function(
-        func=_search_sync,
-        coroutine=_search_async,
-        name="search_knowledge_base",
-        description="在用户上传的私有知识库文档中检索与 query 最相关的内容片段，返回拼接后的文本。",
-    )
+def _format_kb_docs(docs: list) -> str:
+    if not docs:
+        return ""
+    return "\n\n".join(doc.page_content for doc in docs if getattr(doc, "page_content", "")).strip()
 
 
-def _build_agent(user_id: int, doc_id: str):
-    """构建知识获取 Agent：知识库检索工具 +（可选）联网搜索工具。"""
-    from langchain_openai import ChatOpenAI
-    from langgraph.prebuilt import create_react_agent
-
-    settings = get_settings()
-
-    tools = [_build_knowledge_base_tool(user_id, doc_id)]
-
-    if settings.enable_web_search and settings.tavily_api_key:
-        from langchain_tavily import TavilyExtract, TavilySearch
-
-        tools.append(
-            TavilySearch(
-                name="tavily_search_basic",
-                description="轻量联网搜索，返回最多 10 条结果的摘要。用于知识库内容不足时补充背景知识。",
-                max_results=10,
-                include_raw_content=False,
-                include_answer=False,
-                tavily_api_key=settings.tavily_api_key,
-            )
-        )
-        tools.append(
-            TavilySearch(
-                name="tavily_search_deep",
-                description="深度联网搜索，返回最多 10 条结果的完整页面内容。用于知识库内容不足以覆盖专业主题时补充。",
-                max_results=10,
-                include_raw_content=True,
-                include_answer=False,
-                tavily_api_key=settings.tavily_api_key,
-            )
-        )
-        tools.append(
-            TavilyExtract(
-                name="tavily_extract",
-                description="从指定 URL 提取页面完整内容。",
-                extract_depth="basic",
-                tavily_api_key=settings.tavily_api_key,
-            )
-        )
-
-    api_key, base_url, model = resolve_llm_config(settings)
-    llm = ChatOpenAI(
-        model=model,
-        base_url=base_url,
-        api_key=api_key,
-        temperature=0.1,
-    )
-
-    agent = create_react_agent(
-        llm,
-        tools=tools,
-        prompt=RAG_AGENT_SYSTEM_PROMPT,
-    )
-    return agent
-
-
-async def fetch_rag_context(user_input: str, user_id: int, doc_id: str) -> str:
-    """基于知识库文档（及可选联网搜索）获取知识摘要，用于出题参考资料。"""
+async def _retrieve_kb_chunks(user_id: int, doc_id: str, query: str) -> str:
     try:
-        logger.info(
-            "rag_agent_starting",
+        docs = await asyncio.to_thread(
+            vector_store_service.similarity_search,
             user_id=user_id,
             doc_id=doc_id,
-            user_input=user_input[:100],
+            query=query,
         )
-
-        t0 = time.monotonic()
-        agent = _build_agent(user_id, doc_id)
-
-        result = await asyncio.wait_for(
-            agent.ainvoke(
-                {"messages": [{"role": "user", "content": user_input}]},
-                config={"recursion_limit": 10},
-            ),
-            timeout=AGENT_TIMEOUT_SECONDS,
-        )
-        elapsed = round((time.monotonic() - t0) * 1000)
-
-        messages = result.get("messages", [])
-        logger.info(
-            "rag_agent_completed",
-            elapsed_ms=elapsed,
-            message_count=len(messages),
-        )
-
-        content = messages[-1].content if messages else ""
-        if not content:
-            logger.warning("rag_agent_empty_response", user_id=user_id, doc_id=doc_id)
-            return ""
-
-        if len(content) > MAX_CONTEXT_LENGTH:
-            content = content[:MAX_CONTEXT_LENGTH]
-
-        logger.info("rag_context_fetched", user_id=user_id, doc_id=doc_id, length=len(content))
-        return content
-
-    except asyncio.TimeoutError:
-        logger.warning(
-            "rag_agent_timeout",
-            timeout=AGENT_TIMEOUT_SECONDS,
-            user_id=user_id,
-            doc_id=doc_id,
-        )
+        return _format_kb_docs(docs)
+    except Exception as exc:
+        logger.warning("kb_retrieval_failed", user_id=user_id, doc_id=doc_id, error=str(exc))
         return ""
-    except Exception as e:
-        logger.warning(
-            "rag_agent_error",
-            error=str(e),
-            error_type=type(e).__name__,
-            user_id=user_id,
-            doc_id=doc_id,
+
+
+async def resolve_rag_context(
+    user_input: str,
+    user_id: int,
+    doc_id: str,
+    enable_web_search: bool = False,
+) -> tuple[str, str]:
+    """LCEL 确定性分支检索私有知识库（可选联网补充），返回 (context, source_type)。"""
+    kb_text = await _retrieve_kb_chunks(user_id=user_id, doc_id=doc_id, query=user_input)
+
+    async def _kb_only(payload: dict) -> dict:
+        text = payload["kb_text"]
+        if not text:
+            return {"context": "", "source_type": "llm_direct"}
+        return {
+            "context": f"【私有知识库摘录】\n{text}"[:MAX_CONTEXT_LENGTH],
+            "source_type": "kb_rag",
+        }
+
+    async def _kb_plus_web(payload: dict) -> dict:
+        web_text, web_src = await search_service.resolve_knowledge_context(
+            payload["user_input"],
+            enable_web_search=True,
         )
-        return ""
+        kb = payload["kb_text"]
+        merged_parts = []
+        if kb:
+            merged_parts.append(f"【私有知识库摘录】\n{kb}")
+        if web_text:
+            merged_parts.append(f"【联网核验补充】\n{web_text}")
+        merged = "\n\n".join(merged_parts)[:MAX_CONTEXT_LENGTH]
+        src = "web_search" if web_src == "web_search" and web_text else ("kb_rag" if kb else "llm_direct")
+        return {"context": merged, "source_type": src}
+
+    branch = RunnableBranch(
+        (
+            lambda x: bool(x.get("enable_web_search"))
+            or len(x.get("kb_text", "")) < MIN_KB_SUFFICIENT_CHARS
+            and bool(x.get("allow_auto_web")),
+            RunnableLambda(_kb_plus_web),
+        ),
+        RunnableLambda(_kb_only),
+    )
+
+    result = await branch.ainvoke(
+        {
+            "user_input": user_input,
+            "kb_text": kb_text,
+            "enable_web_search": enable_web_search,
+            "allow_auto_web": enable_web_search,
+        }
+    )
+    return str(result.get("context") or ""), str(result.get("source_type") or "kb_rag")
+
+
+async def fetch_rag_context(
+    user_input: str,
+    user_id: int,
+    doc_id: str,
+    enable_web_search: bool = False,
+) -> str:
+    """兼容接口：返回整合后的知识库参考资料摘要。"""
+    ctx, _ = await resolve_rag_context(
+        user_input=user_input,
+        user_id=user_id,
+        doc_id=doc_id,
+        enable_web_search=enable_web_search,
+    )
+    return ctx

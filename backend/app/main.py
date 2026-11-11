@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1.routes import health, knowledge, quiz, report, user
+from app.api.v1.routes import health, knowledge, mastery, quiz, report, reviews, user
 from app.core.config import get_settings
 from app.core.db import close_mysql_pool, init_mysql, recover_stale_jobs
 from app.core.exceptions import (
@@ -22,6 +22,7 @@ from app.core.exceptions import (
     ReportGenerationError,
     ResourceNotFoundError,
 )
+from app.core.redis_client import close_redis_and_arq, init_arq_pool, init_redis_client
 from app.models.common import ApiResponse
 
 logger = structlog.get_logger()
@@ -40,7 +41,10 @@ async def lifespan(app: FastAPI):
     if settings.mysql_auto_init:
         await init_mysql()
         await recover_stale_jobs()
+    await init_redis_client()
+    await init_arq_pool()
     yield
+    await close_redis_and_arq()
     await close_mysql_pool()
     logger.info("app_shutting_down")
 
@@ -77,6 +81,8 @@ app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(report.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")
 app.include_router(knowledge.router, prefix="/api/v1")
+app.include_router(mastery.router, prefix="/api/v1")
+app.include_router(reviews.router, prefix="/api/v1")
 
 
 # 全局异常处理

@@ -13,8 +13,16 @@
 
 - **产品范围、用户角色、上线包含/排除项变化**：同步更新 [`docs/PRODUCT.md`](docs/PRODUCT.md) 与 [`docs/01-product/PRD.md`](docs/01-product/PRD.md)。
 - **技术栈、数据模型、JWT/安全边界、部署或存储约束变化**：同步更新 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) 与 [`docs/02-design/system-architecture.md`](docs/02-design/system-architecture.md)。
-- **前端样式与页面改动（强制原型门控）**：用户提出前端样式或界面修改需求时，必须先在 [`docs/02-design/prototypes/`](docs/02-design/prototypes/README.md) 制作或更新可交互 HTML 原型图并经用户确认，**确认通过后再编写或修改 `frontend/` 页面代码**。
+- **前端样式与页面改动（强制原型门控）**：用户提出前端样式或界面修改需求时，必须先在 [`docs/02-design/prototypes/`](docs/02-design/prototypes/README.md) 制作或更新可交互 HTML 原型图并经用户确认，**确认通过后再编写或修改 `frontend/` 页面代码**；V2 样式与按钮排版严格对照 [`docs/02-design/v2-ui-design-system.md`](docs/02-design/v2-ui-design-system.md)（方案 B `MOVEPOP` 暖石膏风格）。
 - **过时文档处理**：淘汰或被替代的设计文档归档至 `docs/99-archive/`，不要在多个文档里重复抄录同一份完整规范（入口文档只写核心边界与跳转链接）。
+
+## 开发阶段 Skill 与上线前安全审计门控
+
+> Antigravity 对全局/本地 Skill 采用**按需渐进加载（Progressive Disclosure）**，默认仅展示名称与简介，不会自动全量载入正文；请严格按下列里程碑主动调用对应 Skill / 插件：
+
+- **设计定调与外部 API 对齐阶段**：查阅最新 Taro 4 / ARQ / LangChain 文档时使用 `context7`；UI 改版对标线上真实应用模式时使用 `mobbin` + `design-html` / `liquid-glass-design` + `prototype`。
+- **后端核心模块编码完成后（Redis / ARQ / SQLAlchemy / 文件解析 / LCEL）**：执行 `source-command-python-review`、`improve-codebase-architecture` 与 `source-command-tdd`，检查并发锁、幂等投递、事务隔离与测试覆盖（`source-command-test-coverage`）。
+- **上线部署 / 公开验收前（强制安全审计门控）**：上线前必须触发 `review-security` / `cs-audit` 与 **`endor-labs-agent-kit`**（`sca-remediation`、`ai-sast-remediation`、`cicd-posture`、`findings-browser`），专项检查 JWT/匿名配额防越权、PDF/Word/MD 上传解析安全性、SSRF/XSS、`.env` 密钥防泄露与三方依赖漏洞；并运行 `source-command-e2e` + 浏览器端到端核验。
 
 ## 何时必须停下来问用户
 

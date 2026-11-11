@@ -1,0 +1,1557 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>知行快刷 V2.0 · 极简高净度三套定调方案与全流程对比</title>
+  <style>
+    :root {
+      --studio-bg: #ecebef;
+      --ink-900: #14151a;
+      --ink-700: #3d404b;
+      --ink-500: #6e7280;
+      --ink-400: #969aa6;
+      --hairline: rgba(20, 21, 26, 0.08);
+      --ds-blue: #2563eb;
+      --ds-bg: #eef4ff;
+      --ds-border: rgba(37, 99, 235, 0.24);
+      --sans: "PingFang SC", "SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+      --serif: "Songti SC", "Noto Serif SC", "Georgia", serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background:
+        radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.72), transparent 44%),
+        radial-gradient(circle at 88% 12%, rgba(226, 224, 240, 0.65), transparent 42%),
+        var(--studio-bg);
+      color: var(--ink-900);
+      font-family: var(--sans);
+      padding: 40px 44px 56px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .board {
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+
+    /* Editorial Board Header */
+    .board-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-bottom: 22px;
+      margin-bottom: 30px;
+      border-bottom: 1px solid rgba(20, 21, 26, 0.10);
+    }
+
+    .board-kicker {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-500);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .board-title {
+      font-family: var(--serif);
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink-900);
+    }
+
+    .board-meta {
+      text-align: right;
+      font-size: 12.5px;
+      line-height: 1.65;
+      color: var(--ink-500);
+      max-width: 440px;
+    }
+
+    .section-divider {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 34px 0 18px;
+    }
+
+    .section-divider h2 {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-500);
+    }
+
+    .section-divider span {
+      font-size: 12px;
+      color: var(--ink-400);
+    }
+
+    /* 3-Column Showcase Grid */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 36px;
+      justify-items: center;
+    }
+
+    .palette-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+
+    .palette-meta {
+      width: 364px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+
+    .palette-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--ink-900);
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .palette-tag {
+      font-size: 11px;
+      color: var(--ink-500);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .swatches {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid rgba(20, 21, 26, 0.14);
+      display: inline-block;
+    }
+
+    /* Shared Phone Shell */
+    .phone {
+      width: 364px;
+      height: 756px;
+      border-radius: 46px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow:
+        0 28px 60px -18px rgba(20, 21, 26, 0.18),
+        0 4px 14px rgba(20, 21, 26, 0.05),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+      border: 6px solid #fdfdfe;
+    }
+
+    .phone-sm {
+      height: 706px;
+    }
+
+    /* iOS Status Bar */
+    .statusbar {
+      height: 44px;
+      padding: 14px 26px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink-900);
+      position: relative;
+      z-index: 5;
+    }
+
+    .island {
+      position: absolute;
+      left: 50%;
+      top: 10px;
+      transform: translateX(-50%);
+      width: 96px;
+      height: 24px;
+      background: #111216;
+      border-radius: 999px;
+    }
+
+    .signal {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+    }
+
+    /* Common Micro Components */
+    .ds-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: nowrap;
+    }
+
+    .ds-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 29px;
+      padding: 0 11px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .ds-pill.active {
+      background: var(--ds-bg);
+      color: var(--ds-blue);
+      border: 1px solid var(--ds-border);
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+    }
+
+    .ds-pill.muted {
+      background: rgba(255, 255, 255, 0.72);
+      color: var(--ink-500);
+      border: 1px solid rgba(20, 21, 26, 0.09);
+    }
+
+    .seg-bar {
+      display: inline-flex;
+      padding: 3px;
+      border-radius: 999px;
+      background: rgba(20, 21, 26, 0.045);
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .seg-item {
+      padding: 4px 11px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-500);
+      white-space: nowrap;
+    }
+
+    .seg-item.on {
+      background: #ffffff;
+      color: var(--ink-900);
+      box-shadow: 0 1px 4px rgba(20, 21, 26, 0.08);
+    }
+
+    .cta-obsidian {
+      width: 100%;
+      height: 48px;
+      border-radius: 999px;
+      background: #14151a;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px 0 24px;
+      letter-spacing: -0.01em;
+    }
+
+    /* =====================================================
+       PALETTE 1: LUCEN (Iridescent Mist + Obsidian Minimal)
+       ===================================================== */
+    .p1 {
+      background:
+        radial-gradient(ellipse 280px 220px at 84% 34%, rgba(213, 198, 252, 0.58), transparent 72%),
+        radial-gradient(ellipse 220px 200px at 78% 48%, rgba(252, 224, 235, 0.55), transparent 70%),
+        radial-gradient(ellipse 260px 260px at 14% 78%, rgba(214, 230, 252, 0.45), transparent 70%),
+        linear-gradient(180deg, #faf9fe 0%, #f1effa 100%);
+    }
+
+    .p1-inner {
+      flex: 1;
+      padding: 16px 24px 86px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .p1-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .p1-brand {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .p1-avatar {
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: rgba(20, 21, 26, 0.055);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--ink-700);
+      white-space: nowrap;
+    }
+
+    .p1-hero {
+      position: relative;
+      padding: 18px 0 8px;
+    }
+
+    .p1-hero h1 {
+      font-size: 26px;
+      line-height: 1.28;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      color: #14151a;
+      max-width: 224px;
+    }
+
+    .p1-hero-sub {
+      margin-top: 14px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--ink-500);
+      max-width: 158px;
+    }
+
+    .p1-prism-prop {
+      position: absolute;
+      right: -8px;
+      top: 42px;
+      width: 166px;
+      height: 166px;
+      pointer-events: none;
+    }
+
+    .p1-review-slip {
+      background: rgba(255, 255, 255, 0.62);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.88);
+      border-radius: 18px;
+      padding: 13px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .p1-composer {
+      background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.92);
+      border-radius: 26px;
+      padding: 18px 18px 16px;
+      box-shadow: 0 18px 40px -16px rgba(103, 94, 152, 0.14);
+    }
+
+    .p1-prompt-text {
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--ink-900);
+      font-weight: 500;
+      min-height: 44px;
+    }
+
+    .p1-cursor {
+      display: inline-block;
+      width: 1.5px;
+      height: 15px;
+      background: #14151a;
+      vertical-align: -2px;
+      margin-left: 2px;
+    }
+
+    .p1-dock {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 70px;
+      padding: 8px 28px 14px;
+      background: rgba(250, 249, 254, 0.78);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid rgba(20, 21, 26, 0.05);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .dock-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--ink-400);
+    }
+
+    .dock-item.on {
+      color: var(--ink-900);
+    }
+
+    /* =====================================================
+       PALETTE 2: MOVEPOP (Warm Plaster + Butter & Mist Sky)
+       ===================================================== */
+    .p2 {
+      background: #f6f5f1;
+    }
+
+    .p2-inner {
+      flex: 1;
+      padding: 12px 20px 88px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .p2-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px;
+    }
+
+    .p2-greeting {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .p2-monogram {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #e9e6dc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-900);
+    }
+
+    .p2-week {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      padding: 4px 2px;
+    }
+
+    .day-pill {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 7px 0;
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--ink-500);
+    }
+
+    .day-pill b {
+      font-size: 12px;
+      color: var(--ink-900);
+      font-weight: 600;
+    }
+
+    .day-pill.today {
+      background: #18191e;
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .day-pill.today b {
+      color: #ffffff;
+    }
+
+    .p2-bento {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .p2-tile {
+      border-radius: 24px;
+      padding: 16px;
+      height: 174px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .p2-tile.butter {
+      background: #f4d06f;
+    }
+
+    .p2-tile.sky {
+      background: #cbe5f5;
+    }
+
+    .p2-micro-tag {
+      display: inline-block;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(20, 21, 26, 0.08);
+      color: var(--ink-900);
+      width: fit-content;
+    }
+
+    .p2-composer {
+      background: #ffffff;
+      border-radius: 26px;
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(20, 21, 26, 0.035);
+    }
+
+    .p2-float-dock {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 16px;
+      height: 58px;
+      background: #18191e;
+      border-radius: 999px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      box-shadow: 0 14px 28px -8px rgba(24, 25, 30, 0.35);
+    }
+
+    .float-tab {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.56);
+    }
+
+    .float-tab.on {
+      background: #ffffff;
+      color: #18191e;
+    }
+
+    /* =====================================================
+       PALETTE 3: lingobud (Airy Sky Mist + Warm Amber Serif)
+       ===================================================== */
+    .p3 {
+      background:
+        radial-gradient(ellipse 300px 220px at 50% 42%, rgba(207, 232, 245, 0.55), transparent 72%),
+        linear-gradient(180deg, #eff6fa 0%, #f8fbfd 48%, #ffffff 100%);
+    }
+
+    .p3-inner {
+      flex: 1;
+      padding: 14px 24px 26px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .p3-masthead {
+      text-align: center;
+      padding-top: 6px;
+    }
+
+    .p3-wordmark {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--ink-500);
+      margin-bottom: 12px;
+    }
+
+    .p3-serif-title {
+      font-family: var(--serif);
+      font-size: 27px;
+      line-height: 1.28;
+      font-weight: 700;
+      color: #17202a;
+      letter-spacing: -0.02em;
+    }
+
+    .p3-sub {
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--ink-500);
+    }
+
+    .p3-emblem-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 0;
+    }
+
+    .p3-stage-pill {
+      margin-top: 10px;
+      background: #ffffff;
+      border: 1px solid rgba(23, 32, 42, 0.06);
+      box-shadow: 0 6px 16px rgba(23, 32, 42, 0.04);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-700);
+      letter-spacing: 0.02em;
+    }
+
+    .p3-card {
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid rgba(23, 32, 42, 0.06);
+      border-radius: 26px;
+      padding: 18px 18px 16px;
+      box-shadow: 0 18px 36px -18px rgba(25, 55, 85, 0.10);
+    }
+
+    .cta-amber {
+      width: 100%;
+      height: 48px;
+      border-radius: 999px;
+      background: #f7cb59;
+      color: #17202a;
+      font-size: 14.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      box-shadow: 0 10px 22px -10px rgba(226, 174, 48, 0.55);
+    }
+
+    /* =====================================================
+       ROW 2: SUPPORTING FLOW SCREENS
+       ===================================================== */
+    .flow-bg {
+      background: #f8f8fb;
+    }
+
+    .flow-inner {
+      flex: 1;
+      padding: 14px 22px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .flow-title {
+      font-family: var(--serif);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink-900);
+      letter-spacing: -0.02em;
+    }
+
+    /* DAYPATCH Translucent Frosted Pockets */
+    .pockets-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .pocket {
+      height: 176px;
+      border-radius: 22px;
+      position: relative;
+      overflow: hidden;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    .pocket-paper {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      right: 16px;
+      height: 112px;
+      background: #ffffff;
+      border-radius: 14px;
+      padding: 12px;
+      transform: rotate(-3.5deg);
+      box-shadow: 0 6px 14px rgba(20, 21, 26, 0.06);
+      font-size: 10.5px;
+      line-height: 1.45;
+      color: var(--ink-500);
+    }
+
+    .pocket-paper.r2 { transform: rotate(3deg); }
+
+    .pocket-lip {
+      position: relative;
+      z-index: 2;
+      height: 84px;
+      margin: 0 -14px -14px;
+      padding: 14px 14px 12px;
+      background: rgba(255, 255, 255, 0.54);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(255, 255, 255, 0.85);
+      border-radius: 18px 18px 0 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .pocket-lip::before {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 5px;
+      border-top: 1px dashed rgba(20, 21, 26, 0.14);
+    }
+
+    .pocket-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink-900);
+    }
+
+    .pocket-count {
+      font-size: 11px;
+      color: var(--ink-500);
+      font-weight: 500;
+    }
+
+    /* Quiz Clean Options */
+    .quiz-dots {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .qdot {
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(20, 21, 26, 0.10);
+      flex: 1;
+    }
+
+    .qdot.done { background: #14151a; }
+    .qdot.curr { background: #2563eb; }
+
+    .opt {
+      padding: 13px 15px;
+      border-radius: 16px;
+      background: #ffffff;
+      border: 1px solid rgba(20, 21, 26, 0.07);
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--ink-900);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 9px;
+    }
+
+    .opt.ok {
+      background: #f0f9f3;
+      border-color: rgba(34, 150, 82, 0.35);
+      color: #165e35;
+      font-weight: 600;
+    }
+
+    .explain-box {
+      background: #f2f4fa;
+      border-radius: 18px;
+      padding: 13px 15px;
+      font-size: 11.5px;
+      line-height: 1.6;
+      color: var(--ink-700);
+    }
+
+    .dual-nav {
+      display: grid;
+      grid-template-columns: 112px 1fr;
+      gap: 10px;
+    }
+
+    .btn-prev {
+      height: 46px;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 1px solid rgba(20, 21, 26, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink-700);
+    }
+
+    /* Learning Curve & Stat Chips */
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .stat-cell {
+      background: #ffffff;
+      border-radius: 18px;
+      padding: 12px 10px;
+      border: 1px solid rgba(20, 21, 26, 0.05);
+    }
+
+    .stat-cell small {
+      display: block;
+      font-size: 10.5px;
+      color: var(--ink-500);
+      margin-bottom: 4px;
+    }
+
+    .stat-cell strong {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .curve-card {
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 16px 16px 14px;
+      border: 1px solid rgba(20, 21, 26, 0.055);
+      box-shadow: 0 10px 26px -14px rgba(20, 21, 26, 0.08);
+    }
+
+    .bars-7 {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      align-items: end;
+      height: 76px;
+      padding: 4px 4px 0;
+    }
+
+    .bar-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      height: 100%;
+      justify-content: flex-end;
+    }
+
+    .bar-track {
+      width: 14px;
+      height: 54px;
+      border-radius: 999px;
+      background: #efeff3;
+      display: flex;
+      align-items: flex-end;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      width: 100%;
+      border-radius: 999px;
+      background: #cbe5f5;
+    }
+
+    .bar-fill.today {
+      background: #14151a;
+    }
+
+    .bar-lbl {
+      font-size: 10px;
+      color: var(--ink-400);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="board">
+    <header class="board-head">
+      <div>
+        <div class="board-kicker">ZHIXING QUIZ V2.0 · EDITORIAL DIRECTION LAB</div>
+        <h1 class="board-title">三套高净度、少堆砌的视觉定调方案对比</h1>
+      </div>
+      <div class="board-meta">
+        对标 Troy 高净度呼吸留白规范：每屏保留 42%+ 空境、主从字阶拉开、单屏只用一套主调配黑白高对比，移除低质感几何球贴图，保留 DeepSeek 胶囊开关与核心 V2 功能闭环。
+      </div>
+    </header>
+
+    <div class="section-divider">
+      <h2>01 · 核心定调三选一（首页 + 出题入口）</h2>
+      <span>同样功能结构，三种截然不同的气质表达</span>
+    </div>
+
+    <!-- ROW 1: THREE PALETTES -->
+    <div class="grid-3">
+      <!-- ==================== PALETTE 1: LUCEN ==================== -->
+      <div class="palette-col">
+        <div class="palette-meta">
+          <span class="palette-name">
+            方案 A · LUCEN 虹彩雾白
+            <span class="swatches">
+              <i class="dot" style="background:#f6f4fc"></i>
+              <i class="dot" style="background:#dcd3fa"></i>
+              <i class="dot" style="background:#14151a"></i>
+            </span>
+          </span>
+          <span class="palette-tag">安静、高级、玻璃光感</span>
+        </div>
+
+        <div class="phone p1">
+          <div class="island"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="signal">5G · 92%</span>
+          </div>
+
+          <div class="p1-inner">
+            <!-- Top Nav -->
+            <div class="p1-top">
+              <div class="p1-brand">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#14151a" stroke-width="1.8">
+                  <ellipse cx="10" cy="12" rx="6" ry="9" />
+                  <ellipse cx="14" cy="12" rx="6" ry="9" />
+                </svg>
+                <span>知行快刷</span>
+              </div>
+              <div class="p1-avatar">连续7天</div>
+            </div>
+
+            <!-- Open Typographic Hero + Crafted Frosted 3D Prism Notebook SVG -->
+            <div class="p1-hero">
+              <h1>少一点噪音，<br/>把知识真正记牢。</h1>
+              <p class="p1-hero-sub">依据掌握曲线动态调控题量，不靠题海，只练盲区。</p>
+
+              <svg class="p1-prism-prop" viewBox="0 0 180 180" fill="none">
+                <defs>
+                  <linearGradient id="lucenCover" x1="20" y1="20" x2="160" y2="150" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+                    <stop offset="52%" stop-color="#e3dcff" stop-opacity="0.72"/>
+                    <stop offset="100%" stop-color="#fce3ee" stop-opacity="0.80"/>
+                  </linearGradient>
+                  <linearGradient id="lucenSpine" x1="34" y1="50" x2="108" y2="145" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#c9bcf8"/>
+                    <stop offset="100%" stop-color="#a8c7f7"/>
+                  </linearGradient>
+                  <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#7c6fc4" flood-opacity="0.20"/>
+                  </filter>
+                </defs>
+                <g filter="url(#softGlow)">
+                  <!-- Inner Pages -->
+                  <path d="M48 64 L126 32 C133 29 140 33 143 40 L166 98 C169 105 165 113 158 116 L80 148 C73 151 65 147 62 140 L39 82 C36 75 40 67 48 64Z" fill="url(#lucenSpine)"/>
+                  <path d="M42 58 L122 27 L158 106 L74 140 Z" fill="#ffffff" fill-opacity="0.85"/>
+                  <!-- Top Frosted Translucent Glass Cover -->
+                  <path d="M36 52 L118 22 C126 19 135 23 138 31 L160 90 C163 98 159 107 151 110 L69 140 C61 143 52 139 49 131 L27 72 C24 64 28 55 36 52Z" fill="url(#lucenCover)" stroke="#ffffff" stroke-opacity="0.95" stroke-width="1.5"/>
+                  <!-- Subtle Ruled Editorial Lines Inside Glass -->
+                  <path d="M52 72 L106 52 M59 89 L114 68 M66 106 L100 93" stroke="#9d8ee0" stroke-opacity="0.32" stroke-width="2" stroke-linecap="round"/>
+                  <!-- Minimalist Sleek Stylus Resting Across -->
+                  <g transform="rotate(-21 104 92)">
+                    <rect x="64" y="88" width="84" height="7" rx="3.5" fill="#181920"/>
+                    <polygon points="55,91.5 64,88.5 64,94.5" fill="#b7a7f6"/>
+                  </g>
+                </g>
+              </svg>
+            </div>
+
+            <!-- Quiet Due Review Slip -->
+            <div class="p1-review-slip">
+              <div>
+                <div style="font-size:12.5px;font-weight:700;color:#14151a;">今日有 4 道错题到期</div>
+                <div style="font-size:11px;color:var(--ink-500);margin-top:2px;">计算机网络保持率接近 50% 预警线</div>
+              </div>
+              <span style="font-size:11.5px;font-weight:700;color:#14151a;background:#fff;padding:6px 12px;border-radius:999px;box-shadow:0 2px 8px rgba(20,21,26,0.06);">去复习 →</span>
+            </div>
+
+            <!-- Clean Composer -->
+            <div class="p1-composer">
+              <div class="p1-prompt-text">
+                帮我检测 RAG 混合检索与重排策略的实战盲区<span class="p1-cursor"></span>
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 14px;">
+                <div class="ds-row">
+                  <span class="ds-pill active">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+                    </svg>
+                    智能搜索
+                  </span>
+                  <span class="ds-pill muted">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="1.5"/><path d="m21 15-4.5-4.5L7 21"/>
+                    </svg>
+                    配图
+                  </span>
+                </div>
+                <span style="font-size:11px;color:var(--ink-500);font-weight:600;">已选 6 题</span>
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <span style="font-size:11px;color:var(--ink-500);">当前熟悉度</span>
+                <div class="seg-bar">
+                  <span class="seg-item">陌生</span>
+                  <span class="seg-item on">略懂</span>
+                  <span class="seg-item">熟悉</span>
+                </div>
+              </div>
+
+              <div class="cta-obsidian">
+                <span>开始自适应测验</span>
+                <span>→</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="p1-dock">
+            <div class="dock-item on">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+              <span>今日</span>
+            </div>
+            <div class="dock-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M4 10h16"/></svg>
+              <span>口袋</span>
+            </div>
+            <div class="dock-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 17c3-7 7-10 16-10"/><circle cx="8" cy="12" r="2"/></svg>
+              <span>曲线</span>
+            </div>
+            <div class="dock-item">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M5 20c1.5-3.5 4.2-5 7-5s5.5 1.5 7 5"/></svg>
+              <span>档案</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== PALETTE 2: MOVEPOP ==================== -->
+      <div class="palette-col">
+        <div class="palette-meta">
+          <span class="palette-name">
+            方案 B · MOVEPOP 暖石膏
+            <span class="swatches">
+              <i class="dot" style="background:#f6f5f1"></i>
+              <i class="dot" style="background:#f4d06f"></i>
+              <i class="dot" style="background:#cbe5f5"></i>
+              <i class="dot" style="background:#18191e"></i>
+            </span>
+          </span>
+          <span class="palette-tag">明快、有节奏、极净悬浮</span>
+        </div>
+
+        <div class="phone p2">
+          <div class="island"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="signal">5G · 92%</span>
+          </div>
+
+          <div class="p2-inner">
+            <!-- Header -->
+            <div class="p2-header">
+              <div class="p2-greeting">
+                <div class="p2-monogram">知</div>
+                <div>
+                  <div style="font-size:15px;font-weight:700;letter-spacing:-0.01em;">早安，继续精进</div>
+                  <div style="font-size:11px;color:var(--ink-500);">11月11日 · 连续复习 7 天</div>
+                </div>
+              </div>
+              <div style="width:32px;height:32px;border-radius:50%;background:#ffffff;display:flex;align-items:center;justify-content:center;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#14151a" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+              </div>
+            </div>
+
+            <!-- 7-Day Strip (MOVEPOP signature) -->
+            <div class="p2-week">
+              <div class="day-pill"><span>五</span><b>07</b></div>
+              <div class="day-pill"><span>六</span><b>08</b></div>
+              <div class="day-pill"><span>日</span><b>09</b></div>
+              <div class="day-pill"><span>一</span><b>10</b></div>
+              <div class="day-pill today"><span>二</span><b>11</b></div>
+              <div class="day-pill"><span>三</span><b>12</b></div>
+              <div class="day-pill"><span>四</span><b>13</b></div>
+            </div>
+
+            <!-- Clean 2-Card Bento (ONLY muted yellow + pale sky) -->
+            <div class="p2-bento">
+              <div class="p2-tile butter">
+                <span class="p2-micro-tag">DUE TODAY</span>
+                <!-- Clean Ceramic Disc/Card Stack Icon -->
+                <svg width="64" height="54" viewBox="0 0 70 60" fill="none" style="align-self:flex-end;margin:-6px -4px;">
+                  <rect x="12" y="16" width="44" height="30" rx="9" fill="#ffffff" fill-opacity="0.72" transform="rotate(-8 12 16)"/>
+                  <rect x="18" y="10" width="44" height="30" rx="9" fill="#18191e"/>
+                  <circle cx="30" cy="25" r="4" fill="#f4d06f"/>
+                  <rect x="38" y="23" width="16" height="4" rx="2" fill="#ffffff" fill-opacity="0.65"/>
+                </svg>
+                <div>
+                  <div style="font-size:22px;font-weight:800;letter-spacing:-0.03em;">04 错题</div>
+                  <div style="font-size:11px;color:rgba(20,21,26,0.68);margin-top:2px;">SM-2 到期 · 优先巩固</div>
+                </div>
+              </div>
+
+              <div class="p2-tile sky">
+                <span class="p2-micro-tag">ADAPTIVE</span>
+                <svg width="62" height="54" viewBox="0 0 70 60" fill="none" style="align-self:flex-end;margin:-6px -4px;">
+                  <circle cx="42" cy="34" r="18" fill="#ffffff" fill-opacity="0.75"/>
+                  <circle cx="32" cy="24" r="13" fill="#4f94c4" fill-opacity="0.88"/>
+                  <circle cx="32" cy="24" r="5" fill="#ffffff"/>
+                </svg>
+                <div>
+                  <div style="font-size:20px;font-weight:800;letter-spacing:-0.02em;">RAG 架构</div>
+                  <div style="font-size:11px;color:rgba(20,21,26,0.68);margin-top:2px;">掌握 74% · 建议 6 题</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Composer Card -->
+            <div class="p2-composer">
+              <div style="font-size:11.5px;font-weight:700;color:var(--ink-400);margin-bottom:6px;">发起新测验</div>
+              <div style="font-size:14px;font-weight:600;color:var(--ink-900);line-height:1.45;min-height:38px;">
+                输入知识主题，或选用口袋里的文档
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 8px;">
+                <div class="ds-row">
+                  <span class="ds-pill active">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+                    </svg>
+                    智能搜索
+                  </span>
+                  <span class="ds-pill muted">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="1.5"/><path d="m21 15-4.5-4.5L7 21"/>
+                    </svg>
+                    配图
+                  </span>
+                </div>
+                <span style="font-size:11px;color:var(--ink-500);font-weight:600;white-space:nowrap;">6 题模式</span>
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <span style="font-size:11px;color:var(--ink-500);">出题节奏</span>
+                <div class="seg-bar">
+                  <span class="seg-item">3题</span>
+                  <span class="seg-item on">自适应</span>
+                  <span class="seg-item">10题</span>
+                </div>
+              </div>
+
+              <div class="cta-obsidian">
+                <span>开始自适应测验</span>
+                <span>→</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- MOVEPOP Floating Dark Capsule Dock -->
+          <div class="p2-float-dock">
+            <div class="float-tab on">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+            </div>
+            <div class="float-tab">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M4 10h16"/></svg>
+            </div>
+            <div class="float-tab">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 18V8M10 18V5M16 18v-7M21 18v-4"/></svg>
+            </div>
+            <div class="float-tab">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="8" r="4"/><path d="M5 20c1.5-3.5 4.2-5 7-5s5.5 1.5 7 5"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== PALETTE 3: LINGOBUD ==================== -->
+      <div class="palette-col">
+        <div class="palette-meta">
+          <span class="palette-name">
+            方案 C · lingobud 天雾暖阳
+            <span class="swatches">
+              <i class="dot" style="background:#eff6fa"></i>
+              <i class="dot" style="background:#85c6e8"></i>
+              <i class="dot" style="background:#f7cb59"></i>
+            </span>
+          </span>
+          <span class="palette-tag">杂志衬线、天雾暖阳</span>
+        </div>
+
+        <div class="phone p3">
+          <div class="island"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="signal">5G · 92%</span>
+          </div>
+
+          <div class="p3-inner">
+            <!-- Editorial Masthead -->
+            <div class="p3-masthead">
+              <div class="p3-wordmark">ZHIXING QUIZ</div>
+              <h1 class="p3-serif-title">每一次小练习，<br/>都在拓宽知识边界。</h1>
+              <p class="p3-sub">先读懂你的熟悉程度，再定制题目节奏。<br/>今日有 4 道间隔复习等待清零。</p>
+            </div>
+
+            <!-- Curated Minimal Layered Knowledge Cards + Amber Bookmark -->
+            <div class="p3-emblem-stage">
+              <svg width="164" height="140" viewBox="0 0 190 160" fill="none">
+                <defs>
+                  <linearGradient id="skyGlass" x1="40" y1="22" x2="150" y2="132" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#9ad8fa"/>
+                    <stop offset="100%" stop-color="#58aee3"/>
+                  </linearGradient>
+                  <linearGradient id="cardAmber" x1="60" y1="50" x2="140" y2="120" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stop-color="#fde38f"/>
+                    <stop offset="100%" stop-color="#f7c443"/>
+                  </linearGradient>
+                  <filter id="lingoShadow" x="-15%" y="-15%" width="130%" height="145%">
+                    <feDropShadow dx="0" dy="14" stdDeviation="11" flood-color="#3c83b4" flood-opacity="0.18"/>
+                  </filter>
+                </defs>
+                <ellipse cx="95" cy="144" rx="52" ry="7" fill="#c7e0ef" fill-opacity="0.58"/>
+                <g filter="url(#lingoShadow)">
+                  <!-- Back Sky Card -->
+                  <rect x="44" y="22" width="92" height="106" rx="22" fill="url(#skyGlass)" transform="rotate(-9 90 75)"/>
+                  <!-- Middle Amber Accent Card -->
+                  <rect x="64" y="28" width="84" height="98" rx="20" fill="url(#cardAmber)" transform="rotate(8 106 77)"/>
+                  <!-- Front Crisp Frosted Reading Card -->
+                  <rect x="52" y="30" width="88" height="100" rx="20" fill="rgba(255,255,255,0.92)" stroke="#ffffff" stroke-width="2"/>
+                  <!-- Clean Editorial Card Typography Lines + Spark -->
+                  <rect x="68" y="52" width="38" height="6" rx="3" fill="#17202a"/>
+                  <rect x="68" y="66" width="54" height="4.5" rx="2.25" fill="#9fb2c2"/>
+                  <rect x="68" y="77" width="44" height="4.5" rx="2.25" fill="#c3d2de"/>
+                  <circle cx="116" cy="106" r="10" fill="#58aee3"/>
+                  <path d="M112 106l2.8 2.8 5.2-5.4" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+                </g>
+              </svg>
+              <span class="p3-stage-pill">AI 自动归类 4 域 · 连续学习 7 天</span>
+            </div>
+
+            <!-- Composer + Warm Amber CTA -->
+            <div class="p3-card">
+              <div style="font-size:13.5px;font-weight:600;color:#17202a;line-height:1.5;margin-bottom:10px;">
+                输入主题，如 “HTTP/3 QUIC 队头阻塞”
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;">
+                <div class="ds-row">
+                  <span class="ds-pill active">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>
+                    </svg>
+                    智能搜索
+                  </span>
+                  <span class="ds-pill muted">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="9" cy="9" r="1.5"/><path d="m21 15-4.5-4.5L7 21"/>
+                    </svg>
+                    配图
+                  </span>
+                </div>
+                <span style="font-size:11px;color:var(--ink-500);font-weight:600;white-space:nowrap;">已选 6 题</span>
+              </div>
+
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;">
+                <span style="font-size:11px;color:var(--ink-500);">当前熟悉度</span>
+                <div class="seg-bar">
+                  <span class="seg-item">陌生</span>
+                  <span class="seg-item on">略懂</span>
+                  <span class="seg-item">熟悉</span>
+                </div>
+              </div>
+
+              <div class="cta-amber">
+                <span>开始自适应测验</span>
+                <span>→</span>
+              </div>
+              <div style="text-align:center;font-size:10.5px;color:var(--ink-400);margin-top:9px;white-space:nowrap;">
+                知识口袋已就绪 · 支持 PDF / Word / MD 直接出题
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 2: SUPPORTING FLOW SCREENS -->
+    <div class="section-divider">
+      <h2>02 · 配套内页延续标准（半透明口袋 / 只读回看 / 学习记忆曲线）</h2>
+      <span>三套配色均按这套极简比例向下延续，绝不堆砌冗余卡片</span>
+    </div>
+
+    <div class="grid-3">
+      <!-- ==================== SCREEN 4: DAYPATCH KNOWLEDGE POCKETS ==================== -->
+      <div class="palette-col">
+        <div class="palette-meta">
+          <span class="palette-name">内页 A · DAYPATCH 半透明口袋</span>
+          <span class="palette-tag">自动归类 · 磨砂夹层</span>
+        </div>
+
+        <div class="phone phone-sm flow-bg">
+          <div class="island"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="signal">5G · 92%</span>
+          </div>
+
+          <div class="flow-inner">
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;">
+              <div>
+                <div style="font-size:11px;color:var(--ink-500);margin-bottom:4px;">PRIVATE LIBRARY</div>
+                <div class="flow-title">你的知识口袋</div>
+              </div>
+              <span style="font-size:11.5px;font-weight:700;background:#14151a;color:#fff;padding:7px 14px;border-radius:999px;">+ 上传文档</span>
+            </div>
+
+            <!-- Quiet AI Classify Notice -->
+            <div style="background:#ffffff;border:1px solid var(--hairline);border-radius:16px;padding:11px 14px;font-size:11.5px;color:var(--ink-700);display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <span>支持 PDF / Word / MD 自动切片归档</span>
+              <span style="color:#2563eb;font-weight:600;white-space:nowrap;">已分 4 域</span>
+            </div>
+
+            <!-- DAYPATCH Frosted Pockets Grid -->
+            <div class="pockets-grid">
+              <div class="pocket" style="background:#dcecf7;">
+                <div class="pocket-paper">
+                  <b style="color:#14151a;">HTTP/3 笔记</b><br/>QUIC 0-RTT 与流级多路复用...
+                </div>
+                <div class="pocket-lip">
+                  <div class="pocket-name">计算机网络</div>
+                  <div class="pocket-count">8 份文档 · 保持 46%</div>
+                </div>
+              </div>
+
+              <div class="pocket" style="background:#f5e2aa;">
+                <div class="pocket-paper r2">
+                  <b style="color:#14151a;">BM25 + RRF</b><br/>混合检索与 Cross-Encoder 重排...
+                </div>
+                <div class="pocket-lip">
+                  <div class="pocket-name">RAG 架构</div>
+                  <div class="pocket-count">5 份文档 · 保持 78%</div>
+                </div>
+              </div>
+
+              <div class="pocket" style="background:#e4def9;">
+                <div class="pocket-paper">
+                  <b style="color:#14151a;">Redis ZSET</b><br/>ARQ 延迟队列与分布式锁幂等...
+                </div>
+                <div class="pocket-lip">
+                  <div class="pocket-name">后端分布式</div>
+                  <div class="pocket-count">6 份文档 · 保持 84%</div>
+                </div>
+              </div>
+
+              <div class="pocket" style="background:#d9eddf;">
+                <div class="pocket-paper r2">
+                  <b style="color:#14151a;">Core Verbs</b><br/>语境高频词根与间隔巩固清单...
+                </div>
+                <div class="pocket-lip">
+                  <div class="pocket-name">核心英语</div>
+                  <div class="pocket-count">12 份文档 · 保持 91%</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="text-align:center;font-size:11px;color:var(--ink-400);">
+              点击任意半透明口袋，即可抽取出其中文档直接自适应出题
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== SCREEN 5: QUIZ + PREV READONLY ==================== -->
+      <div class="palette-col">
+          <div class="palette-meta">
+          <span class="palette-name">内页 B · 极净刷题与只读回看</span>
+          <span class="palette-tag">220ms 缓冲 · 防误触</span>
+        </div>
+
+        <div class="phone phone-sm" style="background:#ffffff;">
+          <div class="island"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="signal">5G · 92%</span>
+          </div>
+
+          <div class="flow-inner">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <span style="font-size:11.5px;font-weight:700;color:var(--ink-500);">RAG 架构 · 第 3 / 6 题</span>
+                <span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:#f4f4f6;color:var(--ink-700);">中等难度 · 自适应</span>
+              </div>
+              <div class="quiz-dots">
+                <span class="qdot done"></span>
+                <span class="qdot done"></span>
+                <span class="qdot curr"></span>
+                <span class="qdot"></span>
+                <span class="qdot"></span>
+                <span class="qdot"></span>
+              </div>
+            </div>
+
+            <!-- Question Stem -->
+            <div>
+              <div style="font-family:var(--serif);font-size:18px;line-height:1.52;font-weight:700;color:#14151a;margin-bottom:16px;">
+                知识库召回 Top-20 粗排片段后，引入 RRF 融合与 Cross-Encoder 重排的核心收益在于？
+              </div>
+
+              <div class="opt"><span>A. 免去所有文本向量化计算成本</span><span style="color:var(--ink-400);">○</span></div>
+              <div class="opt ok"><span>B. 兼顾关键词精确匹配与跨段细粒度语义对齐</span><span>✓</span></div>
+              <div class="opt"><span>C. 自动缩短 Chroma 物理存储体积</span><span style="color:var(--ink-400);">○</span></div>
+              <div class="opt"><span>D. 让上下文窗口突破大语言模型极限</span><span style="color:var(--ink-400);">○</span></div>
+            </div>
+
+            <!-- Explanation Reveal -->
+            <div class="explain-box">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                <b style="color:#14151a;">解析（220ms 缓冲后平滑展开）</b>
+                <span style="color:var(--ds-blue);font-weight:600;">知识库 + 搜索核验</span>
+              </div>
+              RRF 在不依赖统一打分尺度下融合 BM25 与向量排序；Cross-Encoder 再对 Query 与段落联合编码，显著压低前 5 命中噪音。
+            </div>
+
+            <!-- Dual Nav -->
+            <div class="dual-nav">
+              <div class="btn-prev">‹ 上一题</div>
+              <div class="cta-obsidian" style="height:46px;">
+                <span>下一题</span>
+                <span>→</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== SCREEN 6: LEARNING CURVE & MASTERY ==================== -->
+      <div class="palette-col">
+        <div class="palette-meta">
+          <span class="palette-name">内页 C · 学习记忆曲线与节律</span>
+          <span class="palette-tag">纯数据美学 · 无冗余徽章</span>
+        </div>
+
+        <div class="phone phone-sm flow-bg">
+          <div class="island"></div>
+          <div class="statusbar">
+            <span>9:41</span>
+            <span class="signal">5G · 92%</span>
+          </div>
+
+          <div class="flow-inner">
+            <div>
+              <div style="font-size:11px;color:var(--ink-500);margin-bottom:4px;">MEMORY RETENTION</div>
+              <div class="flow-title">今天稳住了 2 项薄弱点。</div>
+            </div>
+
+            <!-- 3 Clean Metrics -->
+            <div class="stat-row">
+              <div class="stat-cell">
+                <small>本次准确率</small>
+                <strong>83%</strong>
+              </div>
+              <div class="stat-cell">
+                <small>平均耗时</small>
+                <strong>38s</strong>
+              </div>
+              <div class="stat-cell">
+                <small>连续复习</small>
+                <strong>7 天</strong>
+              </div>
+            </div>
+
+            <!-- Crisp SVG Learning Retention Curve -->
+            <div class="curve-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:12.5px;font-weight:700;color:#14151a;">学习记忆曲线 · R(t) = e^(-t/S)</span>
+                <span style="font-size:10.5px;font-weight:600;color:#c94c3d;">50% 临界提醒</span>
+              </div>
+
+              <svg viewBox="0 0 300 112" style="width:100%;height:112px;display:block;">
+                <defs>
+                  <linearGradient id="curveArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#2563eb" stop-opacity="0.16"/>
+                    <stop offset="100%" stop-color="#2563eb" stop-opacity="0.0"/>
+                  </linearGradient>
+                </defs>
+                <!-- Subtle Grid -->
+                <line x1="8" y1="22" x2="292" y2="22" stroke="rgba(20,21,26,0.05)" stroke-width="1"/>
+                <line x1="8" y1="62" x2="292" y2="62" stroke="#d8685a" stroke-width="1" stroke-dasharray="4 4"/>
+                <text x="10" y="57" fill="#c94c3d" font-size="9" font-weight="600">50% 临界线</text>
+
+                <!-- Decay Path Before Review -->
+                <path d="M18 22 C76 28 118 52 152 68" fill="none" stroke="rgba(20,21,26,0.28)" stroke-width="2" stroke-dasharray="3 3"/>
+                <!-- Recovery After Today's Review -->
+                <path d="M152 68 L164 24 C206 25 248 31 286 36 L286 98 L152 98 Z" fill="url(#curveArea)"/>
+                <path d="M152 68 L164 24 C206 25 248 31 286 36" fill="none" stroke="#14151a" stroke-width="2.4" stroke-linecap="round"/>
+
+                <circle cx="152" cy="68" r="4.2" fill="#d8685a"/>
+                <circle cx="164" cy="24" r="4.2" fill="#2563eb" stroke="#ffffff" stroke-width="1.5"/>
+                <text x="172" y="15" fill="#2563eb" font-size="9.5" font-weight="700">复习后回升 94%</text>
+                <text x="16" y="106" fill="#969aa6" font-size="9">D1</text>
+                <text x="142" y="106" fill="#969aa6" font-size="9">今日重测</text>
+                <text x="268" y="106" fill="#969aa6" font-size="9">+14天</text>
+              </svg>
+            </div>
+
+            <!-- MOVEPOP Clean Minimal Weekly Rhythm Bars -->
+            <div class="curve-card" style="padding:14px 16px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:12px;font-weight:700;">本周复习节律</span>
+                <span style="font-size:10.5px;color:var(--ink-500);">明日预测 3 题</span>
+              </div>
+              <div class="bars-7">
+                <div class="bar-col"><div class="bar-track"><div class="bar-fill" style="height:48%"></div></div><span class="bar-lbl">一</span></div>
+                <div class="bar-col"><div class="bar-track"><div class="bar-fill" style="height:64%"></div></div><span class="bar-lbl">二</span></div>
+                <div class="bar-col"><div class="bar-track"><div class="bar-fill" style="height:35%"></div></div><span class="bar-lbl">三</span></div>
+                <div class="bar-col"><div class="bar-track"><div class="bar-fill" style="height:78%"></div></div><span class="bar-lbl">四</span></div>
+                <div class="bar-col"><div class="bar-track"><div class="bar-fill" style="height:56%"></div></div><span class="bar-lbl">五</span></div>
+                <div class="bar-col"><div class="bar-track"><div class="bar-fill" style="height:42%"></div></div><span class="bar-lbl">六</span></div>
+                <div class="bar-col"><div class="bar-track"><div class="bar-fill today" style="height:88%"></div></div><span class="bar-lbl" style="color:#14151a;">今</span></div>
+              </div>
+            </div>
+
+            <div class="cta-obsidian" style="height:46px;">
+              <span>开启明日 ARQ 到期提醒</span>
+              <span>→</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>知行快刷 V2｜3 套独立开发 IP 画风 & MG 动画对比实验室</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      background: #eceae4;
+      color: #1f1a17;
+      padding-bottom: 56px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 99;
+      background: rgba(255, 252, 247, 0.94);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #dfd8cd;
+      padding: 14px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .topbar h1 { font-size: 16px; font-weight: 800; color: #2c221e; }
+    .topbar p { font-size: 12px; color: #6e5e54; margin-top: 3px; }
+    .replay-all-btn {
+      border: none;
+      background: #2c221e;
+      color: #fbf7f0;
+      padding: 9px 16px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.14s ease;
+    }
+    .replay-all-btn:active { transform: scale(0.96); }
+
+    .lab-grid {
+      max-width: 1440px;
+      margin: 28px auto 0;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(360px, 1fr));
+      gap: 28px;
+    }
+
+    .style-column {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .style-header {
+      background: #ffffff;
+      border: 1px solid #e2dbd0;
+      border-radius: 18px;
+      padding: 14px 18px;
+    }
+    .style-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 999px;
+      margin-bottom: 6px;
+    }
+    .style-header h2 { font-size: 15.5px; font-weight: 800; }
+    .style-header p { font-size: 12px; color: #6b635c; margin-top: 4px; line-height: 1.5; }
+    .swatch-row { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+    .swatch { width: 18px; height: 18px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.08); }
+    .swatch-label { font-size: 11px; color: #78716c; margin-left: 4px; }
+
+    /* Shared Phone Showcase */
+    .phone {
+      border-radius: 34px;
+      padding: 14px;
+      border: 6px solid #262220;
+      box-shadow: 0 20px 44px rgba(20, 16, 12, 0.14);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ========== STYLE A: Cream Cheese + Black Cat ========== */
+    .theme-a { background: #fbf7f0; color: #2c221e; }
+    .theme-a .card { background: #ffffff; border: 1px solid #ece3d5; box-shadow: 0 3px 12px rgba(90, 62, 42, 0.045); }
+    .theme-a .muted { color: #78695f; }
+    .theme-a .cta-btn { background: #d96b43; color: #ffffff; box-shadow: 0 6px 14px rgba(217, 107, 67, 0.25); }
+    .theme-a .pill-btn { background: #f6efe6; border: 1px solid #e4d6c4; color: #5c4b41; }
+    .theme-a .pill-btn.on { background: #fdeee7; border-color: #d96b43; color: #b84a24; }
+    .theme-a .splash-stage { background: linear-gradient(160deg, #fffaf2 0%, #f5eadc 100%); border: 1px solid #eadcc9; }
+
+    /* ========== STYLE B: Night Desk Lamp + Glowing-Eye Black Cat ========== */
+    .theme-b { background: #141720; color: #f3efe8; border-color: #0b0d13 !important; }
+    .theme-b .card { background: #1d212d; border: 1px solid #2b3142; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28); }
+    .theme-b .muted { color: #9ca3b5; }
+    .theme-b .cta-btn { background: #f4c26f; color: #191510; box-shadow: 0 6px 18px rgba(244, 194, 111, 0.22); }
+    .theme-b .pill-btn { background: #232837; border: 1px solid #333a4f; color: #b4bdd1; }
+    .theme-b .pill-btn.on { background: rgba(244, 194, 111, 0.16); border-color: #f4c26f; color: #f7d08a; }
+    .theme-b .splash-stage { background: radial-gradient(circle at 50% 18%, rgba(244,194,111,0.22), #151822 68%); border: 1px solid #2b3142; }
+
+    /* ========== STYLE C: Ivory Cream + White Kitten & Autumn Breeze ========== */
+    .theme-c { background: #fcf9f5; color: #262838; }
+    .theme-c .card { background: #ffffff; border: 1px solid #ebe6df; box-shadow: 0 3px 12px rgba(38, 40, 56, 0.04); }
+    .theme-c .muted { color: #6e7285; }
+    .theme-c .cta-btn { background: #6469d8; color: #ffffff; box-shadow: 0 6px 16px rgba(100, 105, 216, 0.24); }
+    .theme-c .pill-btn { background: #f4f2ef; border: 1px solid #e3dfd9; color: #54586c; }
+    .theme-c .pill-btn.on { background: #eef0ff; border-color: #6469d8; color: #4a4fc2; }
+    .theme-c .splash-stage { background: linear-gradient(165deg, #fffdf9 0%, #f3eef8 100%); border: 1px solid #e7e1ea; }
+
+    /* Common inner layout */
+    .card { border-radius: 18px; padding: 13px 14px; }
+    .section-tag { font-size: 11px; font-weight: 800; letter-spacing: 0.3px; opacity: 0.78; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+
+    .splash-stage {
+      border-radius: 20px;
+      padding: 16px 14px;
+      min-height: 176px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    .mini-btn {
+      border: none;
+      background: rgba(120,120,120,0.14);
+      color: inherit;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Input + DeepSeek-style Pill Bar */
+    .input-mock {
+      border-radius: 16px;
+      padding: 12px;
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+    .theme-a .input-mock { background: #ffffff; border: 1.5px solid #e6dacc; }
+    .theme-b .input-mock { background: #1d212d; border: 1.5px solid #2f3649; }
+    .theme-c .input-mock { background: #ffffff; border: 1.5px solid #e4dfd8; }
+
+    .pill-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .pill-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+    .pill-btn:active { transform: scale(0.94); }
+    .pill-btn .spin-globe { display: inline-block; transition: transform 0.35s ease; }
+    .pill-btn.on .spin-globe { transform: rotate(180deg); }
+
+    /* Interactive pressable option cards (tactile without cheap glare) */
+    .press-card {
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-size: 12.5px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.14s ease;
+    }
+    .theme-a .press-card { background: #fdfaf5; border: 1.5px solid #e6dac9; }
+    .theme-b .press-card { background: #242938; border: 1.5px solid #353c52; }
+    .theme-c .press-card { background: #faf8f5; border: 1.5px solid #e5e0d8; }
+    .press-card:active { transform: translateY(1px) scale(0.985); }
+
+    .cta-btn {
+      border: none;
+      width: 100%;
+      height: 44px;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .cta-btn:active { transform: scale(0.975); }
+
+    /* ============ MG KEYFRAME ANIMATIONS ============ */
+    @keyframes floatBob {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+    @keyframes earTwitch {
+      0%, 84%, 100% { transform: rotate(0deg); }
+      88% { transform: rotate(-9deg); }
+      92% { transform: rotate(4deg); }
+    }
+    @keyframes blinkEyes {
+      0%, 92%, 100% { transform: scaleY(1); }
+      95% { transform: scaleY(0.08); }
+    }
+    @keyframes tailWag {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(12deg); }
+    }
+    @keyframes lampGlow {
+      0%, 100% { opacity: 0.24; transform: scale(1); }
+      50% { opacity: 0.42; transform: scale(1.04); }
+    }
+    @keyframes leafSway {
+      0%, 100% { transform: rotate(-6deg) translateY(0px); }
+      50% { transform: rotate(8deg) translateY(-3px); }
+    }
+    @keyframes splashPop {
+      0% { opacity: 0; transform: translateY(18px) scale(0.82); }
+      65% { opacity: 1; transform: translateY(-3px) scale(1.04); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes fadeSlideUp {
+      0% { opacity: 0; transform: translateY(10px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes sparkleFloat {
+      0%, 100% { transform: translateY(0) scale(0.9); opacity: 0.65; }
+      50% { transform: translateY(-6px) scale(1.1); opacity: 1; }
+    }
+
+    .anim-bob { animation: floatBob 3.2s ease-in-out infinite; }
+    .anim-ear { transform-origin: center bottom; animation: earTwitch 4.2s ease-in-out infinite; }
+    .anim-blink { transform-origin: center; animation: blinkEyes 3.8s ease-in-out infinite; }
+    .anim-tail { transform-origin: 58px 82px; animation: tailWag 2.4s ease-in-out infinite; }
+    .anim-lamp { transform-origin: 70px 10px; animation: lampGlow 3s ease-in-out infinite; }
+    .anim-leaf { transform-origin: center; animation: leafSway 3.4s ease-in-out infinite; }
+    .anim-spark { animation: sparkleFloat 2.4s ease-in-out infinite; }
+
+    .splash-run .splash-hero { animation: splashPop 0.72s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+    .splash-run .splash-title { animation: fadeSlideUp 0.55s ease 0.18s both; }
+    .splash-run .splash-sub { animation: fadeSlideUp 0.55s ease 0.30s both; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>知行快刷 V2｜3 套「IP 吉祥物 × 非绿系画风 × MG 动效」视觉对比实验室</h1>
+      <p>建议用浏览器打开本页面体验实时 MG 动效与点击手感；三套均已避开绿系，并接入 DeepSeek 同款胶囊点按按钮</p>
+    </div>
+    <button class="replay-all-btn" onclick="replayAllSplashes()">↻ 重播 3 套开屏 MG 动画</button>
+  </div>
+
+  <div class="lab-grid">
+    <!-- ==================== STYLE A ==================== -->
+    <div class="style-column">
+      <div class="style-header">
+        <span class="style-badge" style="background:#fdeee7;color:#c2522b;">方案 A（主推）· 暖奶芝士手账</span>
+        <h2>奶油暖纸 × 戴眼镜小黑猫（墨小喵）</h2>
+        <p>最耐看、零刺眼感：暖米纸白底 + 焦糖陶橘强调色，小黑猫作为学伴会眨眼、抖耳、开屏探头挥爪，知识图表温润高级。</p>
+        <div class="swatch-row">
+          <div class="swatch" style="background:#fbf7f0;"></div>
+          <div class="swatch" style="background:#2c221e;"></div>
+          <div class="swatch" style="background:#d96b43;"></div>
+          <div class="swatch" style="background:#e9b872;"></div>
+          <span class="swatch-label">#FBF7F0 / #D96B43 / #2C221E</span>
+        </div>
+      </div>
+
+      <div class="phone theme-a">
+        <!-- Splash + MG Mascot -->
+        <div class="splash-stage splash-run" id="splash-a">
+          <button class="mini-btn" style="position:absolute;top:10px;right:10px;" onclick="replaySplash('splash-a')">重播开屏</button>
+          <div class="splash-hero anim-bob">
+            <svg width="108" height="96" viewBox="0 0 120 106">
+              <!-- Cream desk book -->
+              <rect x="18" y="76" width="84" height="16" rx="8" fill="#ebd9c3"/>
+              <path d="M26 76 Q60 66 94 76" fill="#fffaf3" stroke="#d4bea3" stroke-width="2"/>
+              <!-- Tail -->
+              <path class="anim-tail" d="M84 74 Q106 68 104 48 Q103 40 97 44" fill="none" stroke="#241e1c" stroke-width="7" stroke-linecap="round"/>
+              <!-- Cat body & head -->
+              <ellipse cx="60" cy="64" rx="26" ry="20" fill="#241e1c"/>
+              <circle cx="60" cy="40" r="22" fill="#241e1c"/>
+              <!-- Ears -->
+              <polygon class="anim-ear" points="41,28 38,8 54,20" fill="#241e1c"/>
+              <polygon points="43,25 41,13 51,21" fill="#f1a58a"/>
+              <polygon class="anim-ear" points="79,28 82,8 66,20" fill="#241e1c"/>
+              <polygon points="77,25 79,13 69,21" fill="#f1a58a"/>
+              <!-- Eyes & glasses -->
+              <g class="anim-blink">
+                <circle cx="51" cy="40" r="4.2" fill="#f6c572"/>
+                <circle cx="69" cy="40" r="4.2" fill="#f6c572"/>
+                <circle cx="52" cy="39" r="1.5" fill="#1e1714"/>
+                <circle cx="70" cy="39" r="1.5" fill="#1e1714"/>
+              </g>
+              <circle cx="51" cy="40" r="6.8" fill="none" stroke="#d96b43" stroke-width="1.8"/>
+              <circle cx="69" cy="40" r="6.8" fill="none" stroke="#d96b43" stroke-width="1.8"/>
+              <line x1="57.8" y1="40" x2="62.2" y2="40" stroke="#d96b43" stroke-width="1.8"/>
+              <!-- Cute nose & cheeks -->
+              <ellipse cx="42" cy="46" rx="3" ry="1.6" fill="#e8947c" opacity="0.7"/>
+              <ellipse cx="78" cy="46" rx="3" ry="1.6" fill="#e8947c" opacity="0.7"/>
+              <polygon points="58,45 62,45 60,48" fill="#f1a58a"/>
+              <!-- Floating spark -->
+              <text x="92" y="24" font-size="13" class="anim-spark">✦</text>
+            </svg>
+          </div>
+          <div class="splash-title" style="font-size:16px;font-weight:800;margin-top:2px;">知行快刷 · 墨小喵伴学</div>
+          <div class="splash-sub muted" style="font-size:11.5px;margin-top:3px;">今天有 4 题到达记忆临界点，一起来刷吧</div>
+        </div>
+
+        <!-- DeepSeek-style Pill Toggles + Prompt -->
+        <div class="input-mock">
+          <div class="muted" style="font-size:12px;">想练什么？比如「分布式锁与 Redlock 缺陷」...</div>
+          <div class="pill-bar">
+            <div class="pill-btn on" onclick="this.classList.toggle('on')">
+              <span class="spin-globe">🌐</span><span>智能搜索</span>
+            </div>
+            <div class="pill-btn" onclick="this.classList.toggle('on')">
+              <span>🎨</span><span>题目配图</span>
+            </div>
+            <div class="pill-btn on" onclick="this.classList.toggle('on')">
+              <span>✨</span><span>自适应题量</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tactile Cards without flashy glare -->
+        <div class="card">
+          <div class="section-tag"><span>克制微交互反馈（点按测测手感）</span><span>无炫光</span></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="press-card"><span>A. 基于 Redis 单线程 TTL + Lua 原子解锁</span><span class="muted">按压轻缩</span></div>
+            <div class="press-card" style="background:#fdeee7;border-color:#d96b43;color:#b84a24;"><span>B. 发生 GC STW 导致锁过期并发冲突</span><span>✓ 已选</span></div>
+          </div>
+        </div>
+
+        <!-- Warm Cream Curve Mini Card -->
+        <div class="card">
+          <div class="section-tag"><span>学习记忆保持率曲线（奶油焦糖配色）</span><span style="color:#d96b43;">46% 预警</span></div>
+          <svg viewBox="0 0 300 66" style="width:100%;height:66px;display:block;">
+            <line x1="10" y1="36" x2="290" y2="36" stroke="#d96b43" stroke-width="1" stroke-dasharray="4 3"/>
+            <path d="M12 12 Q95 15 170 23 T288 30" fill="none" stroke="#2c221e" stroke-width="2.4"/>
+            <path d="M12 16 Q88 34 156 46 T288 58" fill="none" stroke="#d96b43" stroke-width="2.4"/>
+          </svg>
+        </div>
+
+        <button class="cta-btn">⚡ 开始跟墨小喵闯关</button>
+      </div>
+    </div>
+
+    <!-- ==================== STYLE B ==================== -->
+    <div class="style-column">
+      <div class="style-header">
+        <span class="style-badge" style="background:#262b38;color:#f4c26f;">方案 B · 深夜黑灯书桌</span>
+        <h2>暗夜黑灯 × 暖瞳小黑猫（极客夜学）</h2>
+        <p>直接回应「小黑猫、黑灯」创意：深海炭墨背景 + 一束暖琥珀台灯光锥，辨识度高到一眼记住，夜间刷题护眼且很有极客独立质感。</p>
+        <div class="swatch-row">
+          <div class="swatch" style="background:#141720;"></div>
+          <div class="swatch" style="background:#1d212d;"></div>
+          <div class="swatch" style="background:#f4c26f;"></div>
+          <div class="swatch" style="background:#c4a7e7;"></div>
+          <span class="swatch-label">#141720 / #F4C26F / #C4A7E7</span>
+        </div>
+      </div>
+
+      <div class="phone theme-b">
+        <!-- Splash + Black Lamp + Cat -->
+        <div class="splash-stage splash-run" id="splash-b">
+          <button class="mini-btn" style="position:absolute;top:10px;right:10px;background:rgba(255,255,255,0.1);" onclick="replaySplash('splash-b')">重播开屏</button>
+          <div class="splash-hero">
+            <svg width="136" height="106" viewBox="0 0 140 110">
+              <!-- Hanging black lamp + warm cone -->
+              <line x1="70" y1="0" x2="70" y2="14" stroke="#64748b" stroke-width="2"/>
+              <polygon class="anim-lamp" points="58,24 82,24 114,98 26,98" fill="#f4c26f"/>
+              <path d="M54 24 L86 24 L78 13 L62 13 Z" fill="#0b0d13" stroke="#3b4254" stroke-width="1.5"/>
+              <circle cx="70" cy="24" r="4" fill="#fde68a"/>
+              <!-- Cat sitting in warm beam -->
+              <g class="anim-bob">
+                <path class="anim-tail" d="M84 88 Q106 82 103 64" fill="none" stroke="#0b0d13" stroke-width="6.5" stroke-linecap="round"/>
+                <ellipse cx="70" cy="78" rx="22" ry="17" fill="#0b0d13" stroke="#2c3347" stroke-width="1.2"/>
+                <circle cx="70" cy="56" r="18" fill="#0b0d13" stroke="#2c3347" stroke-width="1.2"/>
+                <polygon class="anim-ear" points="55,45 52,27 65,39" fill="#0b0d13"/>
+                <polygon class="anim-ear" points="85,45 88,27 75,39" fill="#0b0d13"/>
+                <g class="anim-blink">
+                  <ellipse cx="63" cy="56" rx="3.4" ry="4" fill="#f4c26f"/>
+                  <ellipse cx="77" cy="56" rx="3.4" ry="4" fill="#f4c26f"/>
+                  <ellipse cx="63" cy="56" rx="1.2" ry="2.6" fill="#0b0d13"/>
+                  <ellipse cx="77" cy="56" rx="1.2" ry="2.6" fill="#0b0d13"/>
+                </g>
+              </g>
+            </svg>
+          </div>
+          <div class="splash-title" style="font-size:16px;font-weight:800;color:#f4c26f;">夜灯快刷 · 专注模式已点亮</div>
+          <div class="splash-sub muted" style="font-size:11.5px;margin-top:3px;">万物入夜，正是大脑编码巩固的黄金时刻</div>
+        </div>
+
+        <div class="input-mock">
+          <div class="muted" style="font-size:12px;">输入主题或粘贴笔记链接，灯光伴学出题...</div>
+          <div class="pill-bar">
+            <div class="pill-btn on" onclick="this.classList.toggle('on')">
+              <span class="spin-globe">🌐</span><span>智能搜索</span>
+            </div>
+            <div class="pill-btn" onclick="this.classList.toggle('on')">
+              <span>🎨</span><span>题目配图</span>
+            </div>
+            <div class="pill-btn on" onclick="this.classList.toggle('on')">
+              <span>✨</span><span>自适应题量</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-tag"><span>按键机械下沉 + 柔暖边（拒绝廉价跑马光）</span><span>暗夜护眼</span></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="press-card"><span>A. ARQ 利用 Redis ZSET score 存储延迟时间</span><span class="muted">轻触反馈</span></div>
+            <div class="press-card" style="background:rgba(244,194,111,0.14);border-color:#f4c26f;color:#f7d08a;"><span>B. 叠加 Cron 扫表实现延迟任务防丢补偿</span><span>✓ 已选</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-tag"><span>夜光遗忘保持率图谱</span><span style="color:#f4c26f;">7 天压力预测</span></div>
+          <svg viewBox="0 0 300 66" style="width:100%;height:66px;display:block;">
+            <line x1="10" y1="36" x2="290" y2="36" stroke="#c4a7e7" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
+            <path d="M12 12 Q95 16 170 22 T288 28" fill="none" stroke="#c4a7e7" stroke-width="2.4"/>
+            <path d="M12 18 Q88 36 156 49 T288 59" fill="none" stroke="#f4c26f" stroke-width="2.4"/>
+          </svg>
+        </div>
+
+        <button class="cta-btn">💡 点亮灯台开始出题</button>
+      </div>
+    </div>
+
+    <!-- ==================== STYLE C ==================== -->
+    <div class="style-column">
+      <div class="style-header">
+        <span class="style-badge" style="background:#eef0ff;color:#5258d4;">方案 C · 软杏奶油与秋林微风</span>
+        <h2>象牙奶油 × 小白猫（云朵喵）与暖金落叶</h2>
+        <p>既避开纯绿树林的普通感，又保留「小动物 + 微自然治愈感」：奶油白底搭配暮云紫蓝与珊瑚橘，加轻盈飘叶与云朵小白猫，清爽大气。</p>
+        <div class="swatch-row">
+          <div class="swatch" style="background:#fcf9f5;"></div>
+          <div class="swatch" style="background:#6469d8;"></div>
+          <div class="swatch" style="background:#e88d72;"></div>
+          <div class="swatch" style="background:#e5b869;"></div>
+          <span class="swatch-label">#FCF9F5 / #6469D8 / #E88D72</span>
+        </div>
+      </div>
+
+      <div class="phone theme-c">
+        <!-- Splash + White Cat + Golden Leaf -->
+        <div class="splash-stage splash-run" id="splash-c">
+          <button class="mini-btn" style="position:absolute;top:10px;right:10px;" onclick="replaySplash('splash-c')">重播开屏</button>
+          <div class="splash-hero anim-bob">
+            <svg width="120" height="96" viewBox="0 0 120 96">
+              <!-- Soft cloud cushion -->
+              <ellipse cx="60" cy="80" rx="38" ry="10" fill="#ebe7f5"/>
+              <!-- Floating golden ginkgo/autumn leaf (NOT green) -->
+              <path class="anim-leaf" d="M92 24 Q106 16 108 32 Q94 36 92 24 Z" fill="#e5b869"/>
+              <path class="anim-leaf" d="M16 32 Q26 24 28 36 Q18 40 16 32 Z" fill="#e88d72" opacity="0.8"/>
+              <!-- White cat -->
+              <ellipse cx="60" cy="64" rx="24" ry="18" fill="#ffffff" stroke="#d5d2df" stroke-width="2"/>
+              <circle cx="60" cy="40" r="21" fill="#ffffff" stroke="#d5d2df" stroke-width="2"/>
+              <polygon class="anim-ear" points="42,27 40,9 54,19" fill="#ffffff" stroke="#d5d2df" stroke-width="2"/>
+              <polygon points="44,24 43,14 51,20" fill="#f3b6a4"/>
+              <polygon class="anim-ear" points="78,27 80,9 66,19" fill="#ffffff" stroke="#d5d2df" stroke-width="2"/>
+              <polygon points="76,24 77,14 69,20" fill="#f3b6a4"/>
+              <!-- Scarf -->
+              <rect x="44" y="54" width="32" height="7" rx="3.5" fill="#e88d72"/>
+              <g class="anim-blink">
+                <circle cx="52" cy="40" r="3.2" fill="#2c2f45"/>
+                <circle cx="68" cy="40" r="3.2" fill="#2c2f45"/>
+                <circle cx="53" cy="39" r="1.1" fill="#ffffff"/>
+                <circle cx="69" cy="39" r="1.1" fill="#ffffff"/>
+              </g>
+              <path d="M57 45 Q60 48 63 45" fill="none" stroke="#e88d72" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="splash-title" style="font-size:16px;font-weight:800;">知行快刷 · 云朵喵伴学</div>
+          <div class="splash-sub muted" style="font-size:11.5px;margin-top:3px;">每一份错题笔记，都在慢慢长成知识星图</div>
+        </div>
+
+        <div class="input-mock">
+          <div class="muted" style="font-size:12px;">输入复习主题或上传 PDF / Markdown 自动归类...</div>
+          <div class="pill-bar">
+            <div class="pill-btn on" onclick="this.classList.toggle('on')">
+              <span class="spin-globe">🌐</span><span>智能搜索</span>
+            </div>
+            <div class="pill-btn" onclick="this.classList.toggle('on')">
+              <span>🎨</span><span>题目配图</span>
+            </div>
+            <div class="pill-btn on" onclick="this.classList.toggle('on')">
+              <span>✨</span><span>自适应题量</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-tag"><span>轻柔弹性点按（保留高级呼吸留白）</span><span>非绿微林</span></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="press-card"><span>A. 陌生领域优先推 3~4 题偏基础摸底</span><span class="muted">轻触反馈</span></div>
+            <div class="press-card" style="background:#eef0ff;border-color:#6469d8;color:#4a4fc2;"><span>B. 刷通后收紧题量做高难精简抽查</span><span>✓ 已选</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-tag"><span>领域持久度预测（云紫 &amp; 珊瑚橘）</span><span style="color:#6469d8;">数据驱动</span></div>
+          <svg viewBox="0 0 300 66" style="width:100%;height:66px;display:block;">
+            <line x1="10" y1="36" x2="290" y2="36" stroke="#e88d72" stroke-width="1" stroke-dasharray="4 3"/>
+            <path d="M12 12 Q95 16 170 24 T288 32" fill="none" stroke="#6469d8" stroke-width="2.4"/>
+            <path d="M12 18 Q88 35 156 47 T288 57" fill="none" stroke="#e88d72" stroke-width="2.4"/>
+          </svg>
+        </div>
+
+        <button class="cta-btn">☁️ 和云朵喵开始自测</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function replaySplash(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('splash-run');
+      void el.offsetWidth;
+      el.classList.add('splash-run');
+    }
+    function replayAllSplashes() {
+      ['splash-a', 'splash-b', 'splash-c'].forEach(replaySplash);
+    }
+  </script>
+</body>
+</html>

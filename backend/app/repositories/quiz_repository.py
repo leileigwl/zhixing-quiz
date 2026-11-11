@@ -21,6 +21,9 @@ async def save_quiz_session(
     questions_json: list,
     image_status: str = "none",
     image_notice: Optional[str] = None,
+    domain_id: Optional[int] = None,
+    domain_name: Optional[str] = None,
+    source_type: str = "llm_direct",
 ) -> None:
     pool = get_mysql_pool()
     if pool is None:
@@ -29,11 +32,14 @@ async def save_quiz_session(
         async with conn.cursor() as cur:
             await cur.execute(
                 "INSERT INTO quiz_sessions "
-                "(quiz_id, user_id, title, summary, user_input, questions_json, image_status, image_notice) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                "(quiz_id, user_id, domain_id, domain_name, source_type, title, summary, user_input, questions_json, image_status, image_notice) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     quiz_id,
                     user_id,
+                    domain_id,
+                    domain_name,
+                    source_type or "llm_direct",
                     title,
                     summary,
                     user_input,
@@ -121,7 +127,8 @@ async def get_quiz_session_for_user(quiz_id: str) -> Optional[dict]:
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT quiz_id, user_id, title, summary, questions_json "
+                "SELECT quiz_id, user_id, title, summary, questions_json, "
+                "domain_id, domain_name, source_type, user_input "
                 "FROM quiz_sessions WHERE quiz_id = %s",
                 (quiz_id,),
             )
@@ -134,6 +141,10 @@ async def get_quiz_session_for_user(quiz_id: str) -> Optional[dict]:
                 "title": row[2],
                 "summary": row[3],
                 "questions": json.loads(row[4]) if isinstance(row[4], str) else row[4],
+                "domain_id": row[5],
+                "domain_name": row[6],
+                "source_type": row[7] or "llm_direct",
+                "user_input": row[8] or "",
             }
 
 
@@ -337,7 +348,7 @@ async def get_user_quiz_list(user_id: int, page: int, page_size: int) -> tuple[l
             await cur.execute(
                 "SELECT qs.quiz_id, qs.title, "
                 "COALESCE(ar.accuracy, 0), COALESCE(ar.total_questions, JSON_LENGTH(qs.questions_json), 0), "
-                "qs.created_at "
+                "qs.created_at, qs.domain_name, qs.source_type "
                 "FROM quiz_sessions qs "
                 "LEFT JOIN answer_records ar ON qs.quiz_id = ar.quiz_id "
                 "WHERE qs.user_id = %s "
@@ -353,6 +364,8 @@ async def get_user_quiz_list(user_id: int, page: int, page_size: int) -> tuple[l
                     "accuracy": float(r[2]),
                     "question_count": r[3],
                     "created_at": r[4].strftime("%Y-%m-%d %H:%M:%S") if r[4] else "",
+                    "domain_name": r[5],
+                    "source_type": r[6] or "llm_direct",
                 }
                 for r in rows
             ]
@@ -368,7 +381,7 @@ async def get_quiz_detail(quiz_id: str, user_id: int) -> Optional[dict]:
         async with conn.cursor() as cur:
             await cur.execute(
                 "SELECT quiz_id, title, summary, user_input, questions_json, "
-                "image_status, image_notice, created_at "
+                "image_status, image_notice, created_at, domain_id, domain_name, source_type "
                 "FROM quiz_sessions WHERE quiz_id = %s AND user_id = %s",
                 (quiz_id, user_id),
             )
@@ -385,6 +398,9 @@ async def get_quiz_detail(quiz_id: str, user_id: int) -> Optional[dict]:
                 "image_status": qs_row[5] or "none",
                 "image_notice": qs_row[6],
                 "created_at": qs_row[7].strftime("%Y-%m-%d %H:%M:%S") if qs_row[7] else "",
+                "domain_id": qs_row[8],
+                "domain_name": qs_row[9],
+                "source_type": qs_row[10] or "llm_direct",
             }
 
             # 答题记录

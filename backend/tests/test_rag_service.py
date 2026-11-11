@@ -1,7 +1,6 @@
-"""rag_service 单元测试"""
+"""V2 rag_service 单元测试（LCEL RunnableBranch 直连 Chroma + 按需联网增强）"""
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from langchain_core.documents import Document
@@ -9,174 +8,74 @@ from langchain_core.documents import Document
 from app.services import rag_service
 
 
-@pytest.fixture
-def mock_settings_web_enabled():
-    settings = MagicMock()
-    settings.enable_web_search = True
-    settings.tavily_api_key = "tvly-test-key"
-    settings.deepseek_model = "deepseek-chat"
-    settings.deepseek_base_url = "https://api.deepseek.com"
-    settings.deepseek_api_key = "sk-test"
-    return settings
-
-
-@pytest.fixture
-def mock_settings_web_disabled():
-    settings = MagicMock()
-    settings.enable_web_search = False
-    settings.tavily_api_key = "tvly-test-key"
-    settings.deepseek_model = "deepseek-chat"
-    settings.deepseek_base_url = "https://api.deepseek.com"
-    settings.deepseek_api_key = "sk-test"
-    return settings
-
-
-class TestKnowledgeBaseTool:
-    def test_returns_joined_content_on_success(self):
-        docs = [
-            Document(page_content="片段一"),
-            Document(page_content="片段二"),
-        ]
-        with patch(
-            "app.services.rag_service.vector_store_service.similarity_search",
-            return_value=docs,
-        ):
-            tool = rag_service._build_knowledge_base_tool(user_id=1, doc_id="doc_1")
-            result = tool.invoke({"query": "test"})
-
-        assert "片段一" in result
-        assert "片段二" in result
-
-    def test_returns_fallback_when_empty(self):
-        with patch(
-            "app.services.rag_service.vector_store_service.similarity_search",
-            return_value=[],
-        ):
-            tool = rag_service._build_knowledge_base_tool(user_id=1, doc_id="doc_1")
-            result = tool.invoke({"query": "test"})
-
-        assert "未检索到相关内容" in result
-
-    def test_returns_fallback_on_exception(self):
-        with patch(
-            "app.services.rag_service.vector_store_service.similarity_search",
-            side_effect=RuntimeError("chroma error"),
-        ):
-            tool = rag_service._build_knowledge_base_tool(user_id=1, doc_id="doc_1")
-            result = tool.invoke({"query": "test"})
-
-        assert "检索失败" in result
-
-    @pytest.mark.asyncio
-    async def test_async_ainvoke_runs_via_thread_off_event_loop(self):
-        docs = [Document(page_content="异步检索命中片段")]
-        with patch(
-            "app.services.rag_service.vector_store_service.similarity_search",
-            return_value=docs,
-        ) as mock_search:
-            tool = rag_service._build_knowledge_base_tool(user_id=3, doc_id="doc_async")
-            result = await tool.ainvoke({"query": "async query"})
-
-        assert "异步检索命中片段" in result
-        mock_search.assert_called_once_with(user_id=3, doc_id="doc_async", query="async query")
+@pytest.mark.asyncio
+async def test_retrieve_kb_chunks_joins_documents():
+    docs = [Document(page_content="片段一：Hybrid RAG"), Document(page_content="片段二：BM25 + Dense")]
+    with patch("app.services.rag_service.vector_store_service.similarity_search", return_value=docs):
+        text = await rag_service._retrieve_kb_chunks(user_id=1, doc_id="doc_1", query="RAG")
+        assert "片段一：Hybrid RAG" in text
+        assert "片段二：BM25 + Dense" in text
 
 
 @pytest.mark.asyncio
-async def test_fetch_rag_context_returns_content_on_success(mock_settings_web_enabled):
-    mock_agent = AsyncMock()
-    mock_message = MagicMock()
-    mock_message.content = "知识库摘要内容"
-    mock_agent.ainvoke.return_value = {"messages": [mock_message]}
-
+async def test_retrieve_kb_chunks_returns_empty_on_error():
     with patch(
-        "app.services.rag_service.get_settings", return_value=mock_settings_web_enabled
-    ), patch("app.services.rag_service._build_agent", return_value=mock_agent):
-        result = await rag_service.fetch_rag_context("学一下 RAG", user_id=1, doc_id="doc_1")
-
-    assert result == "知识库摘要内容"
-    mock_agent.ainvoke.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_fetch_rag_context_truncates_long_content(mock_settings_web_enabled):
-    mock_agent = AsyncMock()
-    mock_message = MagicMock()
-    mock_message.content = "x" * 8000
-    mock_agent.ainvoke.return_value = {"messages": [mock_message]}
-
-    with patch(
-        "app.services.rag_service.get_settings", return_value=mock_settings_web_enabled
-    ), patch("app.services.rag_service._build_agent", return_value=mock_agent):
-        result = await rag_service.fetch_rag_context("test", user_id=1, doc_id="doc_1")
-
-    assert len(result) == rag_service.MAX_CONTEXT_LENGTH
-
-
-@pytest.mark.asyncio
-async def test_fetch_rag_context_returns_empty_on_timeout(mock_settings_web_enabled):
-    mock_agent = AsyncMock()
-    mock_agent.ainvoke.side_effect = asyncio.TimeoutError()
-
-    with patch(
-        "app.services.rag_service.get_settings", return_value=mock_settings_web_enabled
-    ), patch("app.services.rag_service._build_agent", return_value=mock_agent):
-        result = await rag_service.fetch_rag_context("test", user_id=1, doc_id="doc_1")
-
-    assert result == ""
-
-
-@pytest.mark.asyncio
-async def test_fetch_rag_context_returns_empty_on_exception(mock_settings_web_enabled):
-    mock_agent = AsyncMock()
-    mock_agent.ainvoke.side_effect = RuntimeError("agent error")
-
-    with patch(
-        "app.services.rag_service.get_settings", return_value=mock_settings_web_enabled
-    ), patch("app.services.rag_service._build_agent", return_value=mock_agent):
-        result = await rag_service.fetch_rag_context("test", user_id=1, doc_id="doc_1")
-
-    assert result == ""
-
-
-@pytest.mark.asyncio
-async def test_fetch_rag_context_returns_empty_when_agent_response_empty(
-    mock_settings_web_enabled,
-):
-    mock_agent = AsyncMock()
-    mock_agent.ainvoke.return_value = {"messages": []}
-
-    with patch(
-        "app.services.rag_service.get_settings", return_value=mock_settings_web_enabled
-    ), patch("app.services.rag_service._build_agent", return_value=mock_agent):
-        result = await rag_service.fetch_rag_context("test", user_id=1, doc_id="doc_1")
-
-    assert result == ""
-
-
-def test_build_agent_excludes_web_tools_when_disabled(mock_settings_web_disabled):
-    with patch(
-        "app.services.rag_service.get_settings", return_value=mock_settings_web_disabled
-    ), patch("langgraph.prebuilt.create_react_agent") as mock_create_agent, patch(
-        "langchain_openai.ChatOpenAI"
+        "app.services.rag_service.vector_store_service.similarity_search",
+        side_effect=RuntimeError("chroma unavailable"),
     ):
-        rag_service._build_agent(user_id=1, doc_id="doc_1")
-
-        _, kwargs = mock_create_agent.call_args
-        tool_names = [t.name for t in kwargs["tools"]]
-        assert tool_names == ["search_knowledge_base"]
+        text = await rag_service._retrieve_kb_chunks(user_id=1, doc_id="doc_1", query="RAG")
+        assert text == ""
 
 
-def test_build_agent_includes_web_tools_when_enabled(mock_settings_web_enabled):
-    with patch(
-        "app.services.rag_service.get_settings", return_value=mock_settings_web_enabled
-    ), patch("langgraph.prebuilt.create_react_agent") as mock_create_agent, patch(
-        "langchain_openai.ChatOpenAI"
+@pytest.mark.asyncio
+async def test_resolve_rag_context_kb_only_without_web():
+    kb_docs = [Document(page_content="私有知识库详尽技术文档" * 30)]
+    with (
+        patch("app.services.rag_service.vector_store_service.similarity_search", return_value=kb_docs),
+        patch("app.services.rag_service.search_service.resolve_knowledge_context", new_callable=AsyncMock) as mock_web,
     ):
-        rag_service._build_agent(user_id=1, doc_id="doc_1")
+        ctx, src = await rag_service.resolve_rag_context(
+            user_input="Hybrid RAG",
+            user_id=1,
+            doc_id="doc_1",
+            enable_web_search=False,
+        )
+        assert src == "kb_rag"
+        assert "私有知识库摘录" in ctx
+        mock_web.assert_not_awaited()
 
-        _, kwargs = mock_create_agent.call_args
-        tool_names = [t.name for t in kwargs["tools"]]
-        assert "search_knowledge_base" in tool_names
-        assert "tavily_search_basic" in tool_names
-        assert "tavily_search_deep" in tool_names
-        assert "tavily_extract" in tool_names
+
+@pytest.mark.asyncio
+async def test_resolve_rag_context_combines_kb_and_web_when_enabled():
+    kb_docs = [Document(page_content="本地架构规范摘录")]
+    with (
+        patch("app.services.rag_service.vector_store_service.similarity_search", return_value=kb_docs),
+        patch(
+            "app.services.rag_service.search_service.resolve_knowledge_context",
+            new_callable=AsyncMock,
+            return_value=("最新官方文档补充", "web_search"),
+        ) as mock_web,
+    ):
+        ctx, src = await rag_service.resolve_rag_context(
+            user_input="Hybrid RAG",
+            user_id=1,
+            doc_id="doc_1",
+            enable_web_search=True,
+        )
+        assert src == "web_search"
+        assert "私有知识库摘录" in ctx
+        assert "联网核验补充" in ctx
+        mock_web.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_resolve_rag_context_truncates_and_handles_empty():
+    huge_docs = [Document(page_content="A" * 5000)]
+    with patch("app.services.rag_service.vector_store_service.similarity_search", return_value=huge_docs):
+        ctx = await rag_service.fetch_rag_context("RAG", user_id=1, doc_id="doc_1", enable_web_search=False)
+        assert len(ctx) == rag_service.MAX_CONTEXT_LENGTH
+
+    with patch("app.services.rag_service.vector_store_service.similarity_search", return_value=[]):
+        ctx, src = await rag_service.resolve_rag_context("RAG", user_id=1, doc_id="doc_missing", enable_web_search=False)
+        assert ctx == ""
+        assert src == "llm_direct"

@@ -40,5 +40,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('APP_PORT', '8000') + '/api/v1/health', timeout=3)" || exit 1
 
-# 硬性约束：Chroma 本地嵌入式存储与内存限流器要求单 Worker 运行（--workers 1）
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT:-8000} --workers 1"]
+# V2 架构：Chroma 独立 HTTP 服务 + Redis 分布式限流与 ARQ 队列，支持多 Worker 水平扩展
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT:-8000} --workers ${UVICORN_WORKERS:-2}"]

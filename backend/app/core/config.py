@@ -56,7 +56,10 @@ class Settings(BaseSettings):
     dashscope_embedding_model: str = "text-embedding-v4"
     dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
-    # 知识库与 Chroma 向量存储
+    # 知识库与 Chroma 向量存储（V2 优先使用独立 Chroma HTTP 服务，空 host 时兼容本地嵌入式）
+    chroma_host: str = ""
+    chroma_port: int = 8001
+    chroma_ssl: bool = False
     chroma_persist_dir: str = "./data/chroma"
     kb_upload_dir: str = "./data/uploads"
     kb_max_documents_per_user: int = 10
@@ -65,8 +68,13 @@ class Settings(BaseSettings):
     kb_chunk_overlap: int = 150
     kb_retrieve_top_k: int = 4
 
-    # 限流与超时
+    # Redis 7 与 ARQ 异步/延迟任务队列
+    redis_url: str = "redis://127.0.0.1:6379/0"
+    enable_arq_queue: bool = False
+
+    # 限流、题量与超时
     quiz_rate_limit_per_minute: int = 5
+    quiz_max_question_count: int = 15
     quiz_task_timeout_seconds: int = 180
 
     # 题目配图（DashScope 千问文生图）
@@ -87,9 +95,10 @@ class Settings(BaseSettings):
     allow_local_image_fallback: bool = True
     local_image_dir: str = "./data/static/quiz-images"
 
-    # 微信小程序
+    # 微信小程序（含 V2 订阅消息模板）
     wechat_app_id: str = ""
     wechat_app_secret: str = ""
+    wechat_subscribe_template_id: str = ""
 
     # MySQL 8.0
     mysql_host: str = "127.0.0.1"

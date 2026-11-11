@@ -13,6 +13,19 @@ logger = structlog.get_logger()
 
 SUPPORTED_FILE_TYPES = {"pdf", "docx", "md", "txt"}
 TEXT_ENCODINGS = ("utf-8-sig", "utf-8", "gb18030")
+MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+
+
+def _guard_docx_zip_bomb(file_path: str) -> None:
+    """限制 docx/zip 解压后总体积，防止压缩炸弹耗尽 Worker 内存。"""
+    import zipfile
+
+    if not zipfile.is_zipfile(file_path):
+        return
+    with zipfile.ZipFile(file_path, "r") as zf:
+        total_uncompressed = sum(info.file_size for info in zf.infolist())
+    if total_uncompressed > MAX_DOCX_UNCOMPRESSED_BYTES:
+        raise ValueError("Word 文档解压内容过大，疑似异常归档文件")
 
 
 def _read_text_with_fallback(file_path: str) -> str:
@@ -76,6 +89,7 @@ def _load_documents(file_path: str, file_type: str) -> list[Document]:
     if file_type == "docx":
         from langchain_community.document_loaders import Docx2txtLoader
 
+        _guard_docx_zip_bomb(file_path)
         docs = Docx2txtLoader(file_path).load()
         if not docs or not any(d.page_content.strip() for d in docs):
             raise ValueError("Word 文档内容为空或未提取到有效文字")

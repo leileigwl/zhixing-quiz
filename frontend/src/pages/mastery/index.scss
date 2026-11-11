@@ -1,0 +1,157 @@
+.mastery-page {
+  min-height: 100vh;
+  background: var(--bg-canvas);
+  padding: 28px 36px 200px;
+}
+
+.mastery-header {
+  margin-bottom: 20px;
+}
+
+.mastery-kicker {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-400);
+  margin-bottom: 6px;
+}
+
+.mastery-title {
+  display: block;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+}
+
+.domain-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.domain-pill {
+  padding: 10px 24px;
+  border-radius: 999px;
+  background: var(--surface-card);
+  color: var(--ink-500);
+  font-size: 23px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.domain-pill.is-on {
+  background: var(--ink-900);
+  color: #ffffff;
+}
+
+.stat-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-box {
+  background: var(--surface-card);
+  border-radius: 34px;
+  padding: 24px 20px;
+  box-shadow: 0 6px 20px rgba(20, 21, 26, 0.03);
+}
+
+.stat-lbl {
+  display: block;
+  font-size: 21px;
+  color: var(--ink-500);
+  margin-bottom: 8px;
+}
+
+.stat-num {
+  display: block;
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--ink-900);
+  letter-spacing: -0.02em;
+}
+
+.curve-panel {
+  padding: 32px;
+  border-radius: 46px;
+  margin-bottom: 24px;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.panel-title {
+  font-size: 25px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.panel-warn {
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--warn-red);
+}
+
+.panel-sub {
+  font-size: 21px;
+  color: var(--ink-500);
+}
+
+.diff-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.diff-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.diff-name {
+  width: 64px;
+  font-size: 22px;
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+.diff-track {
+  flex: 1;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  overflow: hidden;
+}
+
+.diff-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.diff-fill.is-easy {
+  background: #cbe5f5;
+}
+.diff-fill.is-medium {
+  background: #f4d06f;
+}
+.diff-fill.is-hard {
+  background: #18191e;
+}
+
+.diff-pct {
+  width: 68px;
+  text-align: right;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-900);
+}

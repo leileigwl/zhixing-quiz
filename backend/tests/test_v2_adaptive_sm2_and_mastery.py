@@ -1,0 +1,315 @@
+"""V2 核心能力单测：倒U自适应、SM-2、WeChat 订阅推送、Redis 限流与 mastery/reviews API"""
+
+from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from app.core.auth import create_token
+from app.core.exceptions import RateLimitError
+from app.core.rate_limit import check_rate_limit_async
+from app.main import app
+from app.models.quiz import AnswerRecord, Question, QuestionOption
+from app.services import adaptive_service, domain_classifier, report_service, review_service
+
+
+def _sample_question(qid: str = "q1", diff: str = "medium") -> Question:
+    return Question(
+        id=qid,
+        type="single",
+        stem=f"测试题干 {qid}",
+        options=[
+            QuestionOption(key="A", text="选项A"),
+            QuestionOption(key="B", text="选项B"),
+        ],
+        answer=["A"],
+        explanation="解析",
+        knowledge_point="考点A",
+        difficulty=diff,
+    )
+
+
+class TestAdaptiveEngine:
+    def test_cold_start_inverted_u_counts(self):
+        unfamiliar = adaptive_service.compute_adaptive_plan(
+            requested_count=5,
+            adaptive_mode=True,
+            self_rated_level="unfamiliar",
+        )
+        familiar = adaptive_service.compute_adaptive_plan(
+            requested_count=5,
+            adaptive_mode=True,
+            self_rated_level="familiar",
+        )
+        mastered = adaptive_service.compute_adaptive_plan(
+            requested_count=5,
+            adaptive_mode=True,
+            self_rated_level="mastered",
+        )
+        assert unfamiliar.question_count == 4
+        assert familiar.question_count == 6
+        assert mastered.question_count == 3
+
+    def test_history_profile_drives_inverted_u(self):
+        low = adaptive_service.compute_adaptive_plan(
+            requested_count=5,
+            adaptive_mode=True,
+            mastery_profile={"easy_total": 3, "medium_total": 1, "hard_total": 0, "mastery_score": 32.0},
+        )
+        mid = adaptive_service.compute_adaptive_plan(
+            requested_count=5,
+            adaptive_mode=True,
+            mastery_profile={"easy_total": 2, "medium_total": 3, "hard_total": 1, "mastery_score": 66.0},
+        )
+        high = adaptive_service.compute_adaptive_plan(
+            requested_count=5,
+            adaptive_mode=True,
+            mastery_profile={"easy_total": 2, "medium_total": 4, "hard_total": 4, "mastery_score": 88.0},
+        )
+        assert low.question_count == 4
+        assert mid.question_count == 6
+        assert high.question_count == 3
+
+    def test_retention_curve_clamped_bounds(self):
+        r0 = adaptive_service.compute_retention_rate(0.0, 5.0)
+        r_far = adaptive_service.compute_retention_rate(100.0, 5.0)
+        assert r0 == 100.0
+        assert r_far == 18.0
+
+
+class TestSM2ReviewAndWeChatPush:
+    def test_sm2_step_progression_and_graduation(self):
+        # 1 -> 3 -> 7 (3 次答对后毕业为 mastered)
+        r1 = review_service.compute_sm2_next(0, 2.5, is_correct=True)
+        r2 = review_service.compute_sm2_next(1, 2.55, is_correct=True)
+        r3 = review_service.compute_sm2_next(2, 2.60, is_correct=True)
+        reset = review_service.compute_sm2_next(2, 2.5, is_correct=False)
+
+        assert r1[:2] == (1, 1) and r1[3] == "active"
+        assert r2[:2] == (2, 3) and r2[3] == "active"
+        assert r3[:2] == (3, 7) and r3[3] == "mastered"
+        assert reset[:2] == (0, 1) and reset[3] == "active"
+
+    @pytest.mark.asyncio
+    async def test_submission_enqueues_arq_deferred_job_on_wrong_answer(self):
+        fake_arq = AsyncMock()
+        q1 = _sample_question("q1", "hard")
+        rec1 = AnswerRecord(question_id="q1", selected_answers=["B"], is_correct=False, duration_ms=1200)
+
+        with (
+            patch("app.services.review_service.mastery_repository.get_review_card_by_uid", AsyncMock(return_value=None)),
+            patch("app.services.review_service.mastery_repository.upsert_review_card", AsyncMock(return_value=99)),
+            patch("app.services.review_service.get_arq_pool", return_value=fake_arq),
+        ):
+            created = await review_service.process_submission_reviews(
+                user_id=7,
+                quiz_id="quiz_abc",
+                domain_id=3,
+                questions=[q1],
+                graded_records=[rec1],
+            )
+        assert created == 1
+        fake_arq.enqueue_job.assert_awaited_once()
+        args, kwargs = fake_arq.enqueue_job.call_args
+        assert args == ("job_activate_review_reminder", 99)
+        assert kwargs["_defer_by"] == timedelta(days=1)
+        assert kwargs["_expires"] > kwargs["_defer_by"]
+
+    @pytest.mark.asyncio
+    async def test_wechat_subscribe_push_with_mock_http(self):
+        settings = MagicMock()
+        settings.wechat_subscribe_template_id = "tpl_123"
+        settings.wechat_app_id = "wx_appid"
+        settings.wechat_app_secret = "wx_secret"
+
+        with (
+            patch("app.services.review_service.get_settings", return_value=settings),
+            patch("app.services.review_service.mastery_repository.consume_subscribe_quota", AsyncMock(return_value=True)),
+            patch("app.services.review_service._fetch_wechat_access_token", AsyncMock(return_value="tok_abc")),
+            patch("app.services.review_service.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_client = AsyncMock()
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {"errcode": 0, "errmsg": "ok"}
+            mock_client.post.return_value = mock_resp
+            mock_client_cls.return_value.__aenter__.return_value = mock_client
+
+            ok = await review_service.dispatch_wechat_subscribe_reminder(
+                user_id=7,
+                openid="wx_real_openid_1",
+                domain_name="RAG 架构",
+                due_count=2,
+            )
+            assert ok is True
+            mock_client.post.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_wechat_subscribe_skips_when_unconfigured(self):
+        settings = MagicMock()
+        settings.wechat_subscribe_template_id = ""
+        settings.wechat_app_id = ""
+        settings.wechat_app_secret = ""
+        with patch("app.services.review_service.get_settings", return_value=settings):
+            ok = await review_service.dispatch_wechat_subscribe_reminder(7, "wx_1", "RAG 架构", 1)
+            assert ok is False
+
+
+class TestDomainClassifierAndRedisRateLimit:
+    def test_keyword_classifier_and_rotation(self):
+        name, color = domain_classifier.classify_domain_deterministic("深入学习 Chroma RRF 检索")
+        assert name == "RAG 架构"
+        assert color == "butter"
+
+    @pytest.mark.asyncio
+    async def test_async_rate_limit_blocks_when_redis_over_limit(self):
+        fake_redis = MagicMock()
+        fake_redis.eval = AsyncMock(side_effect=[1, 0])
+
+        with patch("app.core.rate_limit.get_redis", return_value=fake_redis):
+            await check_rate_limit_async("quiz:user:9", max_requests=5, window_seconds=60)
+            with pytest.raises(RateLimitError):
+                await check_rate_limit_async("quiz:user:9", max_requests=5, window_seconds=60)
+        assert fake_redis.eval.await_count == 2
+
+    def test_docx_zip_bomb_and_filename_sanitization(self, tmp_path):
+        import zipfile
+
+        from app.services import document_loader_service, knowledge_service
+
+        cleaned = knowledge_service._sanitize_display_filename("../../evil\r\n<script>.md")
+        assert cleaned == "evilscript.md"
+        assert "/" not in cleaned and "\n" not in cleaned and "<" not in cleaned
+        bad_zip = tmp_path / "bomb.docx"
+        with zipfile.ZipFile(bad_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("word/document.xml", "A" * 1024)
+        with patch.object(document_loader_service, "MAX_DOCX_UNCOMPRESSED_BYTES", 512):
+            with pytest.raises(ValueError, match="压缩炸弹|过大"):
+                document_loader_service._guard_docx_zip_bomb(str(bad_zip))
+
+
+@pytest.mark.asyncio
+class TestMasteryAndReviewRoutes:
+    async def test_mastery_overview_endpoint(self):
+        token = create_token(user_id=12, openid="wx_12")
+        rows = [
+            {
+                "domain_id": 1,
+                "name": "RAG 架构",
+                "color_token": "butter",
+                "mastery_score": 74.0,
+                "easy_correct": 4,
+                "easy_total": 4,
+                "medium_correct": 3,
+                "medium_total": 4,
+                "hard_correct": 1,
+                "hard_total": 2,
+                "avg_duration_ms": 2100,
+                "stability_days": 8.0,
+                "retention_rate": 86.0,
+                "last_practiced_at": datetime.now() - timedelta(days=1),
+                "doc_count": 2,
+                "due_review_count": 1,
+            }
+        ]
+        with (
+            patch("app.services.mastery_service.cache_get_json", AsyncMock(return_value=None)),
+            patch("app.services.mastery_service.cache_set_json", AsyncMock()),
+            patch("app.services.mastery_service.user_repository.get_user_by_id", AsyncMock(return_value={"id": 12, "streak_days": 5})),
+            patch("app.services.mastery_service.mastery_repository.list_user_mastery_rows", AsyncMock(return_value=rows)),
+            patch("app.services.mastery_service.mastery_repository.get_user_daily_counts", AsyncMock(return_value={})),
+            patch("app.services.mastery_service.mastery_repository.get_seven_day_forecast", AsyncMock(return_value=[1, 0, 2, 0, 1, 0, 0])),
+            patch("app.services.mastery_service.mastery_repository.list_due_review_cards", AsyncMock(return_value=(1, []))),
+            patch("app.services.mastery_service.mastery_repository.get_subscribe_quota", AsyncMock(return_value=3)),
+        ):
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.get("/api/v1/mastery/overview", headers={"Authorization": f"Bearer {token}"})
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["streak_days"] == 5
+        assert data["due_review_total"] == 1
+        assert len(data["domains"]) == 1
+        assert len(data["retention_curve"]) == 6
+        assert len(data["weekly_rhythm"]) == 7
+
+    async def test_reviews_due_mark_and_subscribe_endpoints(self):
+        token = create_token(user_id=12, openid="wx_12")
+        session_row = {
+            "quiz_id": "quiz_1",
+            "user_id": 12,
+            "domain_id": 1,
+            "questions": [{"id": "q1"}],
+        }
+        with (
+            patch(
+                "app.services.mastery_service.mastery_repository.list_due_review_cards",
+                AsyncMock(return_value=(1, [{
+                    "card_id": 11,
+                    "question_id": "q1",
+                    "quiz_id": "quiz_1",
+                    "domain_id": 1,
+                    "domain_name": "RAG 架构",
+                    "stem": "什么 是 RRF？",
+                    "knowledge_point": "倒数排序融合",
+                    "difficulty": "medium",
+                    "interval_days": 1,
+                    "next_review_at": "2026-11-12 10:00:00",
+                }])),
+            ),
+            patch("app.api.v1.routes.reviews.quiz_repository.get_quiz_session_for_user", AsyncMock(return_value=session_row)),
+            patch("app.api.v1.routes.reviews.mastery_repository.upsert_review_card", AsyncMock(return_value=11)),
+            patch("app.api.v1.routes.reviews.mastery_repository.grant_subscribe_quota", AsyncMock(return_value=4)),
+            patch("app.api.v1.routes.reviews.mastery_service.invalidate_mastery_cache", AsyncMock()),
+        ):
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                r_due = await client.get("/api/v1/reviews/due", headers={"Authorization": f"Bearer {token}"})
+                r_mark = await client.post(
+                    "/api/v1/reviews/mark",
+                    json={"quiz_id": "quiz_1", "question_id": "q1", "action": "add"},
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                r_sub = await client.post(
+                    "/api/v1/reviews/subscribe",
+                    json={"count": 1, "preferred_hour": 21},
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+
+        assert r_due.status_code == 200
+        assert r_due.json()["data"]["total_due"] == 1
+        assert r_mark.status_code == 200
+        assert r_mark.json()["data"]["status"] == "due"
+        assert r_sub.status_code == 200
+        assert r_sub.json()["data"]["remaining_count"] == 4
+
+    async def test_duplicate_submit_does_not_double_update_v2_mastery(self):
+        from app.models.report import ReportSubmitRequest, SubmittedAnswerItem
+
+        q1 = _sample_question("q1", "hard")
+        session_row = {
+            "quiz_id": "quiz_dup",
+            "user_id": 12,
+            "domain_id": 1,
+            "domain_name": "RAG 架构",
+            "title": "RAG 测试",
+            "questions": [q1.model_dump()],
+        }
+        with (
+            patch("app.services.report_service.quiz_repository.get_quiz_session_for_user", AsyncMock(return_value=session_row)),
+            patch("app.services.report_service.quiz_repository.get_answer_record_by_quiz", AsyncMock(return_value=None)),
+            patch("app.services.report_service.quiz_repository.persist_submission_with_xp", AsyncMock(return_value=False)),
+            patch("app.services.report_service.quiz_repository.save_report", AsyncMock()),
+            patch("app.services.report_service._dispatch_report_generation", AsyncMock()),
+            patch("app.services.report_service._update_v2_learning_state", new_callable=AsyncMock) as mock_v2,
+        ):
+            res = await report_service.handle_report_submit(
+                ReportSubmitRequest(
+                    quiz_id="quiz_dup",
+                    answer_records=[SubmittedAnswerItem(question_id="q1", selected_answers=["A"], duration_ms=100)],
+                ),
+                user_id=12,
+            )
+        assert res.already_submitted is True
+        mock_v2.assert_not_awaited()
