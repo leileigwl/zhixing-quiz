@@ -61,6 +61,7 @@ SCHEMA_STATEMENTS: Final[list[str]] = [
         summary TEXT NULL,
         user_input TEXT NULL,
         questions_json JSON NOT NULL,
+        source_review_card_ids_json JSON NULL,
         image_status VARCHAR(20) NOT NULL DEFAULT 'none',
         image_notice VARCHAR(255) NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -305,6 +306,7 @@ COLUMN_MIGRATIONS: Final[list[tuple[str, str, str]]] = [
     ("quiz_tasks", "enable_web_search", "TINYINT(1) NOT NULL DEFAULT 0"),
     ("quiz_tasks", "doc_id", "VARCHAR(64) NULL"),
     ("quiz_tasks", "domain_id", "BIGINT UNSIGNED NULL"),
+    ("quiz_sessions", "source_review_card_ids_json", "JSON NULL"),
 ]
 
 

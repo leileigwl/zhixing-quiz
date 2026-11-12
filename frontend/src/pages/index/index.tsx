@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { View, Text, Textarea, Image } from '@tarojs/components'
+import { View, Text, Textarea, Image, ScrollView } from '@tarojs/components'
 import Taro, { useDidHide, useDidShow } from '@tarojs/taro'
 import {
   ensureLogin,
@@ -25,8 +25,12 @@ import { setActiveQuizSession } from '../../services/quizSessionStore'
 import {
   buildEmptyDueReviews,
   buildFallbackMasteryOverview,
+  buildInstantReviewQuiz,
   buildRealCalendarStrip,
   computeRecommendedCount,
+  invalidateSwrCache,
+  readSwrCache,
+  writeSwrCache,
 } from '../../services/v2Adapters'
 import FloatingDock from '../../components/FloatingDock'
 import GeometricProp from '../../components/GeometricProp'
@@ -49,33 +53,51 @@ const SELF_LEVELS: Array<{ value: SelfRatedLevel; label: string }> = [
 
 export default function IndexPage() {
   const [inputValue, setInputValue] = useState('')
+  const [referenceText, setReferenceText] = useState('')
+  const [showReferenceInput, setShowReferenceInput] = useState(false)
   const [enableWebSearch, setEnableWebSearch] = useState(true)
   const [generateImages, setGenerateImages] = useState(false)
   const [questionChoice, setQuestionChoice] = useState<QuestionCountChoice>('adaptive')
   const [selfRated, setSelfRated] = useState<SelfRatedLevel>('familiar')
-  const [selectedDocId, setSelectedDocId] = useState<string | undefined>(undefined)
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([])
+  const [selectedDomainId, setSelectedDomainId] = useState<number | undefined>(undefined)
 
   const [loading, setLoading] = useState(false)
   const [loadingText, setLoadingText] = useState('正在创建出题任务...')
   const [dockVisible, setDockVisible] = useState(true)
 
-  const [user, setUser] = useState<UserBrief | null>(null)
-  const [historyItems, setHistoryItems] = useState<QuizHistoryItem[]>([])
-  const [docs, setDocs] = useState<KnowledgeDocumentItem[]>([])
-  const [overview, setOverview] = useState<MasteryOverviewResponse | null>(null)
-  const [dueReviews, setDueReviews] = useState<DueReviewsResponse>(buildEmptyDueReviews())
+  const [user, setUser] = useState<UserBrief | null>(() => getCachedUser())
+  const [historyItems, setHistoryItems] = useState<QuizHistoryItem[]>(
+    () => readSwrCache<QuizHistoryItem[]>('home_history') || [],
+  )
+  const [docs, setDocs] = useState<KnowledgeDocumentItem[]>(
+    () => readSwrCache<KnowledgeDocumentItem[]>('home_docs') || [],
+  )
+  const [overview, setOverview] = useState<MasteryOverviewResponse | null>(() =>
+    readSwrCache<MasteryOverviewResponse>('home_overview_all'),
+  )
+  const [dueReviews, setDueReviews] = useState<DueReviewsResponse>(
+    () => readSwrCache<DueReviewsResponse>('home_due_all') || buildEmptyDueReviews(),
+  )
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (domainId?: number) => {
     await waitForLogin()
     const cached = getCachedUser()
     if (cached) setUser(cached)
 
+    const ovKey = `home_overview_${domainId || 'all'}`
+    const dueKey = `home_due_${domainId || 'all'}`
+    const swrOv = readSwrCache<MasteryOverviewResponse>(ovKey)
+    const swrDue = readSwrCache<DueReviewsResponse>(dueKey)
+    if (swrOv) setOverview(swrOv)
+    if (swrDue) setDueReviews(swrDue)
+
     const [profileRes, histRes, docsRes, masteryRes, dueRes] = await Promise.all([
       getUserProfile().catch(() => null),
-      getQuizHistory(1, 3).catch(() => null),
+      getQuizHistory(1, 5).catch(() => null),
       getKnowledgeDocuments().catch(() => null),
-      getMasteryOverview(),
-      getDueReviews(10),
+      getMasteryOverview(domainId),
+      getDueReviews(15, { domainId }),
     ])
 
     if (profileRes) {
@@ -89,20 +111,32 @@ export default function IndexPage() {
       setUser(brief)
       setCachedUser(brief)
     }
-    if (histRes) setHistoryItems(histRes.items)
-    if (docsRes) setDocs(docsRes.items)
-    if (masteryRes) setOverview(masteryRes)
-    if (dueRes) setDueReviews(dueRes)
+    if (histRes) {
+      setHistoryItems(histRes.items)
+      writeSwrCache('home_history', histRes.items)
+    }
+    if (docsRes) {
+      setDocs(docsRes.items)
+      writeSwrCache('home_docs', docsRes.items)
+    }
+    if (masteryRes) {
+      setOverview(masteryRes)
+      writeSwrCache(ovKey, masteryRes)
+    }
+    if (dueRes) {
+      setDueReviews(dueRes)
+      writeSwrCache(dueKey, dueRes)
+    }
   }, [])
 
   useEffect(() => {
-    void loadData()
-  }, [loadData])
+    void loadData(selectedDomainId)
+  }, [loadData, selectedDomainId])
 
   useDidShow(() => {
     setDockVisible(true)
     Taro.eventCenter.trigger('zx:tab-change', 'index')
-    void loadData()
+    void loadData(selectedDomainId)
   })
 
   useDidHide(() => {
@@ -114,6 +148,15 @@ export default function IndexPage() {
     [overview, historyItems, docs],
   )
 
+  const domains = effectiveOverview.domains || []
+
+  const activeFocusDomain = useMemo(() => {
+    if (selectedDomainId) {
+      return domains.find((d) => d.domain_id === selectedDomainId) || effectiveOverview.focus_domain
+    }
+    return effectiveOverview.focus_domain
+  }, [selectedDomainId, domains, effectiveOverview.focus_domain])
+
   const weekStrip = useMemo(
     () =>
       overview?.weekly_rhythm?.length === 7
@@ -122,28 +165,55 @@ export default function IndexPage() {
     [overview],
   )
 
-  const focusDomain = effectiveOverview.focus_domain
-  const dueCount = dueReviews.total_due || effectiveOverview.due_review_total
+  const dueCount = selectedDomainId
+    ? dueReviews.total_due
+    : dueReviews.total_due || effectiveOverview.due_review_total
   const streakDays = user?.streak_days ?? effectiveOverview.streak_days
   const recommendedNum = useMemo(
     () =>
       questionChoice === 'adaptive'
-        ? computeRecommendedCount(selfRated, focusDomain?.mastery_score)
+        ? computeRecommendedCount(selfRated, activeFocusDomain?.mastery_score)
         : questionChoice,
-    [questionChoice, selfRated, focusDomain?.mastery_score],
-  )
-
-  const selectedDoc = useMemo(
-    () => docs.find((d) => d.doc_id === selectedDocId && d.status === 'ready'),
-    [docs, selectedDocId],
+    [questionChoice, selfRated, activeFocusDomain?.mastery_score],
   )
 
   const readyDocs = useMemo(() => docs.filter((d) => d.status === 'ready'), [docs])
 
+  const scopedReadyDocs = useMemo(() => {
+    if (!selectedDomainId) return readyDocs
+    const matched = readyDocs.filter((d) => d.domain_id === selectedDomainId)
+    return matched.length > 0 ? matched : readyDocs
+  }, [readyDocs, selectedDomainId])
+
+  const selectedDocs = useMemo(
+    () => readyDocs.filter((d) => selectedDocIds.includes(d.doc_id)),
+    [readyDocs, selectedDocIds],
+  )
+
+  const scopedHistory = useMemo(() => {
+    if (!selectedDomainId || !activeFocusDomain) return historyItems.slice(0, 2)
+    const matched = historyItems.filter(
+      (h) => h.domain_name && h.domain_name === activeFocusDomain.name,
+    )
+    return (matched.length > 0 ? matched : historyItems).slice(0, 2)
+  }, [historyItems, selectedDomainId, activeFocusDomain])
+
+  const toggleDocSelection = (docId: string) => {
+    setSelectedDocIds((prev) =>
+      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId].slice(-4),
+    )
+  }
+
+  const handleSelectFocusDomain = (domainId?: number) => {
+    setSelectedDomainId(domainId)
+    setSelectedDocIds([])
+  }
+
   const startQuizFlow = async (opts: {
     prompt: string
+    referenceText?: string
     reviewCardIds?: number[]
-    docId?: string
+    docIds?: string[]
     domainId?: number
   }) => {
     if (loading) return
@@ -159,10 +229,12 @@ export default function IndexPage() {
 
       const { task_id } = await generateQuizAsync({
         user_input: opts.prompt,
+        reference_text: opts.referenceText,
         question_count: recommendedNum,
         adaptive_mode: questionChoice === 'adaptive',
         self_rated_level: selfRated,
-        doc_id: opts.docId,
+        doc_id: opts.docIds?.[0],
+        doc_ids: opts.docIds && opts.docIds.length > 0 ? opts.docIds : undefined,
         domain_id: opts.domainId,
         enable_web_search: enableWebSearch,
         generate_images: generateImages,
@@ -170,7 +242,7 @@ export default function IndexPage() {
       })
 
       setLoadingText(
-        enableWebSearch ? 'LCEL 路由正在检索最新资料并组卷...' : 'DeepSeek 正在按你的掌握画像组卷...',
+        enableWebSearch ? '正在并行检索知识文档与实时网页...' : 'DeepSeek 正在按你的掌握画像组卷...',
       )
 
       const quizData = await pollQuizTask(task_id, (status, task) => {
@@ -185,6 +257,7 @@ export default function IndexPage() {
         Taro.showToast({ title: quizData.image_notice, icon: 'none', duration: 2800 })
       }
 
+      invalidateSwrCache('home_')
       setActiveQuizSession(quizData, [])
       Taro.navigateTo({
         url: `/pages/quiz/index?quizId=${encodeURIComponent(quizData.quiz_id)}`,
@@ -199,29 +272,36 @@ export default function IndexPage() {
 
   const handleGenerate = () => {
     const trimmed = inputValue.trim()
+    const refTrimmed = referenceText.trim()
+    const docNames = selectedDocs.map((d) => `《${d.file_name}》`).join('、')
+
     const prompt =
       trimmed ||
-      (selectedDoc
-        ? `请基于我的知识口袋文档《${selectedDoc.file_name}》做一组针对性自测`
-        : '')
+      (selectedDocs.length > 0
+        ? `请基于知识文档 ${docNames} 生成一套针对性自测`
+        : refTrimmed
+          ? `请基于我粘贴的参考学习资料提炼核心机制与易错点并生成自测`
+          : '')
+
     if (!prompt) {
-      Taro.showToast({ title: '请先输入想自测的主题，或点击快捷词', icon: 'none' })
+      Taro.showToast({ title: '请输入主题、粘贴资料或选用知识文档', icon: 'none' })
       return
     }
     void startQuizFlow({
       prompt,
-      docId: selectedDoc?.doc_id,
-      domainId: focusDomain?.domain_id,
+      referenceText: refTrimmed || undefined,
+      docIds: selectedDocs.map((d) => d.doc_id),
+      domainId: activeFocusDomain?.domain_id,
     })
   }
 
+  /** V2.1 秒开错题复习：<50ms 用本地已拉取题干与选项直接开刷，拒绝 25s 白等 */
   const handleDueCardTap = () => {
     if (dueReviews.items.length > 0) {
-      const ids = dueReviews.items.slice(0, 6).map((c) => c.card_id)
-      const topicNames = Array.from(new Set(dueReviews.items.map((c) => c.domain_name))).join('、')
-      void startQuizFlow({
-        prompt: `针对到期错题「${topicNames || '薄弱知识点'}」进行 SM-2 间隔巩固复习`,
-        reviewCardIds: ids,
+      const instantQuiz = buildInstantReviewQuiz(dueReviews.items, activeFocusDomain?.name)
+      setActiveQuizSession(instantQuiz, [])
+      Taro.navigateTo({
+        url: `/pages/quiz/index?quizId=${encodeURIComponent(instantQuiz.quiz_id)}`,
       })
       return
     }
@@ -229,7 +309,7 @@ export default function IndexPage() {
   }
 
   const handleFocusCardTap = () => {
-    const name = focusDomain?.name || 'RAG 架构'
+    const name = activeFocusDomain?.name || 'RAG 架构'
     setInputValue(`针对「${name}」薄弱环生成一套自适应测验`)
   }
 
@@ -281,7 +361,39 @@ export default function IndexPage() {
         ))}
       </View>
 
-      {/* 3. 双卡 Bento（奶油黄错题提醒 + 雾天蓝当前主攻域） */}
+      {/* 2.5 专注知识域工作区切换条（解决多领域混杂问题） */}
+      {domains.length > 0 && (
+        <ScrollView scrollX enableFlex showScrollbar={false} className='domain-bar-scroll'>
+          <View className='domain-bar'>
+            <View
+              className={`domain-chip zx-press ${!selectedDomainId ? 'is-on' : ''}`}
+              onClick={() => handleSelectFocusDomain(undefined)}
+            >
+              <Text>全部系统</Text>
+            </View>
+            {domains.map((dom) => (
+              <View
+                key={dom.domain_id}
+                className={`domain-chip zx-press ${selectedDomainId === dom.domain_id ? 'is-on' : ''}`}
+                onClick={() =>
+                  handleSelectFocusDomain(
+                    selectedDomainId === dom.domain_id ? undefined : dom.domain_id,
+                  )
+                }
+              >
+                <Text>{dom.name}</Text>
+                {dom.due_review_count > 0 && (
+                  <View className='domain-due-badge'>
+                    <Text>{dom.due_review_count}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+
+      {/* 3. 双卡 Bento（奶油黄错题秒开回顾 + 雾天蓝当前专注域） */}
       <View className='bento-grid'>
         <View className='bento-tile is-butter zx-press' onClick={handleDueCardTap}>
           <View className='bento-top'>
@@ -292,10 +404,10 @@ export default function IndexPage() {
           </View>
           <View className='bento-bottom'>
             <Text className='bento-val'>
-              {String(dueCount).padStart(2, '0')} {dueCount > 0 ? '错题' : '清零'}
+              {String(dueCount).padStart(2, '0')} {dueCount > 0 ? '待刷' : '清零'}
             </Text>
             <Text className='bento-sub'>
-              {dueCount > 0 ? 'SM-2 到期 · 点击复习' : '暂无到期 · 查看记忆曲线'}
+              {dueCount > 0 ? '秒开错题本 · 即时巩固' : '暂无到期 · 查看记忆曲线'}
             </Text>
           </View>
         </View>
@@ -303,37 +415,51 @@ export default function IndexPage() {
         <View className='bento-tile is-sky zx-press' onClick={handleFocusCardTap}>
           <View className='bento-top'>
             <View className='micro-tag'>
-              <Text>ADAPTIVE</Text>
+              <Text>FOCUS DOMAIN</Text>
             </View>
             <GeometricProp variant='target' />
           </View>
           <View className='bento-bottom'>
-            <Text className='bento-val is-domain'>{focusDomain?.name || 'RAG 架构'}</Text>
+            <Text className='bento-val is-domain'>{activeFocusDomain?.name || 'RAG 架构'}</Text>
             <Text className='bento-sub'>
-              掌握 {Math.round(focusDomain?.mastery_score ?? 74)}% · 建议{' '}
-              {focusDomain?.recommended_count ?? 6} 题
+              掌握 {Math.round(activeFocusDomain?.mastery_score ?? 74)}% · 建议{' '}
+              {activeFocusDomain?.recommended_count ?? 6} 题
             </Text>
           </View>
         </View>
       </View>
 
-      {/* 4. 方案 B 纯净白出题输入舱 */}
+      {/* 4. 方案 B 纯净白三源融合出题舱 */}
       <View className='composer-card'>
         <View className='composer-head'>
           <Text className='composer-kicker'>发起新测验</Text>
-          {selectedDoc && (
+          <View className='composer-actions'>
             <View
-              className='selected-doc-chip zx-press'
-              onClick={() => setSelectedDocId(undefined)}
+              className={`ref-toggle-chip zx-press ${showReferenceInput || referenceText ? 'is-on' : ''}`}
+              onClick={() => setShowReferenceInput((prev) => !prev)}
             >
-              <Text>📎 {selectedDoc.file_name.slice(0, 12)} ×</Text>
+              <Text>
+                {referenceText.trim()
+                  ? `✓ 已贴资料 ${referenceText.trim().length}字`
+                  : showReferenceInput
+                    ? '收起资料'
+                    : '+ 粘贴资料'}
+              </Text>
             </View>
-          )}
+            {selectedDocs.length > 0 && (
+              <View
+                className='selected-doc-chip zx-press'
+                onClick={() => setSelectedDocIds([])}
+              >
+                <Text>📎 {selectedDocs.length} 份文档 ×</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         <Textarea
           className='composer-textarea'
-          placeholder='输入知识主题，或下方一键选用知识口袋文档...'
+          placeholder='输入学习主题，或结合粘贴笔记 / 知识文档 / 联网检索三源出题...'
           placeholderClass='composer-placeholder'
           value={inputValue}
           onInput={(e) => setInputValue(e.detail.value)}
@@ -341,7 +467,20 @@ export default function IndexPage() {
           autoHeight={false}
         />
 
-        {/* 快捷词 + 口袋文档快速挂接 */}
+        {showReferenceInput && (
+          <View className='reference-drawer'>
+            <Textarea
+              className='reference-textarea'
+              placeholder='粘贴你想考察的笔记原文、代码片段或课程讲义（最多 12000 字）...'
+              placeholderClass='composer-placeholder'
+              value={referenceText}
+              onInput={(e) => setReferenceText(e.detail.value)}
+              maxlength={12000}
+            />
+          </View>
+        )}
+
+        {/* 快捷词 + 多选口袋文档快速挂接 */}
         <View className='quick-row'>
           {QUICK_TOPICS.map((t) => (
             <View
@@ -352,20 +491,25 @@ export default function IndexPage() {
               <Text>{t}</Text>
             </View>
           ))}
-          {readyDocs.slice(0, 1).map((doc) => (
-            <View
-              key={doc.doc_id}
-              className={`quick-chip ${selectedDocId === doc.doc_id ? 'is-doc-on' : ''} zx-press`}
-              onClick={() =>
-                setSelectedDocId((prev) => (prev === doc.doc_id ? undefined : doc.doc_id))
-              }
-            >
-              <Text>📄 {doc.file_name.replace(/\.[^.]+$/, '').slice(0, 10)}</Text>
-            </View>
-          ))}
+          {scopedReadyDocs.slice(0, 3).map((doc) => {
+            const isPicked = selectedDocIds.includes(doc.doc_id)
+            const cleanName = doc.file_name.replace(/\.[^.]+$/, '')
+            return (
+              <View
+                key={doc.doc_id}
+                className={`quick-chip is-doc zx-press ${isPicked ? 'is-doc-on' : ''}`}
+                onClick={() => toggleDocSelection(doc.doc_id)}
+              >
+                <Text className='quick-doc-txt'>
+                  {isPicked ? '✓ ' : '📄 '}
+                  {cleanName}
+                </Text>
+              </View>
+            )
+          })}
         </View>
 
-        {/* 按键第一行：DeepSeek 胶囊组 + 题量读数（禁止与 seg-bar 挤在一起折行） */}
+        {/* 按键第一行：DeepSeek 胶囊组 + 题量读数 */}
         <View className='controls-row'>
           <View className='ds-group'>
             <View
@@ -437,9 +581,11 @@ export default function IndexPage() {
         </View>
       </View>
 
-      {/* 5. 最近练习精简列表（去 XP，只呈现时间与掌握度） */}
+      {/* 5. 最近练习精简列表（支持专注域过滤） */}
       <View className='recent-head'>
-        <Text className='recent-heading'>最近记录</Text>
+        <Text className='recent-heading'>
+          {selectedDomainId && activeFocusDomain ? `${activeFocusDomain.name} · 记录` : '最近记录'}
+        </Text>
         <Text
           className='recent-more'
           onClick={() => Taro.switchTab({ url: '/pages/profile/index' })}
@@ -448,13 +594,13 @@ export default function IndexPage() {
         </Text>
       </View>
 
-      {historyItems.length === 0 ? (
+      {scopedHistory.length === 0 ? (
         <View className='zx-card recent-empty'>
           <Text className='recent-empty-text'>暂无记录，输入上方主题或前往「口袋」传笔记开刷</Text>
         </View>
       ) : (
         <View className='recent-list'>
-          {historyItems.slice(0, 2).map((item) => (
+          {scopedHistory.map((item) => (
             <View
               key={item.quiz_id}
               className='zx-card recent-item zx-press'

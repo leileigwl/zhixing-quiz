@@ -8,14 +8,23 @@ import {
   getKnowledgeDocuments,
   generateQuizAsync,
   pollQuizTask,
+  markQuestionForReview,
   waitForLogin,
   type MasteryOverviewResponse,
   type DueReviewsResponse,
+  type DueReviewCardItem,
   type QuizHistoryItem,
   type KnowledgeDocumentItem,
 } from '../../services/api'
 import { setActiveQuizSession } from '../../services/quizSessionStore'
-import { buildEmptyDueReviews, buildFallbackMasteryOverview } from '../../services/v2Adapters'
+import {
+  buildEmptyDueReviews,
+  buildFallbackMasteryOverview,
+  buildInstantReviewQuiz,
+  invalidateSwrCache,
+  readSwrCache,
+  writeSwrCache,
+} from '../../services/v2Adapters'
 import RetentionCurveCanvas from '../../components/RetentionCurveCanvas'
 import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
 import FloatingDock from '../../components/FloatingDock'
@@ -23,23 +32,40 @@ import './index.scss'
 
 export default function MasteryPage() {
   const [selectedDomainId, setSelectedDomainId] = useState<number | undefined>(undefined)
-  const [overview, setOverview] = useState<MasteryOverviewResponse | null>(null)
-  const [dueReviews, setDueReviews] = useState<DueReviewsResponse>(buildEmptyDueReviews())
+  const [overview, setOverview] = useState<MasteryOverviewResponse | null>(
+    () => readSwrCache<MasteryOverviewResponse>('mastery_ov_all'),
+  )
+  const [dueReviews, setDueReviews] = useState<DueReviewsResponse>(
+    () => readSwrCache<DueReviewsResponse>('mastery_due_all') || buildEmptyDueReviews(),
+  )
   const [historyItems, setHistoryItems] = useState<QuizHistoryItem[]>([])
   const [docs, setDocs] = useState<KnowledgeDocumentItem[]>([])
+  const [expandedCardId, setExpandedCardId] = useState<number | null>(null)
   const [loadingQuiz, setLoadingQuiz] = useState(false)
   const [dockVisible, setDockVisible] = useState(true)
 
   const loadData = useCallback(async () => {
     await waitForLogin()
+    const keySuffix = selectedDomainId ? String(selectedDomainId) : 'all'
+    const cachedOv = readSwrCache<MasteryOverviewResponse>(`mastery_ov_${keySuffix}`)
+    const cachedDue = readSwrCache<DueReviewsResponse>(`mastery_due_${keySuffix}`)
+    if (cachedOv) setOverview(cachedOv)
+    if (cachedDue) setDueReviews(cachedDue)
+
     const [masteryRes, dueRes, histRes, docsRes] = await Promise.all([
       getMasteryOverview(selectedDomainId),
-      getDueReviews(15),
+      getDueReviews(15, { domainId: selectedDomainId, includeAll: true }),
       getQuizHistory(1, 5).catch(() => null),
       getKnowledgeDocuments().catch(() => null),
     ])
-    if (masteryRes) setOverview(masteryRes)
-    if (dueRes) setDueReviews(dueRes)
+    if (masteryRes) {
+      setOverview(masteryRes)
+      writeSwrCache(`mastery_ov_${keySuffix}`, masteryRes)
+    }
+    if (dueRes) {
+      setDueReviews(dueRes)
+      writeSwrCache(`mastery_due_${keySuffix}`, dueRes)
+    }
     if (histRes) setHistoryItems(histRes.items)
     if (docsRes) setDocs(docsRes.items)
   }, [selectedDomainId])
@@ -69,24 +95,38 @@ export default function MasteryPage() {
 
   const forecastNext = effectiveOverview.seven_day_forecast[0] ?? dueReviews.total_due
 
-  const handleStartReviewOrPractice = async () => {
+  const handleInstantReview = (cards?: DueReviewCardItem[]) => {
+    const targetCards = cards || dueReviews.items.slice(0, 6)
+    if (targetCards.length === 0) return
+    const instantQuiz = buildInstantReviewQuiz(targetCards, activeDomain?.name)
+    setActiveQuizSession(instantQuiz, [])
+    Taro.navigateTo({
+      url: `/pages/quiz/index?quizId=${encodeURIComponent(instantQuiz.quiz_id)}`,
+    })
+  }
+
+  const handleStartAiPractice = async (cards?: DueReviewCardItem[]) => {
     if (loadingQuiz) return
     setLoadingQuiz(true)
     try {
-      const reviewIds = dueReviews.items.slice(0, 6).map((c) => c.card_id)
+      const targetCards = cards || dueReviews.items.slice(0, 6)
+      const reviewIds = targetCards.map((c) => c.card_id)
       const domainName = activeDomain?.name || '综合知识'
       const { task_id } = await generateQuizAsync({
         user_input:
           reviewIds.length > 0
-            ? `针对到期薄弱点「${domainName}」进行间隔巩固复习`
+            ? `针对到期薄弱点「${domainName}」进行变式间隔巩固复习`
             : `针对「${domainName}」提升记忆保持率，巩固中等与核心易错题`,
-        question_count: activeDomain?.recommended_count ?? 5,
-        adaptive_mode: true,
+        question_count:
+          reviewIds.length > 0 ? Math.max(1, reviewIds.length) : activeDomain?.recommended_count ?? 5,
+        adaptive_mode: reviewIds.length === 0,
         domain_id: activeDomain?.domain_id,
+        enable_web_search: true,
         review_card_ids: reviewIds.length > 0 ? reviewIds : undefined,
       })
 
       const quizData = await pollQuizTask(task_id)
+      invalidateSwrCache('home_')
       setActiveQuizSession(quizData, [])
       Taro.navigateTo({
         url: `/pages/quiz/index?quizId=${encodeURIComponent(quizData.quiz_id)}`,
@@ -96,6 +136,28 @@ export default function MasteryPage() {
     } finally {
       setLoadingQuiz(false)
     }
+  }
+
+  const handleMarkMastered = async (card: DueReviewCardItem) => {
+    const res = await markQuestionForReview({
+      quiz_id: card.quiz_id,
+      question_id: card.question_id,
+      action: 'skip',
+    })
+    if (!res) {
+      Taro.showToast({ title: '标记失败，请稍后重试', icon: 'none' })
+      return
+    }
+    setDueReviews((prev) => ({
+      ...prev,
+      total_due: card.status === 'due' ? Math.max(0, prev.total_due - 1) : prev.total_due,
+      unresolved_total: Math.max(0, (prev.unresolved_total ?? prev.items.length) - 1),
+      items: prev.items.filter((x) => x.card_id !== card.card_id),
+    }))
+    invalidateSwrCache('home_')
+    invalidateSwrCache('profile_')
+    invalidateSwrCache('mastery_')
+    Taro.showToast({ title: '已移出错题队列', icon: 'success' })
   }
 
   return (
@@ -150,6 +212,16 @@ export default function MasteryPage() {
           canvasId='mastery-retention-canvas'
           points={effectiveOverview.retention_curve}
         />
+        <View className='curve-legend'>
+          <View className='legend-item'>
+            <View className='legend-line is-solid' />
+            <Text>巩固后保持轨迹</Text>
+          </View>
+          <View className='legend-item'>
+            <View className='legend-line is-dashed' />
+            <Text>未复习遗忘参考</Text>
+          </View>
+        </View>
       </View>
 
       {/* MOVEPOP 本周复习节律 */}
@@ -203,17 +275,97 @@ export default function MasteryPage() {
         </View>
       )}
 
-      <View
-        className={`zx-btn-obsidian ${loadingQuiz ? 'is-disabled' : ''}`}
-        onClick={handleStartReviewOrPractice}
-      >
-        <Text>
-          {dueReviews.total_due > 0
-            ? `开始清零 ${dueReviews.total_due} 道到期错题`
-            : `按当前画像再刷一组「${activeDomain?.name || '精选'}」`}
-        </Text>
-        <Text>→</Text>
-      </View>
+      {/* 待复习错题手风琴清单 */}
+      {dueReviews.items.length > 0 && (
+        <View className='zx-card curve-panel'>
+          <View className='panel-head'>
+            <Text className='panel-title'>待巩固错题 ({dueReviews.items.length})</Text>
+            <Text className='panel-sub'>点击展开答案与解析</Text>
+          </View>
+          <View className='mastery-due-list'>
+            {dueReviews.items.slice(0, 8).map((card) => {
+              const isOpen = expandedCardId === card.card_id
+              return (
+                <View key={card.card_id} className='mastery-due-item'>
+                  <View
+                    className='mastery-due-head zx-press'
+                    onClick={() => setExpandedCardId(isOpen ? null : card.card_id)}
+                  >
+                    <View className='mastery-due-meta'>
+                      <Text className='mastery-due-domain'>{card.domain_name}</Text>
+                      <Text className='mastery-due-round'>第 {(card.repetitions || 0) + 1}/3 轮</Text>
+                    </View>
+                    <Text className={`mastery-due-stem ${isOpen ? 'is-open' : ''}`}>{card.stem}</Text>
+                  </View>
+                  {isOpen && (
+                    <View className='mastery-due-body'>
+                      {card.options?.map((opt) => {
+                        const isOk = (card.answer || []).includes(opt.key)
+                        const isWrong = (card.user_selected || []).includes(opt.key) && !isOk
+                        return (
+                          <Text
+                            key={opt.key}
+                            className={`mastery-due-opt ${isOk ? 'is-ok' : isWrong ? 'is-wrong' : ''}`}
+                          >
+                            {opt.key}. {opt.text}
+                            {isOk ? ' ✓' : isWrong ? ' (曾错选)' : ''}
+                          </Text>
+                        )
+                      })}
+                      {card.explanation && (
+                        <Text className='mastery-due-explain'>{card.explanation}</Text>
+                      )}
+                      <View className='mastery-due-btns'>
+                        <View
+                          className='md-btn is-dark zx-press'
+                          onClick={() => handleInstantReview([card])}
+                        >
+                          <Text>秒开重做</Text>
+                        </View>
+                        <View
+                          className='md-btn is-blue zx-press'
+                          onClick={() => handleStartAiPractice([card])}
+                        >
+                          <Text>AI 变式</Text>
+                        </View>
+                        <View
+                          className='md-btn is-light zx-press'
+                          onClick={() => handleMarkMastered(card)}
+                        >
+                          <Text>已掌握</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )
+            })}
+          </View>
+        </View>
+      )}
+
+      {dueReviews.items.length > 0 ? (
+        <View className='mastery-cta-stack'>
+          <View className='zx-btn-obsidian' onClick={() => handleInstantReview()}>
+            <Text>秒开清零 {dueReviews.total_due || dueReviews.items.length} 道错题</Text>
+            <Text>→</Text>
+          </View>
+          <View
+            className={`btn-secondary-ai zx-press ${loadingQuiz ? 'is-disabled' : ''}`}
+            onClick={() => handleStartAiPractice()}
+          >
+            <Text>{loadingQuiz ? '正在变式组卷...' : 'AI 基于错题生成变式拓展测验'}</Text>
+          </View>
+        </View>
+      ) : (
+        <View
+          className={`zx-btn-obsidian ${loadingQuiz ? 'is-disabled' : ''}`}
+          onClick={() => handleStartAiPractice()}
+        >
+          <Text>按当前画像再刷一组「{activeDomain?.name || '精选'}」</Text>
+          <Text>→</Text>
+        </View>
+      )}
 
       {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='mastery' />}
 

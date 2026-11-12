@@ -1,7 +1,9 @@
 .index-page {
   min-height: 100vh;
   background: var(--bg-canvas);
-  padding: 28px 36px 200px;
+  padding: 24px 36px calc(220px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .home-header {
@@ -130,6 +132,60 @@
   }
 }
 
+/* 专注知识域横向过滤条 */
+.domain-bar-scroll {
+  width: 100%;
+  white-space: nowrap;
+  margin-bottom: 22px;
+}
+
+.domain-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.domain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 54px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--ink-700);
+  font-size: 22px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(20, 21, 26, 0.04);
+}
+
+.domain-chip.is-on {
+  background: var(--ink-900);
+  color: #ffffff;
+}
+
+.domain-due-badge {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent-butter);
+  color: var(--ink-900);
+  font-size: 18px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.domain-chip.is-on .domain-due-badge {
+  background: #f5d873;
+  color: #18191e;
+}
+
 /* 双卡 Bento */
 .bento-grid {
   display: grid;
@@ -216,6 +272,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
@@ -223,10 +280,34 @@
   font-size: 23px;
   font-weight: 700;
   color: var(--ink-400);
+  white-space: nowrap;
+}
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ref-toggle-chip {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink-700);
+  background: #f3f3f6;
+  padding: 6px 16px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.ref-toggle-chip.is-on {
+  background: var(--ds-bg);
+  color: var(--ds-blue);
 }
 
 .selected-doc-chip {
-  font-size: 21px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--ds-blue);
   background: var(--ds-bg);
@@ -241,6 +322,25 @@
   font-size: 28px;
   line-height: 1.5;
   font-weight: 600;
+  color: var(--ink-900);
+  background: transparent;
+}
+
+.reference-drawer {
+  margin-top: 12px;
+  margin-bottom: 6px;
+  padding: 18px 20px;
+  border-radius: 26px;
+  background: #f7f6f2;
+  border: 1Px solid rgba(20, 21, 26, 0.08);
+}
+
+.reference-textarea {
+  width: 100%;
+  min-height: 132px;
+  max-height: 240px;
+  font-size: 24px;
+  line-height: 1.55;
   color: var(--ink-900);
   background: transparent;
 }
@@ -264,6 +364,21 @@
   color: var(--ink-700);
   font-size: 22px;
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.quick-chip.is-doc {
+  max-width: 240px;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+}
+
+.quick-doc-txt {
+  display: block;
+  max-width: 204px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

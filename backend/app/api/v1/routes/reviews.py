@@ -1,4 +1,6 @@
-"""SM-2 错题间隔重复、主动标记巩固与微信订阅消息配额路由"""
+"""SM-2 错题间隔重复、主动标记巩固、秒开重练结算与微信订阅消息配额路由"""
+
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
@@ -6,9 +8,13 @@ from app.core.auth import get_current_user
 from app.core.config import get_settings
 from app.core.exceptions import AuthorizationError, ResourceNotFoundError
 from app.models.common import ApiResponse
-from app.models.mastery import ReviewMarkRequest, SubscribeQuotaRequest
+from app.models.mastery import (
+    ReviewMarkRequest,
+    ReviewPracticeSubmitRequest,
+    SubscribeQuotaRequest,
+)
 from app.repositories import mastery_repository, quiz_repository
-from app.services import mastery_service
+from app.services import mastery_service, review_service
 
 router = APIRouter(prefix="/reviews", tags=["reviews"])
 
@@ -16,10 +22,17 @@ router = APIRouter(prefix="/reviews", tags=["reviews"])
 @router.get("/due", response_model=ApiResponse)
 async def get_due_reviews(
     limit: int = Query(default=20, ge=1, le=50),
+    domain_id: Optional[int] = Query(default=None, ge=1),
+    include_all: bool = Query(default=False, description="是否包含尚未到期的全部未掌握错题"),
     user_id: int = Depends(get_current_user),
 ):
-    """获取当前用户已到期的 SM-2 错题/巩固队列。"""
-    result = await mastery_service.get_due_reviews(user_id=user_id, limit=limit)
+    """获取当前用户待巩固（或全部未掌握）SM-2 错题队列（含原选项与解析）。"""
+    result = await mastery_service.get_due_reviews(
+        user_id=user_id,
+        limit=limit,
+        domain_id=domain_id,
+        include_all_unresolved=include_all,
+    )
     return ApiResponse.success(data=result.model_dump())
 
 
@@ -55,6 +68,16 @@ async def mark_review_card(
     )
     await mastery_service.invalidate_mastery_cache(user_id)
     return ApiResponse.success(data={"card_id": card_id or 0, "status": status})
+
+
+@router.post("/practice/submit", response_model=ApiResponse)
+async def submit_instant_review_practice(
+    req: ReviewPracticeSubmitRequest,
+    user_id: int = Depends(get_current_user),
+):
+    """秒开错题重练结算：直接按 SM-2 推进/毕业原卡并更新域掌握度。"""
+    result = await review_service.handle_instant_review_practice(user_id=user_id, items=req.items)
+    return ApiResponse.success(data=result.model_dump())
 
 
 @router.post("/subscribe", response_model=ApiResponse)

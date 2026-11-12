@@ -1,17 +1,86 @@
+import Taro from '@tarojs/taro'
 import type {
+  DueReviewCardItem,
   DueReviewsResponse,
   KnowledgeDocumentItem,
   MasteryOverviewResponse,
+  Question,
+  QuizData,
   QuizHistoryItem,
   RetentionCurvePoint,
   SelfRatedLevel,
   WeeklyRhythmDay,
 } from './api'
 
+const SWR_PREFIX = 'zx_swr_v21_'
+const memorySwr = new Map<string, { ts: number; data: unknown }>()
+
+export function readSwrCache<T>(key: string, maxAgeMs = 300_000): T | null {
+  const fullKey = `${SWR_PREFIX}${key}`
+  const mem = memorySwr.get(fullKey)
+  if (mem && Date.now() - mem.ts <= maxAgeMs) {
+    return mem.data as T
+  }
+  try {
+    const raw = Taro.getStorageSync(fullKey)
+    if (raw && typeof raw === 'object' && 'ts' in raw && 'data' in raw) {
+      const parsed = raw as { ts: number; data: T }
+      if (Date.now() - parsed.ts <= maxAgeMs) {
+        memorySwr.set(fullKey, parsed)
+        return parsed.data
+      }
+    }
+  } catch {
+    // 忽略部分运行环境的存储限制
+  }
+  return null
+}
+
+export function writeSwrCache<T>(key: string, data: T): void {
+  const fullKey = `${SWR_PREFIX}${key}`
+  const payload = { ts: Date.now(), data }
+  memorySwr.set(fullKey, payload)
+  try {
+    Taro.setStorageSync(fullKey, payload)
+  } catch {
+    // 忽略超出容量的缓存写入
+  }
+}
+
+export function invalidateSwrCache(prefix?: string): void {
+  const target = prefix ? `${SWR_PREFIX}${prefix}` : SWR_PREFIX
+  Array.from(memorySwr.keys()).forEach((k) => {
+    if (k.startsWith(target)) {
+      memorySwr.delete(k)
+    }
+  })
+  try {
+    const info = Taro.getStorageInfoSync()
+    for (const k of info.keys || []) {
+      if (k.startsWith(target)) {
+        Taro.removeStorageSync(k)
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
 const WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 
-/** 计算真实今日前后 7 日节律条（今日默认居第 5 格，对应 MOVEPOP 视觉重心） */
-export function buildRealCalendarStrip(activeDates: number[] = []): WeeklyRhythmDay[] {
+/** 计算真实 7 日节律条：优先直接映射后端 WeeklyRhythmDay[]，兜底才构造本地 7 日 */
+export function buildRealCalendarStrip(input: number[] | WeeklyRhythmDay[] = []): WeeklyRhythmDay[] {
+  if (Array.isArray(input) && input.length > 0 && typeof input[0] === 'object') {
+    return (input as WeeklyRhythmDay[]).slice(-7).map((item) => ({
+      day_label: item.day_label || '',
+      date_num: item.date_num || '',
+      completed_count: Number(item.completed_count || 0),
+      is_today: Boolean(item.is_today),
+      active: Boolean(item.active),
+    }))
+  }
+
+  const activeCounts = (Array.isArray(input) ? input : []) as number[]
   const now = new Date()
   const result: WeeklyRhythmDay[] = []
   for (let offset = -4; offset <= 2; offset++) {
@@ -19,15 +88,66 @@ export function buildRealCalendarStrip(activeDates: number[] = []): WeeklyRhythm
     d.setDate(now.getDate() + offset)
     const dayIdx = d.getDay()
     const dd = String(d.getDate()).padStart(2, '0')
+    const count = activeCounts[offset + 4] ?? 0
     result.push({
       day_label: WEEK_LABELS[dayIdx],
       date_num: dd,
-      completed_count: offset === 0 ? Math.max(activeDates[4] ?? 1, 1) : activeDates[offset + 4] ?? 0,
+      completed_count: count,
       is_today: offset === 0,
-      active: offset <= 0,
+      active: offset === 0 || count > 0,
     })
   }
   return result
+}
+
+/** 将待复习错题卡片在前端 <50ms 组装为即点即刷的复习测验，无需等待 25s LLM 变式出题 */
+export function buildInstantReviewQuiz(
+  cards: DueReviewCardItem[],
+  focusDomainName?: string,
+): QuizData {
+  const usable = cards.slice(0, 10)
+  const questions: Question[] = usable.map((card, idx) => {
+    const qType = card.q_type || 'single'
+    const fallbackOpts =
+      qType === 'judge'
+        ? [
+            { key: 'A', text: '正确' },
+            { key: 'B', text: '错误' },
+          ]
+        : [
+            { key: 'A', text: '参考解析要点 A' },
+            { key: 'B', text: '参考解析要点 B' },
+          ]
+    const options = card.options && card.options.length > 0 ? card.options : fallbackOpts
+    return {
+      id: card.question_id || `card_${card.card_id}_${idx}`,
+      type: qType,
+      stem: card.stem,
+      options,
+      answer: card.answer && card.answer.length > 0 ? card.answer : [options[0].key],
+      explanation:
+        card.explanation ||
+        `本题考查「${card.knowledge_point || '核心概念'}」，点击下方 AI 同类变式题可深入拓展。`,
+      knowledge_point: card.knowledge_point || '核心要点',
+      difficulty: card.difficulty || 'medium',
+      source_card_id: card.card_id,
+    }
+  })
+
+  const domainLabel =
+    focusDomainName || (usable[0]?.domain_name ? `${usable[0].domain_name}` : '待巩固错题')
+
+  return {
+    quiz_id: `revq_${Date.now()}`,
+    title: `${domainLabel} · 错题秒开回顾`,
+    summary: `直接加载 ${questions.length} 道高频错题，作答后立即推进 SM-2 记忆间隔`,
+    questions,
+    source_type: 'kb_rag',
+    domain_id: usable[0]?.domain_id,
+    domain_name: domainLabel,
+    is_instant_review: true,
+    source_review_card_ids: usable.map((c) => c.card_id),
+  }
 }
 
 /** 倒 U 自适应推荐题量：冷启动自评 / 历史掌握分驱动 */
@@ -149,13 +269,18 @@ export function buildFallbackMasteryOverview(
     (historyItems[0]?.title ? inferDomainFromText(historyItems[0].title).name : 'RAG 架构')
 
   const retentionCurve: RetentionCurvePoint[] = [
-    { day_label: 'D1', retention_pct: 92 },
-    { day_label: 'D3', retention_pct: 74 },
-    { day_label: 'D5', retention_pct: 58 },
-    { day_label: '重测前', retention_pct: 46, is_today: true },
-    { day_label: '今日巩固', retention_pct: Math.min(96, Math.max(88, latestAcc)), is_recovery: true },
-    { day_label: '+7天', retention_pct: 85 },
-    { day_label: '+14天', retention_pct: 79 },
+    { day_label: 'D1', retention_pct: 92, baseline_pct: 88 },
+    { day_label: 'D3', retention_pct: 74, baseline_pct: 66 },
+    { day_label: 'D5', retention_pct: 58, baseline_pct: 48 },
+    { day_label: '重测前', retention_pct: 46, baseline_pct: 38, is_today: true },
+    {
+      day_label: '今日巩固',
+      retention_pct: Math.min(96, Math.max(76, latestAcc)),
+      baseline_pct: 30,
+      is_recovery: true,
+    },
+    { day_label: '+7天', retention_pct: 72, baseline_pct: 22 },
+    { day_label: '+14天', retention_pct: 60, baseline_pct: 16 },
   ]
 
   const weekHeights = [48, 64, 35, 78, 56, 42, Math.max(66, Math.min(94, latestAcc))]
@@ -215,5 +340,5 @@ export function buildFallbackMasteryOverview(
 }
 
 export function buildEmptyDueReviews(): DueReviewsResponse {
-  return { total_due: 0, items: [] }
+  return { total_due: 0, unresolved_total: 0, items: [] }
 }

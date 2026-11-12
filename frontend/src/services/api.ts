@@ -218,10 +218,12 @@ export type QuizSourceType = 'llm_direct' | 'kb_rag' | 'web_search'
 
 export interface GenerateQuizAsyncParams {
   user_input: string
+  reference_text?: string
   question_count?: number
   adaptive_mode?: boolean
   self_rated_level?: SelfRatedLevel
   doc_id?: string
+  doc_ids?: string[]
   domain_id?: number
   enable_web_search?: boolean
   generate_images?: boolean
@@ -248,13 +250,15 @@ export function generateQuizAsync(
     method: 'POST',
     data: {
       user_input: payload.user_input,
+      reference_text: payload.reference_text,
       question_count: payload.question_count ?? 5,
       adaptive_mode: payload.adaptive_mode ?? false,
       self_rated_level: payload.self_rated_level,
       difficulty: 'mixed',
       doc_id: payload.doc_id,
+      doc_ids: payload.doc_ids,
       domain_id: payload.domain_id,
-      enable_web_search: payload.enable_web_search ?? false,
+      enable_web_search: payload.enable_web_search ?? true,
       generate_images: payload.generate_images ?? false,
       review_card_ids: payload.review_card_ids,
     },
@@ -265,36 +269,50 @@ export function getQuizTaskStatus(taskId: string) {
   return request<QuizTaskStatus>(`/quiz/task/${taskId}`)
 }
 
-/** 每 2 秒轮询一次异步出题任务状态（规避微信小程序 60s 请求超时） */
+/** 阶梯高频轮询异步出题任务状态（前 8 次 700ms，随后 1100ms，明显降低感知延迟） */
 export function pollQuizTask(
   taskId: string,
   onProgress?: (status: string, task: QuizTaskStatus) => void,
-  intervalMs = 2000,
-  maxAttempts = 90,
+  initialIntervalMs = 700,
+  maxAttempts = 120,
 ): Promise<QuizData> {
   return new Promise((resolve, reject) => {
     let attempts = 0
-    const timer = setInterval(async () => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let settled = false
+
+    const tick = async () => {
+      if (settled) return
       attempts++
       try {
         const res = await getQuizTaskStatus(taskId)
         onProgress?.(res.status, res)
 
         if (res.status === 'completed' && res.result) {
-          clearInterval(timer)
+          settled = true
           resolve(res.result)
-        } else if (res.status === 'failed') {
-          clearInterval(timer)
-          reject(new Error(res.error_message || '题目生成失败'))
-        } else if (attempts >= maxAttempts) {
-          clearInterval(timer)
-          reject(new Error('出题超时，请稍后重试'))
+          return
         }
+        if (res.status === 'failed') {
+          settled = true
+          reject(new Error(res.error_message || '题目生成失败'))
+          return
+        }
+        if (attempts >= maxAttempts) {
+          settled = true
+          reject(new Error('出题超时，请稍后重试'))
+          return
+        }
+        const delay = attempts < 8 ? initialIntervalMs : 1100
+        timer = setTimeout(tick, delay)
       } catch (err) {
-        clearInterval(timer)
+        settled = true
+        if (timer) clearTimeout(timer)
         reject(err)
       }
-    }, intervalMs)
+    }
+
+    timer = setTimeout(tick, Math.min(450, initialIntervalMs))
   })
 }
 
@@ -336,39 +354,50 @@ export function pollReportStatus(
     isCancelled?: () => boolean
   },
 ): Promise<ReportStatusResponse> {
-  const intervalMs = options?.intervalMs ?? 2000
-  const maxAttempts = options?.maxAttempts ?? 90
+  const initialMs = options?.intervalMs ?? 700
+  const maxAttempts = options?.maxAttempts ?? 120
   const isCancelled = options?.isCancelled
 
   return new Promise((resolve, reject) => {
     let attempts = 0
-    const timer = setInterval(async () => {
-      if (isCancelled?.()) {
-        clearInterval(timer)
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let settled = false
+
+    const tick = async () => {
+      if (settled || isCancelled?.()) {
+        if (timer) clearTimeout(timer)
         return
       }
       attempts++
       try {
         const res = await getReportStatus(quizId)
         if (isCancelled?.()) {
-          clearInterval(timer)
+          settled = true
           return
         }
         onUpdate?.(res)
         if (res.report_status === 'completed' || res.report_status === 'failed') {
-          clearInterval(timer)
+          settled = true
           resolve(res)
-        } else if (attempts >= maxAttempts) {
-          clearInterval(timer)
-          reject(new Error('复盘报告生成超时，请稍后在历史记录中查看'))
+          return
         }
+        if (attempts >= maxAttempts) {
+          settled = true
+          reject(new Error('复盘报告生成超时，请稍后在历史记录中查看'))
+          return
+        }
+        const delay = attempts < 8 ? initialMs : 1100
+        timer = setTimeout(tick, delay)
       } catch (err) {
-        clearInterval(timer)
+        settled = true
+        if (timer) clearTimeout(timer)
         if (!isCancelled?.()) {
           reject(err)
         }
       }
-    }, intervalMs)
+    }
+
+    timer = setTimeout(tick, Math.min(500, initialMs))
   })
 }
 
@@ -396,9 +425,44 @@ export async function getMasteryOverview(domainId?: number): Promise<MasteryOver
   }
 }
 
-export async function getDueReviews(limit = 20): Promise<DueReviewsResponse | null> {
+export async function getDueReviews(
+  limit = 20,
+  opts?: { domainId?: number; includeAll?: boolean },
+): Promise<DueReviewsResponse | null> {
   try {
-    return await request<DueReviewsResponse>(`/reviews/due?limit=${limit}`)
+    const query: string[] = [`limit=${limit}`]
+    if (opts?.domainId) query.push(`domain_id=${opts.domainId}`)
+    if (opts?.includeAll) query.push('include_all=true')
+    return await request<DueReviewsResponse>(`/reviews/due?${query.join('&')}`)
+  } catch {
+    return null
+  }
+}
+
+export interface ReviewPracticeItemInput {
+  card_id: number
+  selected_answers: string[]
+  is_correct: boolean
+  duration_ms: number
+  mark_review?: boolean
+}
+
+export interface ReviewPracticeSubmitResponse {
+  practiced_count: number
+  correct_count: number
+  graduated_count: number
+  remaining_due: number
+  streak_days: number
+}
+
+export async function submitInstantReviewPractice(
+  items: ReviewPracticeItemInput[],
+): Promise<ReviewPracticeSubmitResponse | null> {
+  try {
+    return await request<ReviewPracticeSubmitResponse>('/reviews/practice/submit', {
+      method: 'POST',
+      data: { items },
+    })
   } catch {
     return null
   }
@@ -570,6 +634,7 @@ export interface Question {
   knowledge_point: string
   difficulty: 'easy' | 'medium' | 'hard'
   image_url?: string | null
+  source_card_id?: number
 }
 
 export type QuizTaskStage = 'queued' | 'fetching_context' | 'generating_quiz' | 'completed' | 'failed'
@@ -590,6 +655,8 @@ export interface QuizData {
   adaptive_reason?: string
   image_status?: QuizImageStatus
   image_notice?: string | null
+  is_instant_review?: boolean
+  source_review_card_ids?: number[]
 }
 
 export interface QuizTaskStatus {
@@ -642,9 +709,14 @@ export interface ReportSubmitResponse {
   xp_awarded: boolean
   already_submitted: boolean
   streak_days?: number
+  domain_id?: number
   domain_name?: string
   domain_mastery_after?: number
+  stability_days_after?: number
   due_cards_created?: number
+  reviewed_cards_progressed?: number
+  session_retention_curve?: RetentionCurvePoint[]
+  weekly_rhythm?: WeeklyRhythmDay[]
   report_status: ReportStatusEnum
   report?: ReportData | null
   error_message?: string | null
@@ -704,6 +776,7 @@ export interface QuizDetailResponse {
   summary: string
   user_input?: string
   source_type?: QuizSourceType
+  domain_id?: number
   domain_name?: string
   questions: Question[]
   image_status?: QuizImageStatus
@@ -778,6 +851,7 @@ export interface DomainMasterySummary {
 export interface RetentionCurvePoint {
   day_label: string
   retention_pct: number
+  baseline_pct?: number
   is_today?: boolean
   is_recovery?: boolean
 }
@@ -808,14 +882,24 @@ export interface DueReviewCardItem {
   quiz_id: string
   domain_id?: number
   domain_name: string
+  q_type?: 'single' | 'multiple' | 'judge'
   stem: string
+  options?: QuestionOption[]
+  answer?: string[]
+  explanation?: string
+  user_selected?: string[]
   knowledge_point: string
   difficulty: 'easy' | 'medium' | 'hard'
+  repetitions?: number
   interval_days: number
+  status?: string
   next_review_at: string
+  last_reviewed_at?: string | null
 }
 
 export interface DueReviewsResponse {
   total_due: number
+  unresolved_total?: number
+  domain_id?: number | null
   items: DueReviewCardItem[]
 }

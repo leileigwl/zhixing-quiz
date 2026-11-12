@@ -144,13 +144,17 @@ async def _update_v2_learning_state(
     questions: list[Question],
     graded_records: list[AnswerRecord],
     mark_review_map: dict[str, bool],
-) -> tuple[Optional[str], Optional[float], int, int]:
-    """交卷后聚合 E/M/H 三维表现、更新连续打卡并生成 SM-2 错题复习卡。"""
+) -> dict:
+    """交卷后聚合 E/M/H 表现、更新打卡、核销错题原卡并实时算出本次双轨曲线与 7 日节律。"""
     domain_id: Optional[int] = session.get("domain_id")
     domain_name: Optional[str] = session.get("domain_name")
     domain_mastery_after: Optional[float] = None
+    stability_after: Optional[float] = None
     streak_days = 0
     due_cards_created = 0
+    progressed_count = 0
+    session_curve: list = []
+    weekly_rhythm: list = []
 
     use_db = (
         get_mysql_pool() is not None
@@ -158,7 +162,17 @@ async def _update_v2_learning_state(
         or hasattr(mastery_repository.update_user_streak_on_submit, "assert_called")
     )
     if not use_db:
-        return domain_name, domain_mastery_after, streak_days, due_cards_created
+        return {
+            "domain_id": domain_id,
+            "domain_name": domain_name,
+            "domain_mastery_after": domain_mastery_after,
+            "stability_days_after": stability_after,
+            "streak_days": streak_days,
+            "due_cards_created": due_cards_created,
+            "reviewed_cards_progressed": progressed_count,
+            "session_retention_curve": session_curve,
+            "weekly_rhythm": weekly_rhythm,
+        }
 
     try:
         if domain_id is None:
@@ -197,6 +211,14 @@ async def _update_v2_learning_state(
             )
 
         streak_days = await mastery_repository.update_user_streak_on_submit(user_id)
+        source_card_ids = [int(cid) for cid in (session.get("source_review_card_ids") or []) if cid]
+        progressed_count, matched_qids = await review_service.progress_source_review_cards(
+            user_id=user_id,
+            questions=questions,
+            graded_records=graded_records,
+            source_card_ids=source_card_ids,
+            mark_review_map=mark_review_map,
+        )
         due_cards_created = await review_service.process_submission_reviews(
             user_id=user_id,
             quiz_id=quiz_id,
@@ -204,12 +226,51 @@ async def _update_v2_learning_state(
             questions=questions,
             graded_records=graded_records,
             mark_review_map=mark_review_map,
+            skip_question_ids=matched_qids,
         )
+
+        # 基于刚刚更新的最新域稳定性 S、掌握分与本次准确率，直接生成真实双轨曲线与本周节律
+        latest_profile = (
+            await mastery_repository.get_mastery_by_domain(user_id, domain_id)
+            if domain_id is not None
+            else None
+        )
+        daily_counts = await mastery_repository.get_user_daily_counts(user_id, days=7)
+        session_acc = (
+            round((sum(1 for r in graded_records if r.is_correct) / len(graded_records)) * 100.0, 1)
+            if graded_records
+            else 0.0
+        )
+        stability_after = float((latest_profile or {}).get("stability_days") or 5.0)
+        retention_after = float((latest_profile or {}).get("retention_rate") or max(45.0, session_acc))
+        session_curve = mastery_service.build_retention_curve(
+            stability_after,
+            retention_after,
+            mastery_score=domain_mastery_after,
+            session_accuracy=session_acc,
+            days_elapsed=1.0,
+        )
+        weekly_rhythm = mastery_service.build_weekly_rhythm(daily_counts)
+
         await mastery_service.invalidate_mastery_cache(user_id)
     except Exception as exc:
         logger.warning("update_v2_learning_state_failed", quiz_id=quiz_id, error=str(exc))
+        stability_after = None
+        progressed_count = 0
+        session_curve = []
+        weekly_rhythm = []
 
-    return domain_name, domain_mastery_after, streak_days, due_cards_created
+    return {
+        "domain_id": domain_id,
+        "domain_name": domain_name,
+        "domain_mastery_after": domain_mastery_after,
+        "stability_days_after": stability_after,
+        "streak_days": streak_days,
+        "due_cards_created": due_cards_created,
+        "reviewed_cards_progressed": progressed_count,
+        "session_retention_curve": session_curve,
+        "weekly_rhythm": weekly_rhythm,
+    }
 
 
 async def handle_report_submit(
@@ -309,20 +370,25 @@ async def handle_report_submit(
         xp_gain=xp_gain,
     )
 
-    domain_name: Optional[str] = session.get("domain_name")
-    domain_mastery_after: Optional[float] = None
-    streak_days = 0
-    due_cards_created = 0
+    v2_state: dict = {
+        "domain_id": session.get("domain_id"),
+        "domain_name": session.get("domain_name"),
+        "domain_mastery_after": None,
+        "stability_days_after": None,
+        "streak_days": 0,
+        "due_cards_created": 0,
+        "reviewed_cards_progressed": 0,
+        "session_retention_curve": [],
+        "weekly_rhythm": [],
+    }
     if awarded:
-        domain_name, domain_mastery_after, streak_days, due_cards_created = (
-            await _update_v2_learning_state(
-                session=session,
-                quiz_id=req.quiz_id,
-                user_id=user_id,
-                questions=questions,
-                graded_records=graded_records,
-                mark_review_map={item.question_id: bool(item.mark_review) for item in req.answer_records},
-            )
+        v2_state = await _update_v2_learning_state(
+            session=session,
+            quiz_id=req.quiz_id,
+            user_id=user_id,
+            questions=questions,
+            graded_records=graded_records,
+            mark_review_map={item.question_id: bool(item.mark_review) for item in req.answer_records},
         )
 
     await quiz_repository.save_report(
@@ -350,10 +416,15 @@ async def handle_report_submit(
         xp_gain=xp_gain if awarded else 0,
         xp_awarded=awarded,
         already_submitted=not awarded,
-        streak_days=streak_days,
-        domain_name=domain_name,
-        domain_mastery_after=domain_mastery_after,
-        due_cards_created=due_cards_created,
+        streak_days=v2_state.get("streak_days", 0),
+        domain_id=v2_state.get("domain_id"),
+        domain_name=v2_state.get("domain_name"),
+        domain_mastery_after=v2_state.get("domain_mastery_after"),
+        stability_days_after=v2_state.get("stability_days_after"),
+        due_cards_created=v2_state.get("due_cards_created", 0),
+        reviewed_cards_progressed=v2_state.get("reviewed_cards_progressed", 0),
+        session_retention_curve=v2_state.get("session_retention_curve", []),
+        weekly_rhythm=v2_state.get("weekly_rhythm", []),
         report_status="generating",
     )
 

@@ -83,48 +83,82 @@ def _is_mocked(fn: Any) -> bool:
     return hasattr(fn, "assert_called")
 
 
+def _collect_requested_doc_ids(req: QuizGenerateRequest) -> list[str]:
+    doc_ids = [d for d in (req.doc_ids or []) if d]
+    if req.doc_id and req.doc_id not in doc_ids:
+        doc_ids.insert(0, req.doc_id)
+    return doc_ids
+
+
 async def _validate_doc_id(req: QuizGenerateRequest, user_id: Optional[int]) -> Optional[dict]:
-    """若请求指定了 doc_id，校验用户已登录且文档存在、归属正确且已就绪。"""
-    if req.doc_id is None:
+    """校验传入的 doc_id / doc_ids 存在、归属当前用户且已就绪。"""
+    target_ids = _collect_requested_doc_ids(req)
+    if not target_ids:
         return None
 
     if user_id is None:
         raise KnowledgeBaseError("使用知识库出题需要先登录")
 
-    doc = await knowledge_repository.get_document(req.doc_id, user_id)
-    if doc is None:
-        raise KnowledgeBaseError("知识库文档不存在")
+    first_doc: Optional[dict] = None
+    for idx, did in enumerate(target_ids):
+        doc = await knowledge_repository.get_document(did, user_id)
+        if doc is None:
+            raise KnowledgeBaseError("知识库文档不存在")
+        if doc["status"] != "ready":
+            raise KnowledgeBaseError(f"知识库文档尚未就绪（当前状态：{doc['status']}），请稍后重试")
+        if idx == 0:
+            first_doc = doc
 
-    if doc["status"] != "ready":
-        raise KnowledgeBaseError(f"知识库文档尚未就绪（当前状态：{doc['status']}），请稍后重试")
-
-    return doc
+    return first_doc
 
 
 async def _fetch_context_with_source(
     req: QuizGenerateRequest,
     user_id: Optional[int],
+    effective_doc_ids: Optional[list[str]] = None,
 ) -> tuple[str, str]:
-    """按文档/联网开关走 LCEL 确定性路由，同时兼容测试桩。"""
-    if req.doc_id is not None:
-        if _is_mocked(rag_service.fetch_rag_context):
-            ctx = await rag_service.fetch_rag_context(req.user_input, user_id, req.doc_id)
-            return ctx, ("kb_rag" if ctx else "llm_direct")
-        return await rag_service.resolve_rag_context(
+    """三源融合 LCEL 检索路由：用户粘贴材料 + 私有知识库（单/多/域全库）+ Tavily 联网搜索。"""
+    target_doc_ids = effective_doc_ids if effective_doc_ids is not None else _collect_requested_doc_ids(req)
+
+    if target_doc_ids:
+        if len(target_doc_ids) == 1 and _is_mocked(rag_service.fetch_rag_context):
+            ctx = await rag_service.fetch_rag_context(req.user_input, user_id, target_doc_ids[0])
+            return _merge_reference_text(req, ctx, ("kb_rag" if ctx else "llm_direct"))
+        ctx, src = await rag_service.resolve_rag_context(
             user_input=req.user_input,
             user_id=user_id,
-            doc_id=req.doc_id,
+            doc_id=target_doc_ids[0],
+            doc_ids=target_doc_ids,
             enable_web_search=req.enable_web_search,
         )
+        return _merge_reference_text(req, ctx, src)
 
     if _is_mocked(fetch_knowledge_context):
         ctx = await fetch_knowledge_context(req.user_input)
-        return ctx, ("web_search" if ctx else "llm_direct")
+        return _merge_reference_text(req, ctx, ("web_search" if ctx else "llm_direct"))
 
-    return await resolve_knowledge_context(
+    ctx, src = await resolve_knowledge_context(
         user_input=req.user_input,
         enable_web_search=req.enable_web_search,
     )
+    return _merge_reference_text(req, ctx, src)
+
+
+def _merge_reference_text(
+    req: QuizGenerateRequest,
+    context: str,
+    source_type: str,
+) -> tuple[str, str]:
+    """将用户直接提供/粘贴的 reference_text 与检索上下文（知识库+联网）三源并合。"""
+    ref = (getattr(req, "reference_text", None) or "").strip()
+    if not ref:
+        return context, source_type
+    parts = [f"【用户提供的学习文本】\n{ref[:4500]}"]
+    if context:
+        parts.append(context)
+    merged = "\n\n".join(parts)[:7500]
+    merged_src = source_type if source_type != "llm_direct" else "kb_rag"
+    return merged, merged_src
 
 
 async def _fetch_context(req: QuizGenerateRequest, user_id: Optional[int]) -> str:
@@ -160,10 +194,13 @@ async def _resolve_domain_and_plan(
                 domain_name = doc_info.get("domain_name")
 
             if domain_id is None:
-                existing = [d["name"] for d in await mastery_repository.list_user_domains(user_id)]
-                guessed_name, color = await domain_classifier.classify_domain_with_llm(
-                    req.user_input, existing
-                )
+                # 优先毫秒级关键词规则分类；未命中时仅对短文本调语义归类
+                guessed_name, color = domain_classifier.classify_domain_deterministic(req.user_input)
+                if guessed_name == "综合知识域" and len(req.user_input.strip()) >= 8:
+                    existing = [d["name"] for d in await mastery_repository.list_user_domains(user_id)]
+                    guessed_name, color = await domain_classifier.classify_domain_with_llm(
+                        req.user_input, existing
+                    )
                 dom = await mastery_repository.get_or_create_domain(user_id, guessed_name, color)
                 domain_id, domain_name = dom["domain_id"], dom["name"]
 
@@ -180,6 +217,7 @@ async def _resolve_domain_and_plan(
         self_rated_level=req.self_rated_level,
         mastery_profile=mastery_profile,
         base_difficulty=req.difficulty,
+        min_count=1 if req.review_card_ids else 3,
     )
     return domain_id, domain_name, plan
 
@@ -187,33 +225,35 @@ async def _resolve_domain_and_plan(
 async def _build_effective_user_input(
     req: QuizGenerateRequest,
     user_id: Optional[int],
-) -> str:
-    """若传入待复习错题卡 ID，拼装错题定向巩固考点约束。"""
+) -> tuple[str, list[int]]:
+    """若传入待复习错题卡 ID，拼装错题定向巩固考点约束并返回有效 card_ids 列表。"""
     if not req.review_card_ids or user_id is None:
-        return req.user_input
+        return req.user_input, []
 
     if get_mysql_pool() is None and not _is_mocked(mastery_repository.get_review_cards_context):
-        return req.user_input
+        return req.user_input, list(req.review_card_ids)
 
     try:
         cards = await mastery_repository.get_review_cards_context(user_id, req.review_card_ids)
     except Exception as exc:
         logger.warning("fetch_review_cards_context_failed", user_id=user_id, error=str(exc))
-        return req.user_input
+        return req.user_input, list(req.review_card_ids)
 
     if not cards:
-        return req.user_input
+        return req.user_input, []
 
+    valid_ids = [int(c["card_id"]) for c in cards]
     lines = [
-        f"- 考点【{c['knowledge_point'] or c['domain_name']}】原错题参考：{c['stem'][:160]}"
-        for c in cards[:8]
+        f"{idx + 1}. 考点【{c['knowledge_point'] or c['domain_name']}】原错题参考：{c['stem'][:160]}"
+        for idx, c in enumerate(cards[:8])
     ]
-    return (
+    prompt = (
         f"{req.user_input}\n\n"
         "【错题定向巩固变式出题要求】\n"
-        "请围绕以下历史薄弱考点设计新的变式题目（更换场景或干扰项，不要原题照抄）：\n"
+        f"请严格按顺序一一对应以下 {len(lines)} 道薄弱错题设计新的变式巩固题（更换场景或干扰项，不要原题照抄）：\n"
         + "\n".join(lines)
     )
+    return prompt, valid_ids
 
 
 async def _persist_quiz_session_and_questions(
@@ -227,6 +267,7 @@ async def _persist_quiz_session_and_questions(
     domain_id: Optional[int],
     domain_name: Optional[str],
     source_type: str,
+    source_review_card_ids: Optional[list[int]] = None,
 ) -> None:
     if user_id is None:
         return
@@ -244,6 +285,7 @@ async def _persist_quiz_session_and_questions(
             domain_id=domain_id,
             domain_name=domain_name,
             source_type=source_type,
+            source_review_card_ids=source_review_card_ids,
         )
         if domain_id is not None or _is_mocked(mastery_repository.save_normalized_questions):
             await mastery_repository.save_normalized_questions(
@@ -257,6 +299,32 @@ async def _persist_quiz_session_and_questions(
         logger.error("quiz_session_save_failed", quiz_id=quiz_id, error=str(e))
 
 
+async def _prepare_generation_context(
+    req: QuizGenerateRequest,
+    user_id: Optional[int],
+    doc_info: Optional[dict],
+):
+    """并行执行领域画像解析、知识库/联网三源检索与错题上下文构建，缩短端到端出题等待。"""
+    explicit_doc_ids = _collect_requested_doc_ids(req)
+    if not explicit_doc_ids and req.domain_id is not None and user_id is not None and get_mysql_pool() is not None:
+        explicit_doc_ids = await knowledge_repository.list_ready_doc_ids_by_domain(user_id, req.domain_id)
+
+    (domain_id, domain_name, plan), (search_context, source_type), (effective_input, valid_card_ids) = (
+        await asyncio.gather(
+            _resolve_domain_and_plan(req, user_id, doc_info),
+            _fetch_context_with_source(req, user_id, effective_doc_ids=explicit_doc_ids),
+            _build_effective_user_input(req, user_id),
+        )
+    )
+    return domain_id, domain_name, plan, search_context, source_type, effective_input, valid_card_ids
+
+
+def _bind_source_cards(questions: list[Question], card_ids: list[int]) -> None:
+    for idx, q in enumerate(questions):
+        if idx < len(card_ids):
+            q.source_card_id = card_ids[idx]
+
+
 async def handle_quiz_generate(
     req: QuizGenerateRequest,
     user_id: Optional[int] = None,
@@ -265,9 +333,9 @@ async def handle_quiz_generate(
         raise ContentFilterError("输入内容包含不当内容，请修改后重试")
 
     doc_info = await _validate_doc_id(req, user_id)
-    domain_id, domain_name, plan = await _resolve_domain_and_plan(req, user_id, doc_info)
-    search_context, source_type = await _fetch_context_with_source(req, user_id)
-    effective_input = await _build_effective_user_input(req, user_id)
+    domain_id, domain_name, plan, search_context, source_type, effective_input, valid_card_ids = (
+        await _prepare_generation_context(req, user_id, doc_info)
+    )
     prompt_difficulty = (
         plan.difficulty_instruction
         if (req.adaptive_mode or req.self_rated_level)
@@ -285,6 +353,8 @@ async def handle_quiz_generate(
         logger.error("quiz_generation_failed", error=str(e))
         raise QuizGenerationError(f"题库生成失败：{e}") from e
 
+    _bind_source_cards(quiz_output.questions, valid_card_ids)
+
     quiz_id = f"quiz_{uuid.uuid4().hex[:12]}"
     image_notice = await _maybe_generate_images(quiz_output, quiz_id, user_id, req.generate_images)
     image_count = sum(1 for q in quiz_output.questions if q.image_url)
@@ -301,12 +371,13 @@ async def handle_quiz_generate(
         quiz_id=quiz_id,
         user_id=user_id,
         quiz_output=quiz_output,
-        user_input=req.user_input,
+        user_input=req.user_input[:1800],
         image_status=image_status,
         image_notice=image_notice,
         domain_id=domain_id,
         domain_name=domain_name,
         source_type=source_type,
+        source_review_card_ids=valid_card_ids or None,
     )
 
     return QuizGenerateResponse(
@@ -430,11 +501,11 @@ async def _execute_quiz_task(
     user_id: Optional[int],
 ) -> QuizGenerateResponse:
     doc_info = await _validate_doc_id(req, user_id)
-    domain_id, domain_name, plan = await _resolve_domain_and_plan(req, user_id, doc_info)
 
     await task_repository.update_task_stage(task_id, "fetching_context")
-    search_context, source_type = await _fetch_context_with_source(req, user_id)
-    effective_input = await _build_effective_user_input(req, user_id)
+    domain_id, domain_name, plan, search_context, source_type, effective_input, valid_card_ids = (
+        await _prepare_generation_context(req, user_id, doc_info)
+    )
     prompt_difficulty = (
         plan.difficulty_instruction
         if (req.adaptive_mode or req.self_rated_level)
@@ -448,6 +519,8 @@ async def _execute_quiz_task(
         difficulty=prompt_difficulty,
         search_context=search_context,
     )
+
+    _bind_source_cards(quiz_output.questions, valid_card_ids)
 
     quiz_id = f"quiz_{uuid.uuid4().hex[:12]}"
     if not req.generate_images:
@@ -464,12 +537,13 @@ async def _execute_quiz_task(
         quiz_id=quiz_id,
         user_id=user_id,
         quiz_output=quiz_output,
-        user_input=req.user_input,
+        user_input=req.user_input[:1800],
         image_status=image_status,
         image_notice=image_notice,
         domain_id=domain_id,
         domain_name=domain_name,
         source_type=source_type,
+        source_review_card_ids=valid_card_ids or None,
     )
 
     if image_status == "generating" and user_id is not None:

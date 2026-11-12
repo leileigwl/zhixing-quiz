@@ -169,7 +169,7 @@ async def list_user_mastery_rows(user_id: int) -> list[dict]:
                 "COALESCE(m.retention_rate, 85.0), m.last_practiced_at, "
                 "(SELECT COUNT(*) FROM kb_documents kd WHERE kd.domain_id = d.id AND kd.user_id = d.user_id) AS doc_cnt, "
                 "(SELECT COUNT(*) FROM review_cards rc WHERE rc.domain_id = d.id AND rc.user_id = d.user_id "
-                "  AND rc.status != 'mastered' AND rc.next_review_at <= NOW()) AS due_cnt "
+                "  AND rc.status != 'mastered' AND (rc.next_review_at <= NOW() OR rc.status = 'due')) AS due_cnt "
                 "FROM domains d "
                 "LEFT JOIN user_knowledge_mastery m ON m.domain_id = d.id AND m.user_id = d.user_id "
                 "WHERE d.user_id = %s "
@@ -467,47 +467,168 @@ async def mark_cards_notified(card_ids: list[int]) -> None:
             )
 
 
-async def list_due_review_cards(user_id: int, limit: int = 20) -> tuple[int, list[dict]]:
+def _extract_user_selected(records_raw, question_id: str) -> list[str]:
+    try:
+        records = json.loads(records_raw) if isinstance(records_raw, str) else records_raw
+        for r in records or []:
+            if isinstance(r, dict) and r.get("question_id") == question_id:
+                return [str(x) for x in (r.get("selected_answers") or [])]
+    except Exception:
+        pass
+    return []
+
+
+async def count_unresolved_review_cards(
+    user_id: int,
+    domain_id: Optional[int] = None,
+) -> int:
+    pool = get_mysql_pool()
+    if pool is None:
+        return 0
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            where = "user_id = %s AND status != 'mastered'"
+            params: list = [user_id]
+            if domain_id is not None:
+                where += " AND domain_id = %s"
+                params.append(domain_id)
+            await cur.execute(f"SELECT COUNT(*) FROM review_cards WHERE {where}", tuple(params))
+            row = await cur.fetchone()
+            return int(row[0]) if row else 0
+
+
+async def list_due_review_cards(
+    user_id: int,
+    limit: int = 20,
+    domain_id: Optional[int] = None,
+    include_all_unresolved: bool = False,
+) -> tuple[int, list[dict]]:
     pool = get_mysql_pool()
     if pool is None:
         return 0, []
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
-            await cur.execute(
-                "SELECT COUNT(*) FROM review_cards "
-                "WHERE user_id = %s AND status != 'mastered' AND next_review_at <= NOW()",
-                (user_id,),
-            )
+            where_clauses = ["rc.user_id = %s", "rc.status != 'mastered'"]
+            params: list = [user_id]
+            if not include_all_unresolved:
+                where_clauses.append("(rc.next_review_at <= NOW() OR rc.status = 'due')")
+            if domain_id is not None:
+                where_clauses.append("rc.domain_id = %s")
+                params.append(domain_id)
+            where_sql = " AND ".join(where_clauses)
+
+            await cur.execute(f"SELECT COUNT(*) FROM review_cards rc WHERE {where_sql}", tuple(params))
             total_due = int((await cur.fetchone())[0])
 
             await cur.execute(
                 "SELECT rc.id, rc.question_id, rc.quiz_id, rc.domain_id, COALESCE(d.name, '综合知识域'), "
-                "COALESCE(q.stem, '历史错题巩固'), COALESCE(q.knowledge_point, ''), "
-                "COALESCE(q.difficulty, 'medium'), rc.interval_days, rc.next_review_at "
+                "COALESCE(q.q_type, 'single'), COALESCE(q.stem, '历史错题巩固'), "
+                "q.options_json, q.answer_json, COALESCE(q.explanation, ''), "
+                "COALESCE(q.knowledge_point, ''), COALESCE(q.difficulty, 'medium'), "
+                "rc.repetitions, rc.interval_days, rc.status, rc.next_review_at, rc.last_reviewed_at, "
+                "ar.records_json "
                 "FROM review_cards rc "
                 "LEFT JOIN domains d ON d.id = rc.domain_id "
                 "LEFT JOIN questions q ON q.question_uid = rc.question_uid "
-                "WHERE rc.user_id = %s AND rc.status != 'mastered' AND rc.next_review_at <= NOW() "
-                "ORDER BY rc.next_review_at ASC LIMIT %s",
-                (user_id, limit),
+                "LEFT JOIN answer_records ar ON ar.quiz_id = rc.quiz_id "
+                f"WHERE {where_sql} "
+                "ORDER BY (rc.status = 'due') DESC, rc.next_review_at ASC LIMIT %s",
+                tuple([*params, limit]),
             )
             rows = await cur.fetchall()
-            items = [
+            items: list[dict] = []
+            for r in rows:
+                opts = json.loads(r[7]) if isinstance(r[7], str) else (r[7] or [])
+                ans = json.loads(r[8]) if isinstance(r[8], str) else (r[8] or [])
+                q_type = r[5] if r[5] in ("single", "multiple", "judge") else "single"
+                diff = r[11] if r[11] in ("easy", "medium", "hard") else "medium"
+                st = r[14] if r[14] in ("active", "due", "mastered") else "due"
+                items.append(
+                    {
+                        "card_id": int(r[0]),
+                        "question_id": r[1],
+                        "quiz_id": r[2],
+                        "domain_id": r[3],
+                        "domain_name": r[4],
+                        "q_type": q_type,
+                        "stem": r[6],
+                        "options": opts if isinstance(opts, list) else [],
+                        "answer": [str(a) for a in (ans if isinstance(ans, list) else [])],
+                        "explanation": r[9] or "",
+                        "user_selected": _extract_user_selected(r[17], r[1]),
+                        "knowledge_point": r[10] or "",
+                        "difficulty": diff,
+                        "repetitions": int(r[12] or 0),
+                        "interval_days": int(r[13] or 1),
+                        "status": st,
+                        "next_review_at": r[15].strftime("%Y-%m-%d %H:%M:%S") if r[15] else "",
+                        "last_reviewed_at": r[16].strftime("%Y-%m-%d %H:%M:%S") if r[16] else None,
+                    }
+                )
+            return total_due, items
+
+
+async def get_review_cards_by_ids(user_id: int, card_ids: list[int]) -> list[dict]:
+    """按 card_ids 批量读取 SM-2 卡片元信息与题干上下文，供变式出题与核销推进。"""
+    pool = get_mysql_pool()
+    if pool is None or not card_ids:
+        return []
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            placeholders = ", ".join(["%s"] * len(card_ids))
+            await cur.execute(
+                "SELECT rc.id, rc.domain_id, rc.easiness_factor, rc.interval_days, rc.repetitions, rc.status, "
+                "rc.quiz_id, rc.question_id, COALESCE(q.stem, ''), COALESCE(q.knowledge_point, ''), "
+                "COALESCE(q.explanation, ''), COALESCE(d.name, '综合知识域') "
+                "FROM review_cards rc "
+                "LEFT JOIN questions q ON q.question_uid = rc.question_uid "
+                "LEFT JOIN domains d ON d.id = rc.domain_id "
+                f"WHERE rc.user_id = %s AND rc.id IN ({placeholders})",
+                tuple([user_id, *card_ids]),
+            )
+            rows = await cur.fetchall()
+            return [
                 {
                     "card_id": int(r[0]),
-                    "question_id": r[1],
-                    "quiz_id": r[2],
-                    "domain_id": r[3],
-                    "domain_name": r[4],
-                    "stem": r[5],
-                    "knowledge_point": r[6],
-                    "difficulty": r[7] if r[7] in ("easy", "medium", "hard") else "medium",
-                    "interval_days": int(r[8]),
-                    "next_review_at": r[9].strftime("%Y-%m-%d %H:%M:%S") if r[9] else "",
+                    "domain_id": r[1],
+                    "easiness_factor": float(r[2] or 2.5),
+                    "interval_days": int(r[3] or 1),
+                    "repetitions": int(r[4] or 0),
+                    "status": r[5] or "due",
+                    "quiz_id": r[6],
+                    "question_id": r[7],
+                    "stem": r[8],
+                    "knowledge_point": r[9],
+                    "explanation": r[10],
+                    "domain_name": r[11],
                 }
                 for r in rows
             ]
-            return total_due, items
+
+
+async def update_review_card_progress(
+    card_id: int,
+    user_id: int,
+    interval_days: int,
+    easiness_factor: float,
+    repetitions: int,
+    status: str,
+    immediately_due: bool = False,
+) -> Optional[int]:
+    """直接按主键 card_id 更新已有错题卡 SM-2 进度（答对推进/毕业，答错留在待练队列）。"""
+    pool = get_mysql_pool()
+    if pool is None:
+        return None
+    next_at = datetime.now() if immediately_due else datetime.now() + timedelta(days=interval_days)
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE review_cards SET easiness_factor = %s, interval_days = %s, "
+                "repetitions = %s, status = %s, next_review_at = %s, last_reviewed_at = NOW() "
+                "WHERE id = %s AND user_id = %s",
+                (easiness_factor, interval_days, repetitions, status, next_at, card_id, user_id),
+            )
+            return card_id if cur.rowcount > 0 else None
 
 
 async def get_review_cards_context(user_id: int, card_ids: list[int]) -> list[dict]:

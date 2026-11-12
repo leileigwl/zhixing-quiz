@@ -77,6 +77,27 @@ class TestAdaptiveEngine:
         assert r0 == 100.0
         assert r_far == 18.0
 
+    def test_dual_track_retention_curve_varies_by_accuracy(self):
+        from app.models.quiz import QuizGenerateRequest
+        from app.services import mastery_service
+
+        c_high = mastery_service.build_retention_curve(
+            12.0, 92.0, mastery_score=90.0, session_accuracy=100.0, days_elapsed=1.0
+        )
+        c_low = mastery_service.build_retention_curve(
+            2.2, 48.0, mastery_score=38.0, session_accuracy=25.0, days_elapsed=1.0
+        )
+        assert len(c_high) == 6 and len(c_low) == 6
+        assert all(p.baseline_pct is not None for p in c_high)
+        assert c_high[2].retention_pct > c_low[2].retention_pct + 20.0
+        assert c_high[4].retention_pct > c_low[4].retention_pct + 20.0
+
+        # review_card_ids 模式下允许 1 题直练，普通模式仍拒绝 2 题
+        req_review = QuizGenerateRequest(user_input="复习错题", question_count=1, review_card_ids=[11])
+        assert req_review.question_count == 1
+        with pytest.raises(ValueError):
+            QuizGenerateRequest(user_input="普通出题", question_count=2)
+
 
 class TestSM2ReviewAndWeChatPush:
     def test_sm2_step_progression_and_graduation(self):
@@ -313,3 +334,87 @@ class TestMasteryAndReviewRoutes:
             )
         assert res.already_submitted is True
         mock_v2.assert_not_awaited()
+
+    async def test_wrong_card_immediately_due_and_source_cards_graduate(self):
+        fake_arq = AsyncMock()
+        q1 = _sample_question("q1", "medium")
+        q1.source_card_id = 501
+        rec_wrong = AnswerRecord(question_id="q1", selected_answers=["B"], is_correct=False, duration_ms=1000)
+
+        with (
+            patch("app.services.review_service.mastery_repository.get_review_card_by_uid", AsyncMock(return_value=None)),
+            patch("app.services.review_service.mastery_repository.upsert_review_card", AsyncMock(return_value=501)) as mock_upsert,
+            patch("app.services.review_service.get_arq_pool", return_value=fake_arq),
+        ):
+            created = await review_service.process_submission_reviews(
+                user_id=7,
+                quiz_id="quiz_x",
+                domain_id=2,
+                questions=[q1],
+                graded_records=[rec_wrong],
+            )
+        assert created == 1
+        assert mock_upsert.call_args.kwargs["status"] == "due"
+        assert mock_upsert.call_args.kwargs["immediately_due"] is True
+
+        # 第 3 次答对变式巩固题时，应直接核销毕业原卡 501 为 mastered
+        rec_right = AnswerRecord(question_id="q1", selected_answers=["A"], is_correct=True, duration_ms=900)
+        orig_card = {
+            "card_id": 501,
+            "domain_id": 2,
+            "easiness_factor": 2.6,
+            "interval_days": 3,
+            "repetitions": 2,
+            "status": "due",
+        }
+        with (
+            patch("app.services.review_service.mastery_repository.get_review_cards_by_ids", AsyncMock(return_value=[orig_card])),
+            patch("app.services.review_service.mastery_repository.update_review_card_progress", AsyncMock(return_value=501)) as mock_prog,
+            patch("app.services.review_service.get_arq_pool", return_value=fake_arq),
+        ):
+            progressed, matched = await review_service.progress_source_review_cards(
+                user_id=7,
+                questions=[q1],
+                graded_records=[rec_right],
+                source_card_ids=[501],
+            )
+        assert progressed == 1
+        assert matched == {"q1"}
+        assert mock_prog.call_args.kwargs["status"] == "mastered"
+        assert mock_prog.call_args.kwargs["repetitions"] == 3
+
+    async def test_instant_review_practice_submit_route(self):
+        token = create_token(user_id=12, openid="wx_12")
+        orig_cards = [
+            {
+                "card_id": 11,
+                "domain_id": 1,
+                "easiness_factor": 2.6,
+                "interval_days": 3,
+                "repetitions": 2,
+                "status": "due",
+            }
+        ]
+        with (
+            patch("app.services.review_service.mastery_repository.get_review_cards_by_ids", AsyncMock(return_value=orig_cards)),
+            patch("app.services.review_service.mastery_repository.update_review_card_progress", AsyncMock(return_value=11)),
+            patch("app.services.review_service.mastery_repository.upsert_mastery_after_submission", AsyncMock(return_value=82.0)),
+            patch("app.services.review_service.mastery_repository.update_user_streak_on_submit", AsyncMock(return_value=3)),
+            patch("app.services.review_service.mastery_repository.list_due_review_cards", AsyncMock(return_value=(0, []))),
+            patch("app.services.review_service.mastery_service.invalidate_mastery_cache", AsyncMock()),
+            patch("app.services.review_service.get_arq_pool", return_value=None),
+        ):
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                resp = await client.post(
+                    "/api/v1/reviews/practice/submit",
+                    json={"items": [{"card_id": 11, "selected_answers": ["A"], "is_correct": True, "duration_ms": 800}]},
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["practiced_count"] == 1
+        assert data["correct_count"] == 1
+        assert data["graduated_count"] == 1
+        assert data["remaining_due"] == 0
+

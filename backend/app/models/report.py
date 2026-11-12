@@ -4,6 +4,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from .mastery import RetentionCurvePoint, WeeklyRhythmDay
 from .quiz import AnswerRecord, Question
 
 
@@ -59,9 +60,14 @@ class ReportSubmitResponse(BaseModel):
     xp_awarded: bool
     already_submitted: bool = False
     streak_days: int = 0
+    domain_id: Optional[int] = None
     domain_name: Optional[str] = None
     domain_mastery_after: Optional[float] = None
+    stability_days_after: Optional[float] = None
     due_cards_created: int = 0
+    reviewed_cards_progressed: int = 0
+    session_retention_curve: list[RetentionCurvePoint] = Field(default_factory=list)
+    weekly_rhythm: list[WeeklyRhythmDay] = Field(default_factory=list)
     report_status: Literal["generating", "completed", "failed"]
     report: Optional[ReportGenerateResponse] = None
     error_message: Optional[str] = None

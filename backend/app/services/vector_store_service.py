@@ -114,14 +114,26 @@ def delete_document_vectors(
 
 def similarity_search(
     user_id: int,
-    doc_id: str,
-    query: str,
+    doc_id: Optional[str] = None,
+    query: str = "",
     k: Optional[int] = None,
     embeddings: Optional[Embeddings] = None,
+    doc_ids: Optional[list[str]] = None,
 ) -> list[Document]:
-    """在用户向量库中检索指定文档的相关分块。"""
+    """在用户向量库中检索单篇/多篇文档的相关分块。"""
     settings = get_settings()
     k = k or settings.kb_retrieve_top_k
 
     vector_store = get_user_vector_store(user_id, embeddings=embeddings)
-    return vector_store.similarity_search(query, k=k, filter={"doc_id": doc_id})
+    target_ids = [d for d in (doc_ids or []) if d]
+    if doc_id and doc_id not in target_ids:
+        target_ids.insert(0, doc_id)
+
+    if len(target_ids) == 1:
+        chroma_filter: Optional[dict] = {"doc_id": target_ids[0]}
+    elif len(target_ids) > 1:
+        chroma_filter = {"doc_id": {"$in": target_ids}}
+    else:
+        chroma_filter = None
+
+    return vector_store.similarity_search(query, k=k, filter=chroma_filter)

@@ -24,6 +24,7 @@ async def save_quiz_session(
     domain_id: Optional[int] = None,
     domain_name: Optional[str] = None,
     source_type: str = "llm_direct",
+    source_review_card_ids: Optional[list[int]] = None,
 ) -> None:
     pool = get_mysql_pool()
     if pool is None:
@@ -32,8 +33,8 @@ async def save_quiz_session(
         async with conn.cursor() as cur:
             await cur.execute(
                 "INSERT INTO quiz_sessions "
-                "(quiz_id, user_id, domain_id, domain_name, source_type, title, summary, user_input, questions_json, image_status, image_notice) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "(quiz_id, user_id, domain_id, domain_name, source_type, title, summary, user_input, questions_json, source_review_card_ids_json, image_status, image_notice) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     quiz_id,
                     user_id,
@@ -44,6 +45,9 @@ async def save_quiz_session(
                     summary,
                     user_input,
                     json.dumps(questions_json, ensure_ascii=False),
+                    json.dumps(source_review_card_ids, ensure_ascii=False)
+                    if source_review_card_ids
+                    else None,
                     image_status,
                     image_notice,
                 ),
@@ -128,13 +132,16 @@ async def get_quiz_session_for_user(quiz_id: str) -> Optional[dict]:
         async with conn.cursor() as cur:
             await cur.execute(
                 "SELECT quiz_id, user_id, title, summary, questions_json, "
-                "domain_id, domain_name, source_type, user_input "
+                "domain_id, domain_name, source_type, user_input, source_review_card_ids_json "
                 "FROM quiz_sessions WHERE quiz_id = %s",
                 (quiz_id,),
             )
             row = await cur.fetchone()
             if row is None:
                 return None
+            raw_card_ids = row[9]
+            if isinstance(raw_card_ids, str):
+                raw_card_ids = json.loads(raw_card_ids)
             return {
                 "quiz_id": row[0],
                 "user_id": row[1],
@@ -145,6 +152,7 @@ async def get_quiz_session_for_user(quiz_id: str) -> Optional[dict]:
                 "domain_name": row[6],
                 "source_type": row[7] or "llm_direct",
                 "user_input": row[8] or "",
+                "source_review_card_ids": raw_card_ids or [],
             }
 
 

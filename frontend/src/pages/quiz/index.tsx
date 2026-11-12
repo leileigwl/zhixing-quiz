@@ -2,12 +2,18 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { View, Text, Image } from '@tarojs/components'
 import Taro, { useRouter } from '@tarojs/taro'
 import {
+  ensureLogin,
+  generateQuizAsync,
   getQuizDetail,
   getQuizImages,
+  pollQuizTask,
+  submitInstantReviewPractice,
   type Question,
   type AnswerRecord,
   type QuizData,
   type QuizSourceType,
+  type ReviewPracticeItemInput,
+  type ReviewPracticeSubmitResponse,
 } from '../../services/api'
 import {
   getActiveQuizSession,
@@ -15,6 +21,7 @@ import {
   setActiveQuizSession,
   updateActiveQuizImages,
 } from '../../services/quizSessionStore'
+import { invalidateSwrCache } from '../../services/v2Adapters'
 import './index.scss'
 
 const DIFF_LABEL: Record<Question['difficulty'], string> = {
@@ -38,7 +45,7 @@ export default function QuizPage() {
   const [loadingDetail, setLoadingDetail] = useState(false)
 
   useEffect(() => {
-    if (!quizData && paramQuizId) {
+    if (!quizData && paramQuizId && !paramQuizId.startsWith('revq_')) {
       setLoadingDetail(true)
       getQuizDetail(paramQuizId)
         .then((detail) => {
@@ -153,6 +160,9 @@ export default function QuizPage() {
     initialSession.answerRecords || [],
   )
   const [startTime, setStartTime] = useState<number>(Date.now())
+  const [variantLoading, setVariantLoading] = useState(false)
+  const [submittingInstant, setSubmittingInstant] = useState(false)
+  const [instantSummary, setInstantSummary] = useState<ReviewPracticeSubmitResponse | null>(null)
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -261,17 +271,107 @@ export default function QuizPage() {
     navigateToQuestion(currentIndex - 1)
   }
 
-  const handleNext = (e?: any) => {
+  const handleNext = async (e?: any) => {
     e?.stopPropagation?.()
-    if (!quizData) return
+    if (!quizData || submittingInstant) return
     if (currentIndex < totalQuestions - 1) {
       navigateToQuestion(currentIndex + 1)
       return
     }
+
+    if (quizData.is_instant_review) {
+      const items: ReviewPracticeItemInput[] = []
+      for (const rec of answerRecords) {
+        const matchedQ = quizData.questions.find((q) => q.id === rec.question_id)
+        if (!matchedQ?.source_card_id) continue
+        items.push({
+          card_id: matchedQ.source_card_id,
+          selected_answers: rec.selected_answers,
+          is_correct: rec.is_correct,
+          duration_ms: rec.duration_ms || 3000,
+          mark_review: rec.mark_review ?? !rec.is_correct,
+        })
+      }
+
+      setSubmittingInstant(true)
+      try {
+        const res = await submitInstantReviewPractice(items)
+        invalidateSwrCache('home_')
+        invalidateSwrCache('mastery_')
+        invalidateSwrCache('profile_')
+        setInstantSummary(
+          res || {
+            practiced_count: items.length,
+            correct_count: items.filter((i) => i.is_correct).length,
+            graduated_count: 0,
+            remaining_due: 0,
+            streak_days: 1,
+          },
+        )
+      } finally {
+        setSubmittingInstant(false)
+      }
+      return
+    }
+
     setActiveQuizSession(quizData, answerRecords)
     Taro.navigateTo({
       url: `/pages/report/index?quizId=${encodeURIComponent(quizData.quiz_id)}`,
     })
+  }
+
+  const handleGenerateVariantForCurrentCard = async () => {
+    if (!quizData || !currentQuestion?.source_card_id || variantLoading) return
+    setVariantLoading(true)
+    try {
+      const authed = await ensureLogin()
+      if (!authed) {
+        Taro.showToast({ title: '请先完成登录再生成变式题', icon: 'none' })
+        return
+      }
+      const { task_id } = await generateQuizAsync({
+        user_input: `基于考点「${currentQuestion.knowledge_point}」生成 1 道举一反三变式巩固题`,
+        question_count: 1,
+        adaptive_mode: false,
+        domain_id: quizData.domain_id,
+        enable_web_search: true,
+        review_card_ids: [currentQuestion.source_card_id],
+      })
+      const variantQuiz = await pollQuizTask(task_id)
+      const nextQ = variantQuiz.questions?.[0]
+      if (!nextQ) {
+        Taro.showToast({ title: '未生成新变式题，请稍后重试', icon: 'none' })
+        return
+      }
+      const taggedQ: Question = {
+        ...nextQ,
+        id: `${nextQ.id}_v_${Date.now()}`,
+        source_card_id: currentQuestion.source_card_id,
+      }
+      const nextQuestions = [...quizData.questions]
+      nextQuestions.splice(currentIndex + 1, 0, taggedQ)
+      const updatedQuiz: QuizData = {
+        ...quizData,
+        questions: nextQuestions,
+      }
+      setQuizData(updatedQuiz)
+      setActiveQuizSession(updatedQuiz, answerRecords)
+      if (revealTimerRef.current) {
+        clearTimeout(revealTimerRef.current)
+        revealTimerRef.current = null
+      }
+      setCurrentIndex(currentIndex + 1)
+      setSelectedAnswers([])
+      setSubmitted(false)
+      setExplainVisible(false)
+      setIsReviewReadonly(false)
+      setStartTime(Date.now())
+      Taro.showToast({ title: '已生成同类变式题', icon: 'success' })
+    } catch (err: any) {
+      Taro.showToast({ title: err?.message || '变式题生成失败', icon: 'none' })
+    } finally {
+      setVariantLoading(false)
+    }
   }
 
   if (loadingDetail) {
@@ -319,11 +419,16 @@ export default function QuizPage() {
       <View className='quiz-top'>
         <View className='quiz-meta-row'>
           <Text className='quiz-counter'>
-            {quizData.domain_name || '专题测验'} · 第 {currentIndex + 1} / {totalQuestions} 题
+            {quizData.domain_name || '专题测验'} · {quizData.is_instant_review ? '错题回顾' : '测验'} · 第 {currentIndex + 1} / {totalQuestions} 题
           </Text>
           <View className='quiz-diff-pill'>
             <Text>
-              {diffText} · {isReviewReadonly ? '只读回看' : '自适应'}
+              {diffText} ·{' '}
+              {isReviewReadonly
+                ? '只读回看'
+                : quizData.is_instant_review
+                  ? 'SM-2 秒开'
+                  : '自适应'}
             </Text>
           </View>
         </View>
@@ -408,15 +513,25 @@ export default function QuizPage() {
               <Text className='explain-source'>{sourceText}</Text>
             </View>
             <Text className='explain-body'>{currentQuestion.explanation}</Text>
-            {currentRecord?.is_correct && (
-              <View className='explain-actions'>
+            <View className='explain-actions'>
+              {currentQuestion.source_card_id && (
+                <View
+                  className={`mark-review-pill is-variant zx-press ${variantLoading ? 'is-disabled' : ''}`}
+                  onClick={handleGenerateVariantForCurrentCard}
+                >
+                  <Text>
+                    {variantLoading ? 'AI 变式组题中...' : '↻ AI 换一道同类变式题'}
+                  </Text>
+                </View>
+              )}
+              {currentRecord?.is_correct && (
                 <View className='mark-review-pill zx-press' onClick={handleToggleMarkReview}>
                   <Text>
                     {currentRecord.mark_review ? '✓ 已标记待巩固（再练）' : '+ 蒙对？加入错题复习'}
                   </Text>
                 </View>
-              </View>
-            )}
+              )}
+            </View>
           </View>
         )}
       </View>
@@ -443,15 +558,64 @@ export default function QuizPage() {
           ) : (
             <View
               key='quiz-next-btn'
-              className='zx-btn-obsidian'
+              className={`zx-btn-obsidian ${submittingInstant ? 'is-disabled' : ''}`}
               onClick={handleNext}
             >
-              <Text>{currentIndex + 1 < totalQuestions ? '下一题' : '查看复盘报告'}</Text>
+              <Text>
+                {currentIndex + 1 < totalQuestions
+                  ? '下一题'
+                  : quizData.is_instant_review
+                    ? submittingInstant
+                      ? '正在结算进度...'
+                      : '完成本轮巩固'
+                    : '查看复盘报告'}
+              </Text>
               <Text>→</Text>
             </View>
           )}
         </View>
       </View>
+
+      {instantSummary && (
+        <View className='zx-loading-overlay'>
+          <View className='instant-summary-modal'>
+            <Text className='instant-summary-kicker'>SM-2 REVIEW SETTLED</Text>
+            <Text className='instant-summary-title'>本轮错题巩固已结算</Text>
+            <View className='instant-summary-grid'>
+              <View className='instant-stat'>
+                <Text className='instant-val'>{instantSummary.practiced_count}</Text>
+                <Text className='instant-lbl'>回顾题数</Text>
+              </View>
+              <View className='instant-stat'>
+                <Text className='instant-val'>{instantSummary.correct_count}</Text>
+                <Text className='instant-lbl'>本次答对</Text>
+              </View>
+              <View className='instant-stat'>
+                <Text className='instant-val'>{instantSummary.graduated_count}</Text>
+                <Text className='instant-lbl'>已毕业出列</Text>
+              </View>
+            </View>
+            <Text className='instant-summary-sub'>
+              连续复习 {instantSummary.streak_days} 天 · 剩余待到期 {instantSummary.remaining_due} 题
+            </Text>
+            <View className='instant-summary-btns'>
+              <View
+                className='zx-btn-obsidian'
+                onClick={() => Taro.switchTab({ url: '/pages/index/index' })}
+              >
+                <Text>返回今日首页</Text>
+                <Text>→</Text>
+              </View>
+              <View
+                className='btn-instant-secondary zx-press'
+                onClick={() => Taro.switchTab({ url: '/pages/mastery/index' })}
+              >
+                <Text>查看记忆曲线</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   )
 }

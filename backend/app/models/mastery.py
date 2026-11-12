@@ -33,6 +33,7 @@ class DomainMasterySummary(BaseModel):
 class RetentionCurvePoint(BaseModel):
     day_label: str
     retention_pct: float
+    baseline_pct: Optional[float] = None
     is_today: bool = False
     is_recovery: bool = False
 
@@ -63,15 +64,25 @@ class DueReviewCardItem(BaseModel):
     quiz_id: str
     domain_id: Optional[int] = None
     domain_name: str = "综合知识域"
+    q_type: Literal["single", "multiple", "judge"] = "single"
     stem: str
+    options: list[dict] = Field(default_factory=list)
+    answer: list[str] = Field(default_factory=list)
+    explanation: str = ""
+    user_selected: list[str] = Field(default_factory=list)
     knowledge_point: str = ""
     difficulty: Literal["easy", "medium", "hard"] = "medium"
+    repetitions: int = 0
     interval_days: int = 1
+    status: Literal["active", "due", "mastered"] = "due"
     next_review_at: str
+    last_reviewed_at: Optional[str] = None
 
 
 class DueReviewsResponse(BaseModel):
     total_due: int = 0
+    unresolved_total: int = 0
+    domain_id: Optional[int] = None
     items: list[DueReviewCardItem] = Field(default_factory=list)
 
 
@@ -79,6 +90,26 @@ class ReviewMarkRequest(BaseModel):
     quiz_id: str
     question_id: str
     action: Literal["add", "skip"] = "add"
+
+
+class ReviewPracticeItem(BaseModel):
+    card_id: int
+    selected_answers: list[str] = Field(default_factory=list)
+    is_correct: bool
+    duration_ms: int = Field(default=0, ge=0)
+    mark_review: bool = False
+
+
+class ReviewPracticeSubmitRequest(BaseModel):
+    items: list[ReviewPracticeItem] = Field(min_length=1, max_length=50)
+
+
+class ReviewPracticeSubmitResponse(BaseModel):
+    practiced_count: int = 0
+    correct_count: int = 0
+    graduated_count: int = 0
+    remaining_due: int = 0
+    streak_days: int = 0
 
 
 class SubscribeQuotaRequest(BaseModel):

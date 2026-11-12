@@ -1,7 +1,9 @@
 .quiz-page {
   min-height: 100vh;
   background: #ffffff;
-  padding: 24px 36px 200px;
+  padding: 24px 36px calc(220px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -254,7 +256,9 @@
 .explain-actions {
   margin-top: 18px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .mark-review-pill {
@@ -265,6 +269,17 @@
   font-size: 21px;
   font-weight: 600;
   color: var(--ink-700);
+}
+
+.mark-review-pill.is-variant {
+  background: var(--ds-bg);
+  border-color: var(--ds-border);
+  color: var(--ds-blue);
+}
+
+.mark-review-pill.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
 }
 
 /* 底部双栏底座 */
@@ -303,4 +318,82 @@
 .btn-prev.is-disabled {
   opacity: 0.36;
   pointer-events: none;
+}
+
+.instant-summary-modal {
+  width: 600px;
+  background: #ffffff;
+  border-radius: 44px;
+  padding: 40px 36px;
+  box-shadow: 0 28px 60px rgba(20, 21, 26, 0.24);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.instant-summary-kicker {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ds-blue);
+  margin-bottom: 8px;
+}
+
+.instant-summary-title {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--ink-900);
+  margin-bottom: 24px;
+}
+
+.instant-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.instant-stat {
+  background: var(--bg-canvas);
+  border-radius: 26px;
+  padding: 20px 14px;
+  text-align: center;
+}
+
+.instant-val {
+  display: block;
+  font-size: 34px;
+  font-weight: 800;
+  color: var(--ink-900);
+}
+
+.instant-lbl {
+  display: block;
+  font-size: 20px;
+  color: var(--ink-500);
+  margin-top: 6px;
+}
+
+.instant-summary-sub {
+  font-size: 22px;
+  color: var(--ink-500);
+  margin-bottom: 26px;
+}
+
+.instant-summary-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.btn-instant-secondary {
+  height: 82px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--ink-900);
+  font-size: 25px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

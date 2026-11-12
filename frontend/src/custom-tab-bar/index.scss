@@ -1,0 +1,195 @@
+.wx-dock-wrap {
+  position: fixed;
+  left: 32px;
+  right: 32px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  z-index: 950;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.wx-dock-pill {
+  width: 100%;
+  height: 112px;
+  border-radius: 999px;
+  background: #18191e;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+  box-shadow: 0 18px 40px -10px rgba(24, 25, 30, 0.42);
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+
+.wx-dock-tab {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.wx-dock-tab.is-active {
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+}
+
+.wx-dock-tab-hover {
+  opacity: 0.85;
+  transform: scale(0.94);
+}
+
+.wx-dock-glyph {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+/* 1. 今日 */
+.wx-glyph-home {
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.wx-gh-roof {
+  width: 24px;
+  height: 24px;
+  border-left: 4px solid #ffffff;
+  border-top: 4px solid #ffffff;
+  transform: rotate(45deg);
+  margin-bottom: -14px;
+  border-top-left-radius: 4px;
+  box-sizing: border-box;
+  opacity: 0.62;
+}
+
+.wx-gh-body {
+  width: 28px;
+  height: 18px;
+  border: 4px solid #ffffff;
+  border-top: none;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  box-sizing: border-box;
+  opacity: 0.62;
+}
+
+.wx-gh-door {
+  width: 10px;
+  height: 10px;
+  border: 3px solid #ffffff;
+  border-bottom: none;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* 2. 口袋 */
+.wx-glyph-pocket {
+  flex-direction: column;
+}
+
+.wx-gp-flap {
+  width: 28px;
+  height: 8px;
+  border: 4px solid #ffffff;
+  border-bottom: none;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  box-sizing: border-box;
+  opacity: 0.62;
+}
+
+.wx-gp-box {
+  width: 28px;
+  height: 20px;
+  border: 4px solid #ffffff;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  box-sizing: border-box;
+  opacity: 0.62;
+}
+
+/* 3. 曲线 */
+.wx-glyph-bars {
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  padding-bottom: 3px;
+}
+
+.wx-gb-bar {
+  width: 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  opacity: 0.62;
+}
+
+.wx-gb-bar.b1 {
+  height: 14px;
+}
+
+.wx-gb-bar.b2 {
+  height: 28px;
+}
+
+.wx-gb-bar.b3 {
+  height: 20px;
+}
+
+/* 4. 我的 */
+.wx-glyph-user {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wx-gu-head {
+  width: 14px;
+  height: 14px;
+  border: 4px solid #ffffff;
+  border-radius: 50%;
+  box-sizing: border-box;
+  opacity: 0.62;
+}
+
+.wx-gu-shoulder {
+  width: 26px;
+  height: 12px;
+  border: 4px solid #ffffff;
+  border-bottom: none;
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  box-sizing: border-box;
+  opacity: 0.62;
+}
+
+/* 激活态统一切为黑曜石实色 */
+.is-active .wx-gh-roof,
+.is-active .wx-gh-body,
+.is-active .wx-gh-door,
+.is-active .wx-gp-flap,
+.is-active .wx-gp-box,
+.is-active .wx-gu-head,
+.is-active .wx-gu-shoulder {
+  border-color: #18191e;
+  opacity: 1;
+}
+
+.is-active .wx-gb-bar {
+  background: #18191e;
+  opacity: 1;
+}

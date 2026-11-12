@@ -44,11 +44,13 @@ def compute_adaptive_plan(
     self_rated_level: Optional[str] = None,
     mastery_profile: Optional[dict] = None,
     base_difficulty: str = "mixed",
+    min_count: int = 3,
 ) -> AdaptivePlan:
     """根据用户三维历史画像（或冷启动自评）决定倒 U 型题量与 E/M/H 配比。"""
     settings = get_settings()
     max_q = int(getattr(settings, "quiz_max_question_count", 15))
-    clamped_req = max(3, min(max_q, int(requested_count or 5)))
+    lower_bound = max(1, min(max_q, int(min_count)))
+    clamped_req = max(lower_bound, min(max_q, int(requested_count or 5)))
 
     total_answered = 0
     mastery_score: Optional[float] = None
@@ -91,7 +93,7 @@ def compute_adaptive_plan(
             reason = "冷启动「略懂」模式：推荐 6 题阶梯检测盲区"
 
     final_count = rec_count if adaptive_mode else clamped_req
-    final_count = max(3, min(max_q, final_count))
+    final_count = max(lower_bound, min(max_q, final_count))
 
     difficulty_instruction = diff_hint if base_difficulty == "mixed" else base_difficulty
     return AdaptivePlan(

@@ -141,6 +141,23 @@ async def count_documents(user_id: int) -> int:
             return row[0] if row else 0
 
 
+async def list_ready_doc_ids_by_domain(user_id: int, domain_id: int) -> list[str]:
+    """查询用户在指定专注知识域下所有就绪文档 ID（支持按域全库 RAG）。"""
+    pool = get_mysql_pool()
+    if pool is None:
+        return []
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT doc_id FROM kb_documents "
+                "WHERE user_id = %s AND domain_id = %s AND status = 'ready' "
+                "ORDER BY created_at DESC LIMIT 8",
+                (user_id, domain_id),
+            )
+            rows = await cur.fetchall()
+            return [r[0] for r in rows]
+
+
 async def delete_document(doc_id: str, user_id: int) -> None:
     pool = get_mysql_pool()
     if pool is None:

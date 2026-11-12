@@ -107,7 +107,7 @@
 | `users` | 用户、累计 XP 与连续打卡 (`streak_days/last_practice_date`) | `id`, `UNIQUE(openid)` |
 | `domains` | 用户知识域归类、色标与文档计数 | `id`, `UNIQUE(user_id, name)`, `FK(user_id -> users.id)` |
 | `kb_documents` | 私有文档状态、所属领域与分块数量 | `id`, `UNIQUE(doc_id)`, `FK(user_id -> users.id)` |
-| `quiz_sessions` | 生成的题库快照、`domain_id/domain_name/source_type` 与配图状态 | `id`, `UNIQUE(quiz_id)`, `FK(user_id -> users.id)` |
+| `quiz_sessions` | 生成的题库快照、`domain_id/domain_name/source_type`、`source_review_card_ids_json` 与配图状态 | `id`, `UNIQUE(quiz_id)`, `FK(user_id -> users.id)` |
 | `questions` | 规范化单题表（支持错题巩固快速联查题干与考点） | `id`, `UNIQUE(question_uid)`, `IDX(quiz_id, domain_id)` |
 | `answer_records` | 答题明细与正确率（含 `mark_review`） | `id`, `UNIQUE(quiz_id)`, `FK(quiz_id -> quiz_sessions.quiz_id)` |
 | `reports` | AI 复盘报告 JSON 与生成状态 | `id`, `UNIQUE(quiz_id)`, `FK(quiz_id -> quiz_sessions.quiz_id)` |
@@ -131,14 +131,15 @@
 | `/user/quizzes/{quiz_id}` | `GET` | 必选 JWT | 校验 `user_id` | 回看单次题库、答卷与报告 |
 | `/knowledge/documents` | `POST` / `GET` | 必选 JWT | 10MB / 10 篇 + 防压缩炸弹 | 上传异步入 ARQ + Chroma HTTP 解析 / 列表 |
 | `/knowledge/documents/{doc_id}` | `GET` / `DELETE` | 必选 JWT | 校验 `user_id` | 轮询解析状态与自动归类领域 / 级联删除 |
-| `/quiz/generate/async` | `POST` | 必选 JWT | **Redis Lua 限流** + 校验 `doc_id` | 创建自适应异步出题任务并入 ARQ 队列 |
+| `/quiz/generate/async` | `POST` | 必选 JWT | **Redis Lua 限流** + 校验 `doc_id/doc_ids` | 创建自适应三源并行出题任务（支持 `reference_text` + 多文档 `doc_ids` + Tavily 联网 + 1~6 卡错题变式） |
 | `/quiz/task/{task_id}` | `GET` | 必选 JWT | **校验任务归属 `user_id`** | 轮询任务阶段与完整出题结果 (`recommended_count/source_type/domain`) |
 | `/quiz/{quiz_id}/images` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 轮询题目后台异步配图 URL |
 | `/quiz/generate` | `POST` | 必选 JWT | Redis Lua 限流 + 校验 `doc_id` | 同步出题 |
-| `/report/submit` | `POST` | 必选 JWT | **校验归属 + 单事务防并发覆盖 + SM-2** | 秒返算分、更新三维画像与打卡、创建错题卡与 ARQ `_defer_by` |
+| `/report/submit` | `POST` | 必选 JWT | **校验归属 + 单事务防并发覆盖 + SM-2** | 秒返算分、更新三维画像与打卡、即时激活到期错题卡 / 推进 `source_review_card_ids` 进度，并返回当次双轨 `session_retention_curve` 与 `weekly_rhythm` |
 | `/report/{quiz_id}` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 轮询 AI 复盘报告生成状态与内容 |
 | `/report/generate` | `POST` | 必选 JWT | 归属当前用户 + 幂等 | 同步报告接口（向后兼容） |
-| `/mastery/overview` | `GET` | 必选 JWT | 仅本人（60s Redis 缓存） | 获取学习记忆曲线、三维矩阵、7 日节律与未来 7 天到期预测 |
-| `/reviews/due` | `GET` | 必选 JWT | 仅本人 | 获取当前到期 SM-2 错题/巩固列表 |
-| `/reviews/mark` | `POST` | 必选 JWT | **校验 `quiz_id` 归属** | 手动加入待复习 (`add`) 或标记已掌握毕业 (`skip`) |
+| `/mastery/overview` | `GET` | 必选 JWT | 仅本人（60s Redis 缓存） | 获取真实双轨记忆曲线（含 `baseline_pct`）、三维矩阵、7 日节律与未来 7 天到期预测 |
+| `/reviews/due` | `GET` | 必选 JWT | 仅本人（支持 `domain_id` 与 `include_all`） | 获取到期或未毕业错题卡全量详情（含 `options/answer/explanation/user_selected/repetitions`） |
+| `/reviews/mark` | `POST` | 必选 JWT | **校验 `quiz_id` 归属** | 手动加入即时到期复习 (`add`) 或标记已掌握毕业 (`skip`) |
+| `/reviews/practice/submit` | `POST` | 必选 JWT | 仅本人 | 客户端秒开错题回顾即时结算 SM-2 间隔与毕业状态 |
 | `/reviews/subscribe` | `POST` | 必选 JWT | 仅本人 | 登记微信订阅消息推送配额与提醒时段 |

@@ -14,9 +14,11 @@ import {
   type ReportData,
   type ReportStatusEnum,
   type MasteryOverviewResponse,
+  type RetentionCurvePoint,
+  type WeeklyRhythmDay,
 } from '../../services/api'
 import { getActiveQuizSession } from '../../services/quizSessionStore'
-import { buildFallbackMasteryOverview } from '../../services/v2Adapters'
+import { buildFallbackMasteryOverview, invalidateSwrCache } from '../../services/v2Adapters'
 import RetentionCurveCanvas from '../../components/RetentionCurveCanvas'
 import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
 import './index.scss'
@@ -56,6 +58,8 @@ export default function ReportPage() {
   const [loading, setLoading] = useState(true)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [overview, setOverview] = useState<MasteryOverviewResponse | null>(null)
+  const [sessionCurve, setSessionCurve] = useState<RetentionCurvePoint[] | null>(null)
+  const [sessionRhythm, setSessionRhythm] = useState<WeeklyRhythmDay[] | null>(null)
   const [subscribed, setSubscribed] = useState(false)
 
   const localCorrectCount = useMemo(
@@ -83,8 +87,8 @@ export default function ReportPage() {
     const startAsyncReportPolling = async (targetQuizId: string) => {
       try {
         const res = await pollReportStatus(targetQuizId, undefined, {
-          intervalMs: 2000,
-          maxAttempts: 90,
+          intervalMs: 700,
+          maxAttempts: 120,
           isCancelled: () => cancelled,
         })
         if (cancelled) return
@@ -115,6 +119,9 @@ export default function ReportPage() {
           if (cached && typeof res.streak_days === 'number') {
             setCachedUser({ ...cached, streak_days: res.streak_days })
           }
+          invalidateSwrCache('home_')
+          invalidateSwrCache('mastery_')
+          invalidateSwrCache('profile_')
           if (cancelled) return
 
           setServerStats({
@@ -124,10 +131,17 @@ export default function ReportPage() {
             streakDays: res.streak_days,
             domainName: res.domain_name,
           })
+          if (res.session_retention_curve && res.session_retention_curve.length >= 2) {
+            setSessionCurve(res.session_retention_curve)
+          }
+          if (res.weekly_rhythm && res.weekly_rhythm.length === 7) {
+            setSessionRhythm(res.weekly_rhythm)
+          }
           setReportStatus(res.report_status)
           setLoading(false)
 
-          getMasteryOverview().then((ov) => {
+          const targetDomainId = res.domain_id ?? targetQuiz.domain_id
+          getMasteryOverview(targetDomainId).then((ov) => {
             if (!cancelled && ov) setOverview(ov)
           })
 
@@ -153,14 +167,14 @@ export default function ReportPage() {
     }
 
     if (quizIdParam) {
-      Promise.all([getQuizDetail(quizIdParam), getMasteryOverview()])
-        .then(([detail, ov]) => {
+      getQuizDetail(quizIdParam)
+        .then(async (detail) => {
           if (cancelled) return
-          if (ov) setOverview(ov)
           setQuizData({
             quiz_id: detail.quiz_id,
             title: detail.title,
             summary: detail.summary,
+            domain_id: detail.domain_id,
             domain_name: detail.domain_name,
             questions: detail.questions,
             image_status: detail.image_status,
@@ -168,6 +182,9 @@ export default function ReportPage() {
           })
           if (detail.answer_records) setAnswerRecords(detail.answer_records)
           setLoading(false)
+
+          const ov = await getMasteryOverview(detail.domain_id)
+          if (!cancelled && ov) setOverview(ov)
 
           if (detail.report) {
             setReport(detail.report)
@@ -249,13 +266,31 @@ export default function ReportPage() {
       {/* 学习记忆曲线 */}
       <View className='zx-card report-panel'>
         <View className='panel-head'>
-          <Text className='panel-title'>学习记忆曲线 · R(t) = e^(-t/S)</Text>
+          <Text className='panel-title'>
+            {serverStats?.domainName || quizData?.domain_name
+              ? `${serverStats?.domainName || quizData?.domain_name} · 记忆曲线`
+              : '学习记忆曲线 · R(t) = e^(-t/S)'}
+          </Text>
           <Text className='panel-warn'>50% 临界提醒</Text>
         </View>
         <RetentionCurveCanvas
           canvasId='report-retention-canvas'
-          points={effectiveOverview.retention_curve}
+          points={
+            sessionCurve && sessionCurve.length >= 2
+              ? sessionCurve
+              : effectiveOverview.retention_curve
+          }
         />
+        <View className='curve-legend'>
+          <View className='legend-item'>
+            <View className='legend-line is-solid' />
+            <Text>巩固后保持轨迹</Text>
+          </View>
+          <View className='legend-item'>
+            <View className='legend-line is-dashed' />
+            <Text>未复习遗忘参考</Text>
+          </View>
+        </View>
       </View>
 
       {/* 本周复习节律 */}
@@ -264,7 +299,13 @@ export default function ReportPage() {
           <Text className='panel-title'>本周复习节律</Text>
           <Text className='panel-sub'>答对 {serverStats?.correctCount ?? localCorrectCount} · 错题 {wrongCount}</Text>
         </View>
-        <SevenDayRhythmBar days={effectiveOverview.weekly_rhythm} />
+        <SevenDayRhythmBar
+          days={
+            sessionRhythm && sessionRhythm.length === 7
+              ? sessionRhythm
+              : effectiveOverview.weekly_rhythm
+          }
+        />
       </View>
 
       {loading ? (

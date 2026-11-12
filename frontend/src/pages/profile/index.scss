@@ -1,7 +1,9 @@
 .profile-page {
   min-height: 100vh;
   background: var(--bg-canvas);
-  padding: 28px 36px 200px;
+  padding: 28px 36px calc(220px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .profile-hero {
@@ -183,6 +185,13 @@
   transform: rotate(-4deg);
 }
 
+.stamp-badge.is-today-idle {
+  border: 2Px solid var(--ink-900);
+  background: #ffffff;
+  color: var(--ink-900);
+  font-weight: 700;
+}
+
 /* 待复习队列 */
 .due-queue-card {
   padding: 28px 30px;
@@ -194,13 +203,31 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .due-title {
   font-size: 25px;
   font-weight: 700;
   color: var(--ink-900);
+}
+
+.due-head-btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn-due-variant {
+  background: var(--ds-bg);
+  color: var(--ds-blue);
+  font-size: 21px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .btn-due-go {
@@ -210,6 +237,7 @@
   font-weight: 600;
   padding: 10px 22px;
   border-radius: 999px;
+  white-space: nowrap;
 }
 
 .due-empty {
@@ -220,13 +248,29 @@
 .due-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+}
+
+.due-card-box {
+  background: var(--bg-canvas);
+  border-radius: 28px;
+  padding: 20px 22px;
+}
+
+.due-card-box.is-open {
+  border: 1Px solid rgba(20, 21, 26, 0.1);
 }
 
 .due-row {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.due-row-top {
+  display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .due-domain {
@@ -239,13 +283,123 @@
   white-space: nowrap;
 }
 
-.due-stem {
+.due-round-tag {
   flex: 1;
-  font-size: 23px;
-  color: var(--ink-700);
+  font-size: 20px;
+  color: var(--ink-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.due-chevron {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ink-400);
+}
+
+.due-stem {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--ink-900);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.due-stem.is-expanded {
+  white-space: normal;
+  line-height: 1.48;
+  overflow: visible;
+}
+
+.due-expand-body {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1Px solid rgba(20, 21, 26, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.due-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.due-opt-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.due-opt-line.is-ok {
+  background: rgba(34, 154, 96, 0.1);
+}
+
+.due-opt-line.is-wrong {
+  background: rgba(217, 74, 56, 0.09);
+}
+
+.due-opt-txt {
+  flex: 1;
+  font-size: 22px;
+  line-height: 1.45;
+  color: var(--ink-900);
+}
+
+.due-opt-tag {
+  font-size: 19px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.due-opt-tag.is-ok {
+  color: var(--ok);
+}
+
+.due-opt-tag.is-wrong {
+  color: var(--warn-red);
+}
+
+.due-explain {
+  font-size: 22px;
+  line-height: 1.55;
+  color: var(--ink-700);
+}
+
+.due-card-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.due-act-btn {
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.due-act-btn.is-primary {
+  background: var(--ink-900);
+  color: #ffffff;
+}
+
+.due-act-btn.is-blue {
+  background: var(--ds-bg);
+  color: var(--ds-blue);
+}
+
+.due-act-btn.is-muted {
+  background: #ffffff;
+  border: 1Px solid rgba(20, 21, 26, 0.12);
+  color: var(--ink-500);
 }
 
 /* 历史列表 */

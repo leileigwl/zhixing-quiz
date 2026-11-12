@@ -32,6 +32,22 @@ taro-textarea-core textarea::placeholder,
 }
 /* #endif */
 
+page,
+view,
+scroll-view {
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+    color: transparent;
+  }
+}
+
+.zx-hover-press {
+  opacity: 0.86;
+  transform: scale(0.985);
+}
+
 :root,
 page {
   --bg-canvas: #f6f5f1;

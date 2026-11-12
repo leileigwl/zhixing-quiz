@@ -1,8 +1,8 @@
-"""题库相关数据模型（V2 支持 3~15 题、自适应画像参数、来源标注与领域归类）"""
+"""题库相关数据模型（支持 3~15 题常规出题、错题 1~15 题精准重练、多文档并行融合 RAG 与原卡关联）"""
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class QuestionOption(BaseModel):
@@ -20,6 +20,7 @@ class Question(BaseModel):
     knowledge_point: str = Field(description="知识点标签")
     difficulty: Literal["easy", "medium", "hard"] = Field(description="难度")
     image_url: str | None = Field(default=None, description="AI 生成的题目配图 URL（可选）")
+    source_card_id: Optional[int] = Field(default=None, description="关联的原 SM-2 错题卡 ID（可选）")
 
 
 class QuizOutput(BaseModel):
@@ -34,9 +35,14 @@ class QuizGenerateRequest(BaseModel):
     user_input: str = Field(
         min_length=1,
         max_length=2000,
-        description="用户输入的学习内容",
+        description="用户输入的学习主题或提问",
     )
-    question_count: int = Field(default=5, ge=3, le=15, description="题目数量（支持 3~15 题）")
+    reference_text: Optional[str] = Field(
+        default=None,
+        max_length=12000,
+        description="可选，用户直接提供/粘贴的大段参考文本与讲义原文",
+    )
+    question_count: int = Field(default=5, ge=1, le=15, description="题目数量（常规 3~15 题，错题巩固支持 1~15 题）")
     difficulty: Literal["easy", "medium", "hard", "mixed"] = Field(
         default="mixed", description="难度"
     )
@@ -47,10 +53,13 @@ class QuizGenerateRequest(BaseModel):
         default=None, description="冷启动自评熟悉度"
     )
     doc_id: str | None = Field(
-        default=None, description="可选，指定基于某篇知识库文档出题"
+        default=None, description="可选，单篇知识库文档 ID（向后兼容）"
+    )
+    doc_ids: Optional[list[str]] = Field(
+        default=None, description="可选，多篇知识库文档 ID 列表（支持三源并行融合 RAG）"
     )
     domain_id: Optional[int] = Field(
-        default=None, description="可选，指定目标知识域 ID"
+        default=None, description="可选，指定目标专注知识域 ID"
     )
     enable_web_search: bool = Field(
         default=False, description="前端显式联网搜索开关"
@@ -61,6 +70,12 @@ class QuizGenerateRequest(BaseModel):
     review_card_ids: Optional[list[int]] = Field(
         default=None, description="可选，针对到期错题卡定向巩固出题"
     )
+
+    @model_validator(mode="after")
+    def _validate_question_count_with_mode(self):
+        if not self.review_card_ids and self.question_count < 3:
+            raise ValueError("常规出题数量不能少于 3 题")
+        return self
 
 
 class QuizGenerateResponse(BaseModel):

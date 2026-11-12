@@ -5,6 +5,8 @@ import {
   getUserProfile,
   getQuizHistory,
   getDueReviews,
+  getMasteryOverview,
+  markQuestionForReview,
   generateQuizAsync,
   pollQuizTask,
   updateUserProfile,
@@ -13,16 +15,35 @@ import {
   type UserProfile,
   type QuizHistoryItem,
   type DueReviewsResponse,
+  type DueReviewCardItem,
+  type MasteryOverviewResponse,
 } from '../../services/api'
 import { setActiveQuizSession } from '../../services/quizSessionStore'
-import { buildEmptyDueReviews, buildRealCalendarStrip } from '../../services/v2Adapters'
+import {
+  buildEmptyDueReviews,
+  buildInstantReviewQuiz,
+  buildRealCalendarStrip,
+  invalidateSwrCache,
+  readSwrCache,
+  writeSwrCache,
+} from '../../services/v2Adapters'
 import FloatingDock from '../../components/FloatingDock'
 import './index.scss'
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [historyItems, setHistoryItems] = useState<QuizHistoryItem[]>([])
-  const [dueReviews, setDueReviews] = useState<DueReviewsResponse>(buildEmptyDueReviews())
+  const [profile, setProfile] = useState<UserProfile | null>(
+    () => readSwrCache<UserProfile>('profile_user'),
+  )
+  const [historyItems, setHistoryItems] = useState<QuizHistoryItem[]>(
+    () => readSwrCache<QuizHistoryItem[]>('profile_history') || [],
+  )
+  const [dueReviews, setDueReviews] = useState<DueReviewsResponse>(
+    () => readSwrCache<DueReviewsResponse>('profile_due') || buildEmptyDueReviews(),
+  )
+  const [overview, setOverview] = useState<MasteryOverviewResponse | null>(
+    () => readSwrCache<MasteryOverviewResponse>('profile_overview'),
+  )
+  const [expandedCardId, setExpandedCardId] = useState<number | null>(null)
   const [totalHistory, setTotalHistory] = useState(0)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
@@ -34,12 +55,14 @@ export default function ProfilePage() {
 
   const loadProfile = useCallback(async () => {
     await waitForLogin()
-    const [data, dueRes] = await Promise.all([
+    const [data, dueRes, ovRes] = await Promise.all([
       getUserProfile().catch(() => null),
-      getDueReviews(10),
+      getDueReviews(20, { includeAll: true }),
+      getMasteryOverview(),
     ])
     if (data) {
       setProfile(data)
+      writeSwrCache('profile_user', data)
       setCachedUser({
         id: data.id,
         nickname: data.nickname,
@@ -48,7 +71,14 @@ export default function ProfilePage() {
         streak_days: data.streak_days,
       })
     }
-    if (dueRes) setDueReviews(dueRes)
+    if (dueRes) {
+      setDueReviews(dueRes)
+      writeSwrCache('profile_due', dueRes)
+    }
+    if (ovRes) {
+      setOverview(ovRes)
+      writeSwrCache('profile_overview', ovRes)
+    }
   }, [])
 
   const loadHistory = useCallback(async (p: number, reset = false) => {
@@ -56,7 +86,11 @@ export default function ProfilePage() {
     setLoadingMore(true)
     try {
       const data = await getQuizHistory(p, 10)
-      setHistoryItems((prev) => (reset ? data.items : [...prev, ...data.items]))
+      setHistoryItems((prev) => {
+        const next = reset ? data.items : [...prev, ...data.items]
+        if (reset) writeSwrCache('profile_history', next)
+        return next
+      })
       setTotalHistory(data.total)
       setPage(p)
       setHasMore(data.items.length >= 10 && p * 10 < data.total)
@@ -78,7 +112,13 @@ export default function ProfilePage() {
     setDockVisible(false)
   })
 
-  const stampWeek = useMemo(() => buildRealCalendarStrip(), [])
+  const stampWeek = useMemo(
+    () =>
+      overview?.weekly_rhythm?.length === 7
+        ? buildRealCalendarStrip(overview.weekly_rhythm)
+        : buildRealCalendarStrip(),
+    [overview],
+  )
 
   const handleLoadMore = () => {
     if (!hasMore || loadingMore) return
@@ -120,27 +160,66 @@ export default function ProfilePage() {
       })
   }
 
-  const handleStartDueQueue = async () => {
-    if (startingDueQuiz || dueReviews.items.length === 0) return
+  const handleInstantReviewCards = (cards: DueReviewCardItem[]) => {
+    if (cards.length === 0) return
+    const instantQuiz = buildInstantReviewQuiz(cards)
+    setActiveQuizSession(instantQuiz, [])
+    Taro.navigateTo({
+      url: `/pages/quiz/index?quizId=${encodeURIComponent(instantQuiz.quiz_id)}`,
+    })
+  }
+
+  const handleAiVariantCards = async (cards: DueReviewCardItem[]) => {
+    if (startingDueQuiz || cards.length === 0) return
     setStartingDueQuiz(true)
     try {
-      const ids = dueReviews.items.slice(0, 6).map((c) => c.card_id)
+      const ids = cards.slice(0, 6).map((c) => c.card_id)
+      const topicNames = Array.from(new Set(cards.map((c) => c.domain_name))).join('、')
       const { task_id } = await generateQuizAsync({
-        user_input: '针对待复习错题清单生成专题回顾测验',
-        question_count: ids.length,
-        adaptive_mode: true,
+        user_input: `针对错题「${topicNames || '核心薄弱点'}」生成举一反三变式强化测验`,
+        question_count: Math.max(1, ids.length),
+        adaptive_mode: false,
+        enable_web_search: true,
         review_card_ids: ids,
       })
       const quizData = await pollQuizTask(task_id)
+      invalidateSwrCache('home_')
       setActiveQuizSession(quizData, [])
       Taro.navigateTo({
         url: `/pages/quiz/index?quizId=${encodeURIComponent(quizData.quiz_id)}`,
       })
     } catch (err: any) {
-      Taro.showToast({ title: err?.message || '调起复习失败', icon: 'none' })
+      Taro.showToast({ title: err?.message || '调起变式复习失败', icon: 'none' })
     } finally {
       setStartingDueQuiz(false)
     }
+  }
+
+  const handleMarkMastered = async (card: DueReviewCardItem) => {
+    const res = await markQuestionForReview({
+      quiz_id: card.quiz_id,
+      question_id: card.question_id,
+      action: 'skip',
+    })
+    if (!res) {
+      Taro.showToast({ title: '标记失败，请稍后重试', icon: 'none' })
+      return
+    }
+    setDueReviews((prev) => {
+      const filtered = prev.items.filter((x) => x.card_id !== card.card_id)
+      const next = {
+        ...prev,
+        total_due: card.status === 'due' ? Math.max(0, prev.total_due - 1) : prev.total_due,
+        unresolved_total: Math.max(0, (prev.unresolved_total ?? prev.items.length) - 1),
+        items: filtered,
+      }
+      writeSwrCache('profile_due', next)
+      return next
+    })
+    invalidateSwrCache('home_')
+    invalidateSwrCache('mastery_')
+    if (expandedCardId === card.card_id) setExpandedCardId(null)
+    Taro.showToast({ title: '已标记掌握并移出队列', icon: 'success' })
   }
 
   const avatarInitial = profile?.nickname?.[0] || '知'
@@ -217,39 +296,129 @@ export default function ProfilePage() {
           <Text className='stamp-sub'>共测验 {profile?.quiz_count ?? 0} 局</Text>
         </View>
         <View className='stamp-grid'>
-          {stampWeek.map((d, idx) => (
-            <View key={`${d.date_num}-${idx}`} className='stamp-cell'>
-              <Text className='stamp-wk'>{d.day_label}</Text>
-              <View className={`stamp-badge ${d.is_today || d.completed_count > 0 ? 'is-yes' : ''}`}>
-                <Text>{d.is_today ? 'YES!' : d.completed_count > 0 ? 'AHA' : d.date_num}</Text>
+          {stampWeek.map((d, idx) => {
+            const done = d.completed_count > 0
+            return (
+              <View key={`${d.date_num}-${idx}`} className='stamp-cell'>
+                <Text className='stamp-wk'>{d.day_label}</Text>
+                <View
+                  className={`stamp-badge ${done ? 'is-yes' : d.is_today ? 'is-today-idle' : ''}`}
+                >
+                  <Text>{d.is_today && done ? 'YES!' : done ? 'AHA' : d.is_today ? '今日' : d.date_num}</Text>
+                </View>
               </View>
-            </View>
-          ))}
+            )
+          })}
         </View>
       </View>
 
-      {/* ARQ 待复习错题队列 */}
+      {/* ARQ 待复习错题本（支持手风琴展开选项/答案/解析 + 秒开回顾 + AI变式 + 掌握毕业） */}
       <View className='zx-card due-queue-card'>
         <View className='due-head'>
-          <Text className='due-title'>待复习错题队列 ({dueReviews.total_due})</Text>
+          <View>
+            <Text className='due-title'>
+              错题巩固本 ({dueReviews.total_due} 到期
+              {typeof dueReviews.unresolved_total === 'number' &&
+              dueReviews.unresolved_total > dueReviews.total_due
+                ? ` / ${dueReviews.unresolved_total} 未毕业`
+                : ''}
+              )
+            </Text>
+          </View>
           {dueReviews.items.length > 0 && (
-            <View className='btn-due-go zx-press' onClick={handleStartDueQueue}>
-              <Text>{startingDueQuiz ? '组卷中...' : '一键复习 →'}</Text>
+            <View className='due-head-btns'>
+              <View
+                className='btn-due-variant zx-press'
+                onClick={() => handleAiVariantCards(dueReviews.items.slice(0, 6))}
+              >
+                <Text>{startingDueQuiz ? '组题中...' : 'AI 变式'}</Text>
+              </View>
+              <View
+                className='btn-due-go zx-press'
+                onClick={() => handleInstantReviewCards(dueReviews.items.slice(0, 6))}
+              >
+                <Text>秒开回顾 →</Text>
+              </View>
             </View>
           )}
         </View>
         {dueReviews.items.length === 0 ? (
-          <Text className='due-empty'>目前没有到期的错题卡片，去首页发起新测验吧</Text>
+          <Text className='due-empty'>目前没有未掌握的错题卡片，去首页发起新测验吧</Text>
         ) : (
           <View className='due-list'>
-            {dueReviews.items.slice(0, 3).map((card) => (
-              <View key={card.card_id} className='due-row'>
-                <View className='due-domain'>
-                  <Text>{card.domain_name}</Text>
+            {dueReviews.items.map((card) => {
+              const isOpen = expandedCardId === card.card_id
+              const userSel = card.user_selected || []
+              const rightAns = card.answer || []
+              return (
+                <View key={card.card_id} className={`due-card-box ${isOpen ? 'is-open' : ''}`}>
+                  <View
+                    className='due-row zx-press'
+                    onClick={() => setExpandedCardId(isOpen ? null : card.card_id)}
+                  >
+                    <View className='due-row-top'>
+                      <View className='due-domain'>
+                        <Text>{card.domain_name}</Text>
+                      </View>
+                      <Text className='due-round-tag'>
+                        第 {(card.repetitions || 0) + 1}/3 轮 ·{' '}
+                        {card.status === 'due' ? '待今日巩固' : `${card.interval_days}天后再练`}
+                      </Text>
+                      <Text className='due-chevron'>{isOpen ? '⌄' : '›'}</Text>
+                    </View>
+                    <Text className={`due-stem ${isOpen ? 'is-expanded' : ''}`}>{card.stem}</Text>
+                  </View>
+
+                  {isOpen && (
+                    <View className='due-expand-body'>
+                      {card.options && card.options.length > 0 && (
+                        <View className='due-opts'>
+                          {card.options.map((opt) => {
+                            const isCorrect = rightAns.includes(opt.key)
+                            const isUserWrong = userSel.includes(opt.key) && !isCorrect
+                            return (
+                              <View
+                                key={opt.key}
+                                className={`due-opt-line ${isCorrect ? 'is-ok' : isUserWrong ? 'is-wrong' : ''}`}
+                              >
+                                <Text className='due-opt-txt'>
+                                  {opt.key}. {opt.text}
+                                </Text>
+                                {isCorrect && <Text className='due-opt-tag is-ok'>✓ 正解</Text>}
+                                {isUserWrong && <Text className='due-opt-tag is-wrong'>✕ 曾选</Text>}
+                              </View>
+                            )
+                          })}
+                        </View>
+                      )}
+                      {card.explanation && (
+                        <Text className='due-explain'>解析：{card.explanation}</Text>
+                      )}
+                      <View className='due-card-actions'>
+                        <View
+                          className='due-act-btn is-primary zx-press'
+                          onClick={() => handleInstantReviewCards([card])}
+                        >
+                          <Text>秒开重做</Text>
+                        </View>
+                        <View
+                          className='due-act-btn is-blue zx-press'
+                          onClick={() => handleAiVariantCards([card])}
+                        >
+                          <Text>AI 变式重练</Text>
+                        </View>
+                        <View
+                          className='due-act-btn is-muted zx-press'
+                          onClick={() => handleMarkMastered(card)}
+                        >
+                          <Text>我已掌握</Text>
+                        </View>
+                      </View>
+                    </View>
+                  )}
                 </View>
-                <Text className='due-stem'>{card.stem}</Text>
-              </View>
-            ))}
+              )
+            })}
           </View>
         )}
       </View>

@@ -1,4 +1,4 @@
-"""知识域画像聚合、学习记忆曲线数据与 Redis 缓存服务"""
+"""知识域画像聚合、真实双轨学习记忆曲线数学模型与 Redis 缓存服务"""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ async def invalidate_mastery_cache(user_id: int) -> None:
     await cache_delete(_mastery_cache_key(user_id))
 
 
-def _build_weekly_rhythm(daily_counts: dict[str, int]) -> list[WeeklyRhythmDay]:
+def build_weekly_rhythm(daily_counts: dict[str, int]) -> list[WeeklyRhythmDay]:
     today = datetime.now().date()
     days: list[WeeklyRhythmDay] = []
     for offset in range(-4, 3):
@@ -53,30 +53,125 @@ def _build_weekly_rhythm(daily_counts: dict[str, int]) -> list[WeeklyRhythmDay]:
     return days
 
 
-def _build_retention_curve(
+def build_retention_curve(
     stability_days: float,
     current_retention: float,
+    *,
+    mastery_score: Optional[float] = None,
+    session_accuracy: Optional[float] = None,
+    days_elapsed: float = 0.0,
 ) -> list[RetentionCurvePoint]:
-    s = max(1.5, float(stability_days or 5.0))
-    pre_val = round(min(92.0, max(38.0, current_retention)), 1)
-    recovery_val = round(min(96.0, max(86.0, current_retention + 18.0)), 1)
+    """根据真实领域稳定性 S、掌握分与本次测验准确率绘制双轨保持率曲线（杜绝模板化假 V 谷）。"""
+    s_new = max(1.5, float(stability_days or 5.0))
+    # 若尚未强化，假设自然遗忘稳定性更低
+    s_base = max(1.2, s_new * 0.48)
+
+    if session_accuracy is not None:
+        acc = max(0.0, min(100.0, float(session_accuracy)))
+        m_score = float(mastery_score if mastery_score is not None else acc)
+        # 复测前估计保持率：受当前已有掌握度与间隔衰减共同决定
+        base_anchor = max(28.0, min(88.0, m_score * 0.85))
+        pre_val = round(
+            max(22.0, min(88.0, base_anchor * (compute_retention_rate(max(0.8, days_elapsed), s_base) / 100.0))),
+            1,
+        )
+        # 本次强化后保持率：答对越高越接近 98%，低准确率则平滑反映仍有薄弱项
+        now_val = round(
+            max(38.0, min(98.0, pre_val + (acc - pre_val * 0.45) * 0.55 if acc >= 50 else max(pre_val + 6.0, acc * 0.85 + 22.0))),
+            1,
+        )
+        now_val = max(pre_val + 4.0, now_val)
+        now_val = min(98.0, now_val)
+
+        # 前序起点：上次学完时的初始记忆水平
+        prior_start = round(max(pre_val + 10.0, min(96.0, base_anchor + 18.0)), 1)
+        scale = now_val / 100.0
+        base_scale = pre_val / 100.0
+        return [
+            RetentionCurvePoint(
+                day_label="上次巩固",
+                retention_pct=prior_start,
+                baseline_pct=prior_start,
+            ),
+            RetentionCurvePoint(
+                day_label="测前遗忘",
+                retention_pct=pre_val,
+                baseline_pct=pre_val,
+                is_today=True,
+            ),
+            RetentionCurvePoint(
+                day_label="本次巩固",
+                retention_pct=now_val,
+                baseline_pct=round(max(18.0, compute_retention_rate(1.0, s_base) * base_scale), 1),
+                is_recovery=True,
+            ),
+            RetentionCurvePoint(
+                day_label="+3天",
+                retention_pct=round(max(18.0, compute_retention_rate(3.0, s_new) * scale), 1),
+                baseline_pct=round(max(18.0, compute_retention_rate(3.0, s_base) * base_scale), 1),
+            ),
+            RetentionCurvePoint(
+                day_label="+7天",
+                retention_pct=round(max(18.0, compute_retention_rate(7.0, s_new) * scale), 1),
+                baseline_pct=round(max(18.0, compute_retention_rate(7.0, s_base) * base_scale), 1),
+            ),
+            RetentionCurvePoint(
+                day_label="+14天",
+                retention_pct=round(max(18.0, compute_retention_rate(14.0, s_new) * scale), 1),
+                baseline_pct=round(max(18.0, compute_retention_rate(14.0, s_base) * base_scale), 1),
+            ),
+        ]
+
+    # 领域图谱总览态：真实展现该域过去经过天数衰退曲线 + 若立即巩固后的对比投影
+    now_ret = round(max(20.0, min(98.0, float(current_retention or 82.0))), 1)
+    m_score = float(mastery_score if mastery_score is not None else now_ret)
+    origin_val = round(max(now_ret + 4.0, min(97.0, m_score * 0.45 + 52.0)), 1)
+    boosted_val = round(min(98.0, max(now_ret + 10.0, m_score * 0.5 + 48.0)), 1)
+    s_boosted = max(s_new * 1.35, 4.0)
+
     return [
-        RetentionCurvePoint(day_label="D1", retention_pct=94.0),
         RetentionCurvePoint(
-            day_label="D3",
-            retention_pct=compute_retention_rate(2.0, max(2.0, s * 0.7)),
+            day_label="起点",
+            retention_pct=origin_val,
+            baseline_pct=origin_val,
         ),
-        RetentionCurvePoint(day_label="重测前", retention_pct=pre_val, is_today=True),
-        RetentionCurvePoint(day_label="今日巩固", retention_pct=recovery_val, is_recovery=True),
+        RetentionCurvePoint(
+            day_label="今日实测",
+            retention_pct=now_ret,
+            baseline_pct=now_ret,
+            is_today=True,
+        ),
+        RetentionCurvePoint(
+            day_label="巩固后",
+            retention_pct=boosted_val,
+            baseline_pct=round(max(18.0, compute_retention_rate(1.0, s_base) * (now_ret / 100.0)), 1),
+            is_recovery=True,
+        ),
+        RetentionCurvePoint(
+            day_label="+3天",
+            retention_pct=round(max(18.0, compute_retention_rate(3.0, s_boosted) * (boosted_val / 100.0)), 1),
+            baseline_pct=round(max(18.0, compute_retention_rate(3.0, s_base) * (now_ret / 100.0)), 1),
+        ),
         RetentionCurvePoint(
             day_label="+7天",
-            retention_pct=compute_retention_rate(7.0, max(6.0, s * 1.45)),
+            retention_pct=round(max(18.0, compute_retention_rate(7.0, s_boosted) * (boosted_val / 100.0)), 1),
+            baseline_pct=round(max(18.0, compute_retention_rate(7.0, s_base) * (now_ret / 100.0)), 1),
         ),
         RetentionCurvePoint(
             day_label="+14天",
-            retention_pct=compute_retention_rate(14.0, max(8.0, s * 1.65)),
+            retention_pct=round(max(18.0, compute_retention_rate(14.0, s_boosted) * (boosted_val / 100.0)), 1),
+            baseline_pct=round(max(18.0, compute_retention_rate(14.0, s_base) * (now_ret / 100.0)), 1),
         ),
     ]
+
+
+# 兼容旧函数名
+def _build_weekly_rhythm(daily_counts: dict[str, int]) -> list[WeeklyRhythmDay]:
+    return build_weekly_rhythm(daily_counts)
+
+
+def _build_retention_curve(stability_days: float, current_retention: float) -> list[RetentionCurvePoint]:
+    return build_retention_curve(stability_days, current_retention)
 
 
 async def get_mastery_overview(
@@ -98,7 +193,7 @@ async def get_mastery_overview(
     raw_rows = await mastery_repository.list_user_mastery_rows(user_id)
     daily_counts = await mastery_repository.get_user_daily_counts(user_id, days=7)
     forecast = await mastery_repository.get_seven_day_forecast(user_id)
-    total_due, _ = await mastery_repository.list_due_review_cards(user_id, limit=1)
+    total_due, _ = await mastery_repository.list_due_review_cards(user_id, limit=1, domain_id=domain_id)
 
     settings = get_settings()
     tpl_id = (getattr(settings, "wechat_subscribe_template_id", "") or "").strip() or "default_review_reminder"
@@ -157,8 +252,9 @@ async def get_mastery_overview(
         if domain_summaries
         else 85.0
     )
-    target_stability = focus.stability_days if focus else 6.0
+    target_stability = focus.stability_days if focus else 5.0
     target_retention = focus.retention_rate if focus else overall_retention
+    target_mastery = focus.mastery_score if focus else overall_retention
 
     response = MasteryOverviewResponse(
         streak_days=max(1, streak_days) if domain_summaries else streak_days,
@@ -167,8 +263,12 @@ async def get_mastery_overview(
         subscribe_remaining=subscribe_remaining,
         focus_domain=focus,
         domains=domain_summaries,
-        retention_curve=_build_retention_curve(target_stability, target_retention),
-        weekly_rhythm=_build_weekly_rhythm(daily_counts),
+        retention_curve=build_retention_curve(
+            target_stability,
+            target_retention,
+            mastery_score=target_mastery,
+        ),
+        weekly_rhythm=build_weekly_rhythm(daily_counts),
         seven_day_forecast=forecast,
     )
 
@@ -178,7 +278,26 @@ async def get_mastery_overview(
     return response
 
 
-async def get_due_reviews(user_id: int, limit: int = 20) -> DueReviewsResponse:
-    total_due, rows = await mastery_repository.list_due_review_cards(user_id, limit=limit)
+async def get_due_reviews(
+    user_id: int,
+    limit: int = 20,
+    domain_id: Optional[int] = None,
+    include_all_unresolved: bool = False,
+) -> DueReviewsResponse:
+    kwargs: dict = {"limit": limit}
+    if domain_id is not None:
+        kwargs["domain_id"] = domain_id
+    if include_all_unresolved:
+        kwargs["include_all_unresolved"] = True
+
+    total_due, rows = await mastery_repository.list_due_review_cards(user_id, **kwargs)
+    unresolved = await mastery_repository.count_unresolved_review_cards(user_id, domain_id=domain_id)
+    if unresolved == 0 and total_due > 0:
+        unresolved = total_due
     items = [DueReviewCardItem.model_validate(row) for row in rows]
-    return DueReviewsResponse(total_due=total_due, items=items)
+    return DueReviewsResponse(
+        total_due=total_due,
+        unresolved_total=unresolved,
+        domain_id=domain_id,
+        items=items,
+    )

@@ -1,7 +1,9 @@
 .knowledge-page {
   min-height: 100vh;
   background: var(--bg-canvas);
-  padding: 28px 36px 200px;
+  padding: 28px 36px calc(220px + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .kb-header {
