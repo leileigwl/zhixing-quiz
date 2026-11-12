@@ -127,7 +127,7 @@
 | `/user/login` | `POST` | 公开 | 调微信 `jscode2session` | 微信小程序静默登录签发 JWT |
 | `/user/dev-login` | `POST` | 公开（仅非生产 + 开关） | 生产环境 403 禁用 | H5/本地开发模拟登录 |
 | `/user/profile` | `GET` / `PUT` | 必选 JWT | 仅本人 | 获取统计档案（含 `streak_days`）/ 更新昵称头像 |
-| `/user/quizzes` | `GET` | 必选 JWT | 仅本人 | 分页获取历史闯关记录（含领域与来源标签） |
+| `/user/quizzes` | `GET` | 必选 JWT | 仅本人 | 分页获取历史闯关记录（含 `is_submitted` 未交卷草稿区分与领域标签） |
 | `/user/quizzes/{quiz_id}` | `GET` | 必选 JWT | 校验 `user_id` | 回看单次题库、答卷与报告 |
 | `/knowledge/documents` | `POST` / `GET` | 必选 JWT | 10MB / 10 篇 + 防压缩炸弹 | 上传异步入 ARQ + Chroma HTTP 解析 / 列表 |
 | `/knowledge/documents/{doc_id}` | `GET` / `DELETE` | 必选 JWT | 校验 `user_id` | 轮询解析状态与自动归类领域 / 级联删除 |
@@ -138,7 +138,7 @@
 | `/report/submit` | `POST` | 必选 JWT | **校验归属 + 单事务防并发覆盖 + SM-2** | 秒返算分、更新三维画像与打卡、即时激活到期错题卡 / 推进 `source_review_card_ids` 进度，并返回当次双轨 `session_retention_curve` 与 `weekly_rhythm` |
 | `/report/{quiz_id}` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 轮询 AI 复盘报告生成状态与内容 |
 | `/report/generate` | `POST` | 必选 JWT | 归属当前用户 + 幂等 | 同步报告接口（向后兼容） |
-| `/mastery/overview` | `GET` | 必选 JWT | 仅本人（60s Redis 缓存） | 获取真实双轨记忆曲线（含 `baseline_pct`）、三维矩阵、7 日节律与未来 7 天到期预测 |
+| `/mastery/overview` | `GET` | 必选 JWT | 仅本人（60s Redis 缓存） | 获取实测+预测双轨记忆曲线 (`is_actual` + `baseline_pct`)、`next_plan` 复习日程建议、7 日完成题数及当日明细 (`sessions`) |
 | `/reviews/due` | `GET` | 必选 JWT | 仅本人（支持 `domain_id` 与 `include_all`） | 获取到期或未毕业错题卡全量详情（含 `options/answer/explanation/user_selected/repetitions`） |
 | `/reviews/mark` | `POST` | 必选 JWT | **校验 `quiz_id` 归属** | 手动加入即时到期复习 (`add`) 或标记已掌握毕业 (`skip`) |
 | `/reviews/practice/submit` | `POST` | 必选 JWT | 仅本人 | 客户端秒开错题回顾即时结算 SM-2 间隔与毕业状态 |

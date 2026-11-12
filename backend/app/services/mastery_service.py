@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -13,8 +14,10 @@ from app.models.mastery import (
     DueReviewCardItem,
     DueReviewsResponse,
     MasteryOverviewResponse,
+    MasteryScheduleSummary,
     RetentionCurvePoint,
     WeeklyRhythmDay,
+    WeeklyRhythmSessionItem,
 )
 from app.repositories import mastery_repository, user_repository
 from app.services.adaptive_service import (
@@ -34,23 +37,93 @@ async def invalidate_mastery_cache(user_id: int) -> None:
     await cache_delete(_mastery_cache_key(user_id))
 
 
-def build_weekly_rhythm(daily_counts: dict[str, int]) -> list[WeeklyRhythmDay]:
+def build_weekly_rhythm(
+    daily_counts: dict[str, int],
+    daily_sessions: Optional[dict[str, list[dict]]] = None,
+) -> list[WeeklyRhythmDay]:
     today = datetime.now().date()
     days: list[WeeklyRhythmDay] = []
+    session_map = daily_sessions or {}
     for offset in range(-4, 3):
         d = today + timedelta(days=offset)
         date_str = d.strftime("%Y-%m-%d")
+        raw_sessions = session_map.get(date_str, [])
+        session_items = [WeeklyRhythmSessionItem.model_validate(s) for s in raw_sessions]
         cnt = int(daily_counts.get(date_str, 0))
+        if cnt == 0 and session_items:
+            cnt = sum(s.question_count for s in session_items)
+        avg_acc = (
+            round(sum(s.accuracy for s in session_items) / len(session_items), 1)
+            if session_items
+            else None
+        )
         days.append(
             WeeklyRhythmDay(
                 day_label=WEEK_LABELS_BY_PY_WEEKDAY[d.weekday()],
                 date_num=d.strftime("%d"),
+                date_str=date_str,
                 completed_count=cnt,
+                quiz_count=len(session_items),
+                avg_accuracy=avg_acc,
                 is_today=(offset == 0),
                 active=(cnt > 0 or offset == 0),
+                sessions=session_items,
             )
         )
     return days
+
+
+def compute_schedule_for_domain(
+    *,
+    domain_id: Optional[int],
+    domain_name: str,
+    stability_days: float,
+    retention_rate: float,
+    mastery_score: float,
+    recommended_count: int,
+    due_review_count: int,
+) -> MasteryScheduleSummary:
+    """将当前曲线位置与稳定性 S 翻译为可执行复习日程与下一次出题建议。"""
+    s_val = max(1.5, float(stability_days or 5.0))
+    ret = max(15.0, min(98.0, float(retention_rate or 80.0)))
+
+    if ret <= 50.0:
+        critical_days = 0.0
+    else:
+        critical_days = round(max(0.5, -s_val * math.log(50.0 / ret)), 1)
+
+    if due_review_count > 0:
+        when_label = f"今日待刷 {due_review_count} 题"
+    elif critical_days <= 1.2:
+        when_label = "明日抢救巩固"
+    elif critical_days <= 3.0:
+        when_label = f"{max(1, round(critical_days))} 天后巩固"
+    else:
+        when_label = f"{min(7, max(2, round(critical_days * 0.7)))} 天后巩固"
+
+    if mastery_score < 50:
+        focus_diff = "基础巩固为主"
+    elif mastery_score < 80:
+        focus_diff = "中等阶梯突破"
+    else:
+        focus_diff = "高阶综合拔高"
+
+    if due_review_count > 0:
+        reason = f"该域已有 {due_review_count} 道到期错题；建议先清零错题，再做 {recommended_count} 题（{focus_diff}）把记忆稳定性 S={round(s_val, 1)} 天拉高"
+    elif critical_days <= 1.5:
+        reason = f"当前保持率 {round(ret)}%，按稳定性 S={round(s_val, 1)} 天约 {critical_days} 天跌破 50%，系统建议尽快刷 {recommended_count} 题（{focus_diff}）"
+    else:
+        reason = f"目前稳定高于 50% 警戒线（约 {critical_days} 天后临界），按曲线节奏安排 {recommended_count} 题（{focus_diff}）即可稳步拉长周期"
+
+    return MasteryScheduleSummary(
+        domain_id=domain_id,
+        domain_name=domain_name,
+        when_label=when_label,
+        recommended_count=recommended_count,
+        focus_difficulty=focus_diff,
+        critical_days=critical_days,
+        reason=reason,
+    )
 
 
 def build_retention_curve(
@@ -60,31 +133,26 @@ def build_retention_curve(
     mastery_score: Optional[float] = None,
     session_accuracy: Optional[float] = None,
     days_elapsed: float = 0.0,
+    history_points: Optional[list[dict]] = None,
 ) -> list[RetentionCurvePoint]:
-    """根据真实领域稳定性 S、掌握分与本次测验准确率绘制双轨保持率曲线（杜绝模板化假 V 谷）。"""
+    """根据真实领域历次测验实测节点、稳定性 S 与掌握分构建差异化双轨曲线。"""
     s_new = max(1.5, float(stability_days or 5.0))
-    # 若尚未强化，假设自然遗忘稳定性更低
-    s_base = max(1.2, s_new * 0.48)
+    s_base = max(1.0, s_new * 0.45)
 
     if session_accuracy is not None:
         acc = max(0.0, min(100.0, float(session_accuracy)))
         m_score = float(mastery_score if mastery_score is not None else acc)
-        # 复测前估计保持率：受当前已有掌握度与间隔衰减共同决定
-        base_anchor = max(28.0, min(88.0, m_score * 0.85))
+        base_anchor = max(24.0, min(88.0, m_score * 0.85))
         pre_val = round(
-            max(22.0, min(88.0, base_anchor * (compute_retention_rate(max(0.8, days_elapsed), s_base) / 100.0))),
+            max(18.0, min(88.0, base_anchor * (compute_retention_rate(max(0.8, days_elapsed), s_base) / 100.0))),
             1,
         )
-        # 本次强化后保持率：答对越高越接近 98%，低准确率则平滑反映仍有薄弱项
         now_val = round(
-            max(38.0, min(98.0, pre_val + (acc - pre_val * 0.45) * 0.55 if acc >= 50 else max(pre_val + 6.0, acc * 0.85 + 22.0))),
+            max(34.0, min(98.0, pre_val + (acc - pre_val * 0.45) * 0.55 if acc >= 50 else max(pre_val + 5.0, acc * 0.8 + 18.0))),
             1,
         )
-        now_val = max(pre_val + 4.0, now_val)
-        now_val = min(98.0, now_val)
-
-        # 前序起点：上次学完时的初始记忆水平
-        prior_start = round(max(pre_val + 10.0, min(96.0, base_anchor + 18.0)), 1)
+        now_val = max(pre_val + 4.0, min(98.0, now_val))
+        prior_start = round(max(pre_val + 8.0, min(96.0, base_anchor + 16.0)), 1)
         scale = now_val / 100.0
         base_scale = pre_val / 100.0
         return [
@@ -102,67 +170,81 @@ def build_retention_curve(
             RetentionCurvePoint(
                 day_label="本次巩固",
                 retention_pct=now_val,
-                baseline_pct=round(max(18.0, compute_retention_rate(1.0, s_base) * base_scale), 1),
+                baseline_pct=round(max(15.0, compute_retention_rate(1.0, s_base) * base_scale), 1),
                 is_recovery=True,
             ),
             RetentionCurvePoint(
                 day_label="+3天",
-                retention_pct=round(max(18.0, compute_retention_rate(3.0, s_new) * scale), 1),
-                baseline_pct=round(max(18.0, compute_retention_rate(3.0, s_base) * base_scale), 1),
+                retention_pct=round(max(15.0, compute_retention_rate(3.0, s_new) * scale), 1),
+                baseline_pct=round(max(15.0, compute_retention_rate(3.0, s_base) * base_scale), 1),
             ),
             RetentionCurvePoint(
                 day_label="+7天",
-                retention_pct=round(max(18.0, compute_retention_rate(7.0, s_new) * scale), 1),
-                baseline_pct=round(max(18.0, compute_retention_rate(7.0, s_base) * base_scale), 1),
+                retention_pct=round(max(15.0, compute_retention_rate(7.0, s_new) * scale), 1),
+                baseline_pct=round(max(15.0, compute_retention_rate(7.0, s_base) * base_scale), 1),
             ),
             RetentionCurvePoint(
                 day_label="+14天",
-                retention_pct=round(max(18.0, compute_retention_rate(14.0, s_new) * scale), 1),
-                baseline_pct=round(max(18.0, compute_retention_rate(14.0, s_base) * base_scale), 1),
+                retention_pct=round(max(15.0, compute_retention_rate(14.0, s_new) * scale), 1),
+                baseline_pct=round(max(15.0, compute_retention_rate(14.0, s_base) * base_scale), 1),
             ),
         ]
 
-    # 领域图谱总览态：真实展现该域过去经过天数衰退曲线 + 若立即巩固后的对比投影
-    now_ret = round(max(20.0, min(98.0, float(current_retention or 82.0))), 1)
+    # 领域图谱总览态：若该域存在真实历次测验记录，左侧直接渲染真实表现节点，让每域波形独一无二
+    now_ret = round(max(18.0, min(98.0, float(current_retention or 82.0))), 1)
     m_score = float(mastery_score if mastery_score is not None else now_ret)
-    origin_val = round(max(now_ret + 4.0, min(97.0, m_score * 0.45 + 52.0)), 1)
-    boosted_val = round(min(98.0, max(now_ret + 10.0, m_score * 0.5 + 48.0)), 1)
-    s_boosted = max(s_new * 1.35, 4.0)
+    boosted_val = round(min(98.0, max(now_ret + 8.0, m_score * 0.55 + 44.0)), 1)
+    s_boosted = max(s_new * 1.35, 3.8)
 
-    return [
+    points: list[RetentionCurvePoint] = []
+    hist = (history_points or [])[-3:]
+    if hist:
+        for h in hist:
+            h_acc = round(max(15.0, min(99.0, float(h.get("accuracy") or m_score))), 1)
+            points.append(
+                RetentionCurvePoint(
+                    day_label=str(h.get("day_label") or "实测"),
+                    retention_pct=h_acc,
+                    baseline_pct=h_acc,
+                    is_actual=True,
+                    quiz_title=str(h.get("title") or "")[:16],
+                )
+            )
+    else:
+        origin_val = round(max(24.0, min(96.0, m_score * 0.72 + 22.0)), 1)
+        points.append(
+            RetentionCurvePoint(
+                day_label="初始基线",
+                retention_pct=origin_val,
+                baseline_pct=origin_val,
+            )
+        )
+
+    points.append(
         RetentionCurvePoint(
-            day_label="起点",
-            retention_pct=origin_val,
-            baseline_pct=origin_val,
-        ),
-        RetentionCurvePoint(
-            day_label="今日实测",
+            day_label="今日保持",
             retention_pct=now_ret,
             baseline_pct=now_ret,
             is_today=True,
-        ),
+        )
+    )
+    points.append(
         RetentionCurvePoint(
-            day_label="巩固后",
+            day_label="若巩固",
             retention_pct=boosted_val,
-            baseline_pct=round(max(18.0, compute_retention_rate(1.0, s_base) * (now_ret / 100.0)), 1),
+            baseline_pct=round(max(15.0, compute_retention_rate(1.0, s_base) * (now_ret / 100.0)), 1),
             is_recovery=True,
-        ),
-        RetentionCurvePoint(
-            day_label="+3天",
-            retention_pct=round(max(18.0, compute_retention_rate(3.0, s_boosted) * (boosted_val / 100.0)), 1),
-            baseline_pct=round(max(18.0, compute_retention_rate(3.0, s_base) * (now_ret / 100.0)), 1),
-        ),
-        RetentionCurvePoint(
-            day_label="+7天",
-            retention_pct=round(max(18.0, compute_retention_rate(7.0, s_boosted) * (boosted_val / 100.0)), 1),
-            baseline_pct=round(max(18.0, compute_retention_rate(7.0, s_base) * (now_ret / 100.0)), 1),
-        ),
-        RetentionCurvePoint(
-            day_label="+14天",
-            retention_pct=round(max(18.0, compute_retention_rate(14.0, s_boosted) * (boosted_val / 100.0)), 1),
-            baseline_pct=round(max(18.0, compute_retention_rate(14.0, s_base) * (now_ret / 100.0)), 1),
-        ),
-    ]
+        )
+    )
+    for d_day in (3.0, 7.0, 14.0):
+        points.append(
+            RetentionCurvePoint(
+                day_label=f"+{int(d_day)}天",
+                retention_pct=round(max(15.0, compute_retention_rate(d_day, s_boosted) * (boosted_val / 100.0)), 1),
+                baseline_pct=round(max(15.0, compute_retention_rate(d_day, s_base) * (now_ret / 100.0)), 1),
+            )
+        )
+    return points
 
 
 # 兼容旧函数名
@@ -192,6 +274,8 @@ async def get_mastery_overview(
     streak_days = int((user or {}).get("streak_days") or 0)
     raw_rows = await mastery_repository.list_user_mastery_rows(user_id)
     daily_counts = await mastery_repository.get_user_daily_counts(user_id, days=7)
+    daily_sessions = await mastery_repository.get_user_weekly_sessions(user_id, days=7)
+    history_points = await mastery_repository.get_domain_recent_history(user_id, domain_id=domain_id, limit=4)
     forecast = await mastery_repository.get_seven_day_forecast(user_id)
     total_due, _ = await mastery_repository.list_due_review_cards(user_id, limit=1, domain_id=domain_id)
 
@@ -218,6 +302,15 @@ async def get_mastery_overview(
             adaptive_mode=True,
             mastery_profile=r,
         )
+        sched = compute_schedule_for_domain(
+            domain_id=r["domain_id"],
+            domain_name=r["name"],
+            stability_days=r["stability_days"],
+            retention_rate=live_retention,
+            mastery_score=r["mastery_score"],
+            recommended_count=plan.recommended_count,
+            due_review_count=r["due_review_count"],
+        )
         domain_summaries.append(
             DomainMasterySummary(
                 domain_id=r["domain_id"],
@@ -230,6 +323,9 @@ async def get_mastery_overview(
                 due_review_count=r["due_review_count"],
                 recommended_count=plan.recommended_count,
                 below_threshold=(live_retention < 50.0),
+                next_review_day_label=sched.when_label,
+                next_recommended_difficulty=sched.focus_difficulty,
+                schedule_reason=sched.reason,
                 difficulty_stats=DifficultyMatrixStats(
                     easy_accuracy=easy_acc,
                     medium_accuracy=med_acc,
@@ -255,6 +351,15 @@ async def get_mastery_overview(
     target_stability = focus.stability_days if focus else 5.0
     target_retention = focus.retention_rate if focus else overall_retention
     target_mastery = focus.mastery_score if focus else overall_retention
+    next_plan = compute_schedule_for_domain(
+        domain_id=focus.domain_id if focus else domain_id,
+        domain_name=focus.name if focus else "综合知识域",
+        stability_days=target_stability,
+        retention_rate=target_retention,
+        mastery_score=target_mastery,
+        recommended_count=focus.recommended_count if focus else 4,
+        due_review_count=total_due,
+    )
 
     response = MasteryOverviewResponse(
         streak_days=max(1, streak_days) if domain_summaries else streak_days,
@@ -262,13 +367,15 @@ async def get_mastery_overview(
         due_review_total=total_due,
         subscribe_remaining=subscribe_remaining,
         focus_domain=focus,
+        next_plan=next_plan,
         domains=domain_summaries,
         retention_curve=build_retention_curve(
             target_stability,
             target_retention,
             mastery_score=target_mastery,
+            history_points=history_points,
         ),
-        weekly_rhythm=build_weekly_rhythm(daily_counts),
+        weekly_rhythm=build_weekly_rhythm(daily_counts, daily_sessions=daily_sessions),
         seven_day_forecast=forecast,
     )
 

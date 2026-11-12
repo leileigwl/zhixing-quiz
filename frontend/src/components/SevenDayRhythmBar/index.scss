@@ -62,3 +62,16 @@
 .zx-bar-lbl.is-today {
   color: var(--ink-900);
 }
+
+.zx-bar-col.is-clickable {
+  cursor: pointer;
+}
+
+.zx-bar-track.is-selected {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+}
+
+.zx-bar-lbl.is-selected {
+  color: #2563eb;
+  font-weight: 800;
+}

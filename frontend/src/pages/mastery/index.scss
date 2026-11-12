@@ -310,3 +310,136 @@
   align-items: center;
   justify-content: center;
 }
+
+.schedule-card {
+  padding: 28px 30px;
+  border-radius: 40px;
+  margin-bottom: 22px;
+  background: #f5f9ff;
+  border: 1Px solid rgba(37, 99, 235, 0.14);
+}
+
+.schedule-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.schedule-badge {
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--accent-butter);
+  color: var(--ink-900);
+  font-size: 21px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.schedule-meta {
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--ds-blue);
+}
+
+.schedule-reason {
+  display: block;
+  font-size: 23px;
+  line-height: 1.55;
+  color: var(--ink-700);
+  margin-bottom: 16px;
+}
+
+.schedule-go {
+  height: 76px;
+  border-radius: 999px;
+  background: var(--ink-900);
+  color: #ffffff;
+  font-size: 23px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.week-drill-box {
+  margin-top: 18px;
+  padding: 20px;
+  border-radius: 26px;
+  background: var(--bg-canvas);
+}
+
+.week-drill-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.week-drill-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.week-drill-acc {
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--ds-blue);
+}
+
+.week-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.week-session-row {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 16px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+}
+
+.week-sess-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.week-sess-title {
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--ink-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.week-sess-sub {
+  font-size: 19px;
+  color: var(--ink-500);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.week-sess-acc {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ink-900);
+  background: var(--surface-soft);
+  padding: 6px 16px;
+  border-radius: 999px;
+}
+
+.week-drill-empty {
+  font-size: 21px;
+  color: var(--ink-400);
+}

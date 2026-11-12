@@ -6,8 +6,6 @@ import {
   getDueReviews,
   getQuizHistory,
   getKnowledgeDocuments,
-  generateQuizAsync,
-  pollQuizTask,
   markQuestionForReview,
   waitForLogin,
   type MasteryOverviewResponse,
@@ -25,13 +23,21 @@ import {
   readSwrCache,
   writeSwrCache,
 } from '../../services/v2Adapters'
+import {
+  getBackgroundQuizState,
+  startBackgroundQuizGeneration,
+  subscribeBackgroundQuiz,
+  type BackgroundQuizState,
+} from '../../services/backgroundQuizManager'
 import RetentionCurveCanvas from '../../components/RetentionCurveCanvas'
 import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
 import FloatingDock from '../../components/FloatingDock'
+import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
 export default function MasteryPage() {
   const [selectedDomainId, setSelectedDomainId] = useState<number | undefined>(undefined)
+  const [selectedWeekDayIdx, setSelectedWeekDayIdx] = useState<number | null>(null)
   const [overview, setOverview] = useState<MasteryOverviewResponse | null>(
     () => readSwrCache<MasteryOverviewResponse>('mastery_ov_all'),
   )
@@ -41,7 +47,7 @@ export default function MasteryPage() {
   const [historyItems, setHistoryItems] = useState<QuizHistoryItem[]>([])
   const [docs, setDocs] = useState<KnowledgeDocumentItem[]>([])
   const [expandedCardId, setExpandedCardId] = useState<number | null>(null)
-  const [loadingQuiz, setLoadingQuiz] = useState(false)
+  const [bgQuiz, setBgQuiz] = useState<BackgroundQuizState>(() => getBackgroundQuizState())
   const [dockVisible, setDockVisible] = useState(true)
 
   const loadData = useCallback(async () => {
@@ -74,6 +80,7 @@ export default function MasteryPage() {
     setDockVisible(true)
     Taro.eventCenter.trigger('zx:tab-change', 'mastery')
     void loadData()
+    return subscribeBackgroundQuiz(setBgQuiz)
   })
 
   useDidHide(() => {
@@ -93,7 +100,26 @@ export default function MasteryPage() {
     )
   }, [selectedDomainId, effectiveOverview])
 
-  const forecastNext = effectiveOverview.seven_day_forecast[0] ?? dueReviews.total_due
+  const weeklyDays = effectiveOverview.weekly_rhythm || []
+  const resolvedDayIdx = useMemo(() => {
+    if (selectedWeekDayIdx !== null && weeklyDays[selectedWeekDayIdx]) {
+      return selectedWeekDayIdx
+    }
+    let lastActive = -1
+    weeklyDays.forEach((d, idx) => {
+      if ((d.completed_count || 0) > 0) lastActive = idx
+    })
+    if (lastActive >= 0) return lastActive
+    const todayIdx = weeklyDays.findIndex((d) => d.is_today)
+    return todayIdx >= 0 ? todayIdx : 0
+  }, [selectedWeekDayIdx, weeklyDays])
+
+  const activeDay = weeklyDays[resolvedDayIdx]
+  const totalWeekQuestions = useMemo(
+    () => weeklyDays.reduce((sum, d) => sum + (d.completed_count || 0), 0),
+    [weeklyDays],
+  )
+  const nextPlan = effectiveOverview.next_plan
 
   const handleInstantReview = (cards?: DueReviewCardItem[]) => {
     const targetCards = cards || dueReviews.items.slice(0, 6)
@@ -105,37 +131,28 @@ export default function MasteryPage() {
     })
   }
 
-  const handleStartAiPractice = async (cards?: DueReviewCardItem[]) => {
-    if (loadingQuiz) return
-    setLoadingQuiz(true)
-    try {
-      const targetCards = cards || dueReviews.items.slice(0, 6)
-      const reviewIds = targetCards.map((c) => c.card_id)
-      const domainName = activeDomain?.name || '综合知识'
-      const { task_id } = await generateQuizAsync({
-        user_input:
-          reviewIds.length > 0
-            ? `针对到期薄弱点「${domainName}」进行变式间隔巩固复习`
-            : `针对「${domainName}」提升记忆保持率，巩固中等与核心易错题`,
-        question_count:
-          reviewIds.length > 0 ? Math.max(1, reviewIds.length) : activeDomain?.recommended_count ?? 5,
-        adaptive_mode: reviewIds.length === 0,
-        domain_id: activeDomain?.domain_id,
-        enable_web_search: true,
-        review_card_ids: reviewIds.length > 0 ? reviewIds : undefined,
-      })
+  const handleStartAiPractice = (cards?: DueReviewCardItem[]) => {
+    const targetCards = cards || dueReviews.items.slice(0, 6)
+    const reviewIds = cards ? targetCards.map((c) => c.card_id) : []
+    const domainName = activeDomain?.name || nextPlan?.domain_name || '综合知识'
+    const recCount =
+      reviewIds.length > 0
+        ? Math.max(1, reviewIds.length)
+        : nextPlan?.recommended_count || activeDomain?.recommended_count || 5
 
-      const quizData = await pollQuizTask(task_id)
-      invalidateSwrCache('home_')
-      setActiveQuizSession(quizData, [])
-      Taro.navigateTo({
-        url: `/pages/quiz/index?quizId=${encodeURIComponent(quizData.quiz_id)}`,
-      })
-    } catch (err: any) {
-      Taro.showToast({ title: err?.message || '组卷失败，请稍后重试', icon: 'none' })
-    } finally {
-      setLoadingQuiz(false)
-    }
+    void startBackgroundQuizGeneration({
+      user_input:
+        reviewIds.length > 0
+          ? `针对到期薄弱点「${domainName}」进行变式间隔巩固复习`
+          : `针对「${domainName}」按记忆曲线节奏（${nextPlan?.focus_difficulty || '中等进阶'}）巩固核心考点`,
+      question_count: recCount,
+      adaptive_mode: reviewIds.length === 0,
+      domain_id: activeDomain?.domain_id,
+      enable_web_search: true,
+      review_card_ids: reviewIds.length > 0 ? reviewIds : undefined,
+      displayTopic: `${domainName} · ${recCount}题`,
+      initiatedRoute: 'pages/mastery/index',
+    })
   }
 
   const handleMarkMastered = async (card: DueReviewCardItem) => {
@@ -205,7 +222,9 @@ export default function MasteryPage() {
       {/* 学习记忆曲线卡片 */}
       <View className='zx-card curve-panel'>
         <View className='panel-head'>
-          <Text className='panel-title'>学习记忆曲线 · R(t) = e^(-t/S)</Text>
+          <Text className='panel-title'>
+            {activeDomain ? `${activeDomain.name} · 记忆曲线` : '学习记忆曲线 · R(t) = e^(-t/S)'}
+          </Text>
           <Text className='panel-warn'>50% 临界提醒</Text>
         </View>
         <RetentionCurveCanvas
@@ -215,22 +234,92 @@ export default function MasteryPage() {
         <View className='curve-legend'>
           <View className='legend-item'>
             <View className='legend-line is-solid' />
-            <Text>巩固后保持轨迹</Text>
+            <Text>实测与巩固轨迹</Text>
           </View>
           <View className='legend-item'>
             <View className='legend-line is-dashed' />
-            <Text>未复习遗忘参考</Text>
+            <Text>未复习自然遗忘</Text>
           </View>
         </View>
       </View>
 
-      {/* MOVEPOP 本周复习节律 */}
+      {/* 曲线驱动日程与下次出题调度 */}
+      {nextPlan && (
+        <View className='zx-card schedule-card'>
+          <View className='schedule-head'>
+            <View className='schedule-badge'>
+              <Text>下次安排 · {nextPlan.when_label}</Text>
+            </View>
+            <Text className='schedule-meta'>
+              推荐 {nextPlan.recommended_count} 题 · {nextPlan.focus_difficulty}
+            </Text>
+          </View>
+          <Text className='schedule-reason'>{nextPlan.reason}</Text>
+          <View
+            className='schedule-go zx-press'
+            onClick={() => handleStartAiPractice()}
+          >
+            <Text>
+              {bgQuiz.status === 'running'
+                ? `正在后台生成中 (${bgQuiz.elapsedSec}s)...`
+                : `按曲线安排出题 (${nextPlan.recommended_count} 题) →`}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* 本周学习进度（已完成答题数 + 点击柱子看当日具体内容） */}
       <View className='zx-card curve-panel'>
         <View className='panel-head'>
-          <Text className='panel-title'>本周复习节律</Text>
-          <Text className='panel-sub'>明日预测 {forecastNext} 题</Text>
+          <Text className='panel-title'>本周完成题数</Text>
+          <Text className='panel-sub'>共 {totalWeekQuestions} 题 · 点击柱子看明细</Text>
         </View>
-        <SevenDayRhythmBar days={effectiveOverview.weekly_rhythm} />
+        <SevenDayRhythmBar
+          days={weeklyDays}
+          selectedIndex={resolvedDayIdx}
+          onSelectDay={(_day, idx) => setSelectedWeekDayIdx(idx)}
+        />
+        {activeDay && (
+          <View className='week-drill-box'>
+            <View className='week-drill-head'>
+              <Text className='week-drill-title'>
+                {activeDay.is_today ? '今日' : `周${activeDay.day_label}`}（{activeDay.date_num}日）· 完成{' '}
+                {activeDay.completed_count} 题
+              </Text>
+              {typeof activeDay.avg_accuracy === 'number' && (
+                <Text className='week-drill-acc'>平均正确率 {Math.round(activeDay.avg_accuracy)}%</Text>
+              )}
+            </View>
+            {activeDay.sessions && activeDay.sessions.length > 0 ? (
+              <View className='week-session-list'>
+                {activeDay.sessions.map((sess) => (
+                  <View
+                    key={sess.quiz_id}
+                    className='week-session-row zx-press'
+                    onClick={() =>
+                      Taro.navigateTo({
+                        url: `/pages/report/index?quizId=${encodeURIComponent(sess.quiz_id)}`,
+                      })
+                    }
+                  >
+                    <View className='week-sess-left'>
+                      <Text className='week-sess-title'>{sess.title}</Text>
+                      <Text className='week-sess-sub'>
+                        {sess.domain_name} · {sess.question_count} 题
+                        {sess.weak_points.length > 0
+                          ? ` · 重点：${sess.weak_points.join('、')}`
+                          : ''}
+                      </Text>
+                    </View>
+                    <Text className='week-sess-acc'>{Math.round(sess.accuracy)}%</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text className='week-drill-empty'>当日暂无已交卷记录</Text>
+            )}
+          </View>
+        )}
       </View>
 
       {/* 三维难度掌握分布 */}
@@ -351,33 +440,33 @@ export default function MasteryPage() {
             <Text>→</Text>
           </View>
           <View
-            className={`btn-secondary-ai zx-press ${loadingQuiz ? 'is-disabled' : ''}`}
-            onClick={() => handleStartAiPractice()}
+            className='btn-secondary-ai zx-press'
+            onClick={() => handleStartAiPractice(dueReviews.items.slice(0, 6))}
           >
-            <Text>{loadingQuiz ? '正在变式组卷...' : 'AI 基于错题生成变式拓展测验'}</Text>
+            <Text>
+              {bgQuiz.status === 'running'
+                ? `后台变式组卷中 (${bgQuiz.elapsedSec}s)...`
+                : 'AI 基于错题生成变式拓展测验'}
+            </Text>
           </View>
         </View>
       ) : (
         <View
-          className={`zx-btn-obsidian ${loadingQuiz ? 'is-disabled' : ''}`}
+          className='zx-btn-obsidian'
           onClick={() => handleStartAiPractice()}
         >
-          <Text>按当前画像再刷一组「{activeDomain?.name || '精选'}」</Text>
+          <Text>
+            {bgQuiz.status === 'running'
+              ? `后台出题中 (${bgQuiz.elapsedSec}s)...`
+              : `按当前画像再刷一组「${activeDomain?.name || '精选'}」`}
+          </Text>
           <Text>→</Text>
         </View>
       )}
 
-      {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='mastery' />}
+      <BackgroundTaskPill visible={dockVisible} />
 
-      {loadingQuiz && (
-        <View className='zx-loading-overlay'>
-          <View className='zx-loading-modal'>
-            <View className='zx-spinner' />
-            <Text className='zx-loading-title'>正在调取间隔复习题组</Text>
-            <Text className='zx-loading-sub'>结合当前保持率与难度分布组卷中...</Text>
-          </View>
-        </View>
-      )}
+      {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='mastery' />}
     </View>
   )
 }

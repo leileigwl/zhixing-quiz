@@ -1,0 +1,109 @@
+.bg-pill-wrap {
+  position: fixed;
+  left: 32px;
+  right: 32px;
+  bottom: calc(154px + env(safe-area-inset-bottom));
+  z-index: 900;
+  pointer-events: none;
+}
+
+.bg-pill {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  border-radius: 999px;
+  box-shadow: 0 16px 36px rgba(20, 21, 26, 0.22);
+}
+
+.bg-pill.is-running {
+  background: rgba(24, 25, 30, 0.94);
+  color: #ffffff;
+}
+
+.bg-pill.is-completed {
+  background: #1b6b45;
+  color: #ffffff;
+}
+
+.bg-pill.is-failed {
+  background: #fdf0ee;
+  border: 1Px solid rgba(217, 74, 56, 0.28);
+  color: #c94c3d;
+}
+
+.bg-pill-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.bg-spinner {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.24);
+  border-top-color: #f4d06f;
+  flex-shrink: 0;
+  animation: bgSpin 0.8s linear infinite;
+}
+
+@keyframes bgSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.bg-badge-ok,
+.bg-badge-err {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.bg-pill-texts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bg-pill-title {
+  font-size: 23px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bg-pill-sub {
+  font-size: 19px;
+  opacity: 0.78;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bg-pill-close {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}

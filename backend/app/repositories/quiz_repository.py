@@ -356,7 +356,7 @@ async def get_user_quiz_list(user_id: int, page: int, page_size: int) -> tuple[l
             await cur.execute(
                 "SELECT qs.quiz_id, qs.title, "
                 "COALESCE(ar.accuracy, 0), COALESCE(ar.total_questions, JSON_LENGTH(qs.questions_json), 0), "
-                "qs.created_at, qs.domain_name, qs.source_type "
+                "qs.created_at, qs.domain_name, qs.source_type, (ar.id IS NOT NULL) AS is_submitted, qs.domain_id "
                 "FROM quiz_sessions qs "
                 "LEFT JOIN answer_records ar ON qs.quiz_id = ar.quiz_id "
                 "WHERE qs.user_id = %s "
@@ -374,6 +374,8 @@ async def get_user_quiz_list(user_id: int, page: int, page_size: int) -> tuple[l
                     "created_at": r[4].strftime("%Y-%m-%d %H:%M:%S") if r[4] else "",
                     "domain_name": r[5],
                     "source_type": r[6] or "llm_direct",
+                    "is_submitted": bool(r[7]),
+                    "domain_id": r[8],
                 }
                 for r in rows
             ]

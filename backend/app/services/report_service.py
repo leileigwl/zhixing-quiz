@@ -236,6 +236,7 @@ async def _update_v2_learning_state(
             else None
         )
         daily_counts = await mastery_repository.get_user_daily_counts(user_id, days=7)
+        daily_sessions = await mastery_repository.get_user_weekly_sessions(user_id, days=7)
         session_acc = (
             round((sum(1 for r in graded_records if r.is_correct) / len(graded_records)) * 100.0, 1)
             if graded_records
@@ -250,7 +251,10 @@ async def _update_v2_learning_state(
             session_accuracy=session_acc,
             days_elapsed=1.0,
         )
-        weekly_rhythm = mastery_service.build_weekly_rhythm(daily_counts)
+        weekly_rhythm = mastery_service.build_weekly_rhythm(
+            daily_counts,
+            daily_sessions=daily_sessions,
+        )
 
         await mastery_service.invalidate_mastery_cache(user_id)
     except Exception as exc:

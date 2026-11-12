@@ -61,7 +61,7 @@ function drawRetentionChart(
 
   ctx.fillStyle = '#c94c3d'
   ctx.font = '600 10px "PingFang SC", sans-serif'
-  ctx.fillText('50% 警戒', padL + 2, y50 - 5)
+  ctx.fillText('50% 警戒', Math.max(padL, width - padR - 46), y50 - 5)
 
   // 下层：未巩固自然遗忘对照虚线（仅当存在 baseline_pct 且分叉后绘制）
   const hasBaseline = safePoints.some((p) => typeof p.baseline_pct === 'number')
@@ -119,10 +119,23 @@ function drawRetentionChart(
   safePoints.forEach((pt, idx) => {
     const x = toX(idx)
     const y = toY(pt.retention_pct)
+    if (pt.is_actual) {
+      ctx.fillStyle = '#ffffff'
+      ctx.beginPath()
+      ctx.arc(x, y, 4, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.strokeStyle = '#18191e'
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      ctx.fillStyle = '#525866'
+      ctx.font = '600 9px "PingFang SC", sans-serif'
+      ctx.fillText(`${Math.round(pt.retention_pct)}%`, Math.max(padL, x - 11), Math.max(12, y - 8))
+    }
     if (pt.is_today) {
       ctx.fillStyle = '#d8685a'
       ctx.beginPath()
-      ctx.arc(x, y, 4, 0, Math.PI * 2)
+      ctx.arc(x, y, 4.2, 0, Math.PI * 2)
       ctx.fill()
     }
     if (pt.is_recovery) {
@@ -140,7 +153,7 @@ function drawRetentionChart(
         delta > 0 ? `巩固 ${Math.round(pt.retention_pct)}% (+${delta}%)` : `保持 ${Math.round(pt.retention_pct)}%`
       ctx.fillStyle = '#2563eb'
       ctx.font = '700 10px "PingFang SC", sans-serif'
-      ctx.fillText(labelTxt, Math.min(x + 6, width - 102), Math.max(12, y - 9))
+      ctx.fillText(labelTxt, Math.min(x + 6, width - 108), Math.max(12, y - 9))
     }
   })
 

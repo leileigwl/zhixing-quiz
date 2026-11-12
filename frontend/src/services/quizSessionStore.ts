@@ -3,17 +3,48 @@ import type { AnswerRecord, QuizData, QuizImageStatus } from './api'
 
 const ACTIVE_QUIZ_KEY = 'zx_active_quiz'
 const ACTIVE_ANSWERS_KEY = 'zx_active_answers'
+const DRAFT_PREFIX = 'zx_draft_'
 
 let memoryQuiz: QuizData | null = null
 let memoryAnswers: AnswerRecord[] = []
 
+function saveDraftForQuiz(quizId: string, answers: AnswerRecord[]) {
+  if (!quizId || quizId.startsWith('revq_')) return
+  try {
+    Taro.setStorageSync(`${DRAFT_PREFIX}${quizId}`, answers)
+  } catch {
+    // ignore storage quota errors
+  }
+}
+
+export function getSavedDraftForQuiz(quizId: string): AnswerRecord[] {
+  if (!quizId || quizId.startsWith('revq_')) return []
+  try {
+    const raw = Taro.getStorageSync(`${DRAFT_PREFIX}${quizId}`)
+    return Array.isArray(raw) ? (raw as AnswerRecord[]) : []
+  } catch {
+    return []
+  }
+}
+
+export function clearSavedDraftForQuiz(quizId: string) {
+  if (!quizId) return
+  try {
+    Taro.removeStorageSync(`${DRAFT_PREFIX}${quizId}`)
+  } catch {
+    // ignore
+  }
+}
+
 /** 保存当前待作答或已完成的题库，避免路由 URL 参数过长被截断 */
 export function setActiveQuizSession(quizData: QuizData, answers: AnswerRecord[] = []) {
+  const restoredAnswers =
+    answers.length > 0 ? answers : getSavedDraftForQuiz(quizData.quiz_id)
   memoryQuiz = quizData
-  memoryAnswers = answers
+  memoryAnswers = restoredAnswers
   try {
     Taro.setStorageSync(ACTIVE_QUIZ_KEY, quizData)
-    Taro.setStorageSync(ACTIVE_ANSWERS_KEY, answers)
+    Taro.setStorageSync(ACTIVE_ANSWERS_KEY, restoredAnswers)
   } catch {
     // 极端存储配额受限时保留内存副本即可
   }
@@ -45,6 +76,9 @@ export function getActiveQuizSession(expectedQuizId?: string): {
 
 export function setActiveAnswerRecords(answers: AnswerRecord[]) {
   memoryAnswers = answers
+  if (memoryQuiz?.quiz_id) {
+    saveDraftForQuiz(memoryQuiz.quiz_id, answers)
+  }
   try {
     Taro.setStorageSync(ACTIVE_ANSWERS_KEY, answers)
   } catch {

@@ -678,6 +678,88 @@ async def get_user_daily_counts(user_id: int, days: int = 7) -> dict[str, int]:
             return {str(r[0]): int(r[1]) for r in rows}
 
 
+async def get_user_weekly_sessions(user_id: int, days: int = 7) -> dict[str, list[dict]]:
+    """查询过去 N 天每天完成的具体测验明细，供本周节律与印章点击下钻。"""
+    pool = get_mysql_pool()
+    if pool is None:
+        return {}
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT DATE_FORMAT(ar.created_at, '%%Y-%%m-%%d') AS d, ar.quiz_id, "
+                "COALESCE(qs.title, '专题测验'), COALESCE(qs.domain_name, '综合知识域'), "
+                "ar.total_questions, ar.accuracy, rp.report_json "
+                "FROM answer_records ar "
+                "LEFT JOIN quiz_sessions qs ON qs.quiz_id = ar.quiz_id "
+                "LEFT JOIN reports rp ON rp.quiz_id = ar.quiz_id AND rp.status = 'completed' "
+                "WHERE ar.user_id = %s AND ar.created_at >= DATE_SUB(CURDATE(), INTERVAL %s DAY) "
+                "ORDER BY ar.created_at DESC",
+                (user_id, days),
+            )
+            rows = await cur.fetchall()
+            grouped: dict[str, list[dict]] = {}
+            for r in rows:
+                d_str = str(r[0])
+                weak_points: list[str] = []
+                raw_rp = r[6]
+                if raw_rp:
+                    try:
+                        rp_dict = json.loads(raw_rp) if isinstance(raw_rp, str) else raw_rp
+                        if isinstance(rp_dict, dict):
+                            weak_points = [str(w) for w in (rp_dict.get("weak_points") or [])[:3] if w]
+                    except Exception:
+                        weak_points = []
+                grouped.setdefault(d_str, []).append(
+                    {
+                        "quiz_id": str(r[1]),
+                        "title": str(r[2] or "专题测验"),
+                        "domain_name": str(r[3] or "综合知识域"),
+                        "question_count": int(r[4] or 0),
+                        "accuracy": round(float(r[5] or 0), 1),
+                        "weak_points": weak_points,
+                    }
+                )
+            return grouped
+
+
+async def get_domain_recent_history(
+    user_id: int,
+    domain_id: Optional[int] = None,
+    limit: int = 4,
+) -> list[dict]:
+    """查询指定领域（或全局）最近几场已交卷记录，按时间正序输出真实曲线节点。"""
+    pool = get_mysql_pool()
+    if pool is None:
+        return []
+    where_clause = "ar.user_id = %s"
+    params: list = [user_id]
+    if domain_id is not None:
+        where_clause += " AND qs.domain_id = %s"
+        params.append(domain_id)
+    params.append(limit)
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                f"SELECT ar.quiz_id, COALESCE(qs.title, '专题测验'), ar.accuracy, ar.created_at "
+                f"FROM answer_records ar "
+                f"INNER JOIN quiz_sessions qs ON qs.quiz_id = ar.quiz_id "
+                f"WHERE {where_clause} "
+                f"ORDER BY ar.created_at DESC LIMIT %s",
+                tuple(params),
+            )
+            rows = await cur.fetchall()
+            ordered = list(reversed(rows))
+            return [
+                {
+                    "quiz_id": str(r[0]),
+                    "title": str(r[1] or "专题测验"),
+                    "accuracy": round(float(r[2] or 0), 1),
+                    "day_label": r[3].strftime("%m/%d") if r[3] else "历史",
+                }
+                for r in ordered
+            ]
+
+
 async def get_seven_day_forecast(user_id: int) -> list[int]:
     """统计未来 7 天每天预计到期的错题卡数量。"""
     pool = get_mysql_pool()

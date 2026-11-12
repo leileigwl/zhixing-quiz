@@ -192,6 +192,78 @@
   font-weight: 700;
 }
 
+.stamp-badge.is-selected {
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.3);
+}
+
+.stamp-detail-box {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border-radius: 24px;
+  background: var(--bg-canvas);
+}
+
+.stamp-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.stamp-detail-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.stamp-detail-acc {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ds-blue);
+}
+
+.stamp-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stamp-session-row {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.stamp-sess-title {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.stamp-sess-sub {
+  display: block;
+  font-size: 19px;
+  color: var(--ink-500);
+  margin-top: 2px;
+}
+
+.stamp-sess-acc {
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--ink-900);
+  white-space: nowrap;
+}
+
+.stamp-detail-empty {
+  font-size: 21px;
+  color: var(--ink-400);
+}
+
 /* 待复习队列 */
 .due-queue-card {
   padding: 28px 30px;
@@ -477,6 +549,12 @@
   font-weight: 700;
   color: var(--ink-900);
   white-space: nowrap;
+}
+
+.acc-tag.is-pending {
+  background: #fff6db;
+  color: #a16207;
+  font-size: 21px;
 }
 
 .load-more {

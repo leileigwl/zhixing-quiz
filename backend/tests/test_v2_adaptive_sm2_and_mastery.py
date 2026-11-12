@@ -418,3 +418,73 @@ class TestMasteryAndReviewRoutes:
         assert data["graduated_count"] == 1
         assert data["remaining_due"] == 0
 
+
+class TestV22ScheduleAndWeeklyDrilldown:
+    def test_domain_curve_varies_with_actual_history_and_schedule(self):
+        from app.services import mastery_service
+
+        curve_a = mastery_service.build_retention_curve(
+            stability_days=3.0,
+            current_retention=54.0,
+            mastery_score=52.0,
+            history_points=[
+                {"day_label": "11/10", "accuracy": 40.0, "title": "HTTP/3"},
+                {"day_label": "11/11", "accuracy": 60.0, "title": "QUIC"},
+            ],
+        )
+        curve_b = mastery_service.build_retention_curve(
+            stability_days=15.0,
+            current_retention=91.0,
+            mastery_score=92.0,
+            history_points=[
+                {"day_label": "11/10", "accuracy": 85.0, "title": "BM25"},
+                {"day_label": "11/11", "accuracy": 95.0, "title": "RRF"},
+            ],
+        )
+        actual_a = [p for p in curve_a if p.is_actual]
+        actual_b = [p for p in curve_b if p.is_actual]
+        assert len(actual_a) == 2 and len(actual_b) == 2
+        assert [p.retention_pct for p in curve_a] != [p.retention_pct for p in curve_b]
+        assert curve_a[-1].retention_pct < curve_b[-1].retention_pct
+
+        sched = mastery_service.compute_schedule_for_domain(
+            domain_id=1,
+            domain_name="计算机网络",
+            stability_days=3.0,
+            retention_rate=58.0,
+            mastery_score=52.0,
+            recommended_count=4,
+            due_review_count=0,
+        )
+        assert sched.critical_days > 0
+        assert "明日" in sched.when_label or "天后" in sched.when_label
+        assert "4 题" in sched.reason
+
+    def test_weekly_rhythm_includes_drilldown_sessions(self):
+        from datetime import datetime
+
+        from app.services import mastery_service
+
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        rhythm = mastery_service.build_weekly_rhythm(
+            daily_counts={today_str: 5},
+            daily_sessions={
+                today_str: [
+                    {
+                        "quiz_id": "quiz_1",
+                        "title": "Transformer 注意力",
+                        "domain_name": "大模型与 AI",
+                        "question_count": 5,
+                        "accuracy": 80.0,
+                        "weak_points": ["KV Cache"],
+                    }
+                ]
+            },
+        )
+        today_item = next(d for d in rhythm if d.is_today)
+        assert today_item.date_str == today_str
+        assert today_item.quiz_count == 1
+        assert today_item.avg_accuracy == 80.0
+        assert today_item.sessions[0].title == "Transformer 注意力"
+
+

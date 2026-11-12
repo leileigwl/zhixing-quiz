@@ -8,16 +8,20 @@ import {
   uploadKnowledgeDocumentFromPath,
   uploadKnowledgeDocumentFromWebFile,
   deleteKnowledgeDocument,
-  generateQuizAsync,
-  pollQuizTask,
   getMasteryOverview,
   waitForLogin,
   type KnowledgeDocumentItem,
   type MasteryOverviewResponse,
 } from '../../services/api'
-import { setActiveQuizSession } from '../../services/quizSessionStore'
 import { groupDocumentsToPockets } from '../../services/v2Adapters'
+import {
+  getBackgroundQuizState,
+  startBackgroundQuizGeneration,
+  subscribeBackgroundQuiz,
+  type BackgroundQuizState,
+} from '../../services/backgroundQuizManager'
 import FloatingDock from '../../components/FloatingDock'
+import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
 const SUPPORTED_EXTENSIONS = ['pdf', 'docx', 'md', 'txt']
@@ -41,8 +45,9 @@ export default function KnowledgePage() {
   const [activeDomain, setActiveDomain] = useState<string>('全部')
   const [uploading, setUploading] = useState(false)
   const [dockVisible, setDockVisible] = useState(true)
-  const [generatingDocId, setGeneratingDocId] = useState<string | null>(null)
-  const [generatingText, setGeneratingText] = useState('正在创建出题任务...')
+  const [bgQuiz, setBgQuiz] = useState<BackgroundQuizState>(() => getBackgroundQuizState())
+
+  useEffect(() => subscribeBackgroundQuiz(setBgQuiz), [])
 
   const pollTimers = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -240,38 +245,19 @@ export default function KnowledgePage() {
     })
   }
 
-  const handleStartQuiz = async (doc: KnowledgeDocumentItem) => {
-    if (doc.status !== 'ready' || generatingDocId) return
-
-    setGeneratingDocId(doc.doc_id)
-    setGeneratingText('正在按文档主题检索关键段落...')
-    try {
-      const { task_id } = await generateQuizAsync({
-        user_input: `请基于我的知识库文档《${doc.file_name}》生成一套高质量自适应自测题`,
-        question_count: 5,
-        adaptive_mode: true,
-        doc_id: doc.doc_id,
-        domain_id: doc.domain_id,
-      })
-
-      const quizData = await pollQuizTask(task_id, (status, task) => {
-        if (task?.stage_message) {
-          setGeneratingText(task.stage_message)
-        } else if (status === 'running') {
-          setGeneratingText('AI 正在结合文档语义出题...')
-        }
-      })
-
-      setActiveQuizSession(quizData, [])
-      Taro.navigateTo({
-        url: `/pages/quiz/index?quizId=${encodeURIComponent(quizData.quiz_id)}`,
-      })
-    } catch (err: any) {
-      Taro.showToast({ title: err?.message || '生成失败，请稍后重试', icon: 'none' })
-    } finally {
-      setGeneratingDocId(null)
-      setGeneratingText('正在创建出题任务...')
-    }
+  const handleStartQuiz = (doc: KnowledgeDocumentItem) => {
+    if (doc.status !== 'ready') return
+    void startBackgroundQuizGeneration({
+      user_input: `请基于我的知识库文档《${doc.file_name}》生成一套高质量自适应自测题`,
+      question_count: 5,
+      adaptive_mode: true,
+      doc_id: doc.doc_id,
+      doc_ids: [doc.doc_id],
+      domain_id: doc.domain_id,
+      enable_web_search: true,
+      displayTopic: doc.file_name.replace(/\.[^.]+$/, ''),
+      initiatedRoute: 'pages/knowledge/index',
+    })
   }
 
   return (
@@ -377,7 +363,7 @@ export default function KnowledgePage() {
                       className='btn-doc-quiz zx-press'
                       onClick={() => handleStartQuiz(doc)}
                     >
-                      <Text>出题 →</Text>
+                      <Text>{bgQuiz.status === 'running' ? '出题中...' : '出题 →'}</Text>
                     </View>
                   ) : (
                     <View className={`doc-status ${st.cls}`}>
@@ -394,17 +380,9 @@ export default function KnowledgePage() {
         </View>
       )}
 
-      {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='knowledge' />}
+      <BackgroundTaskPill visible={dockVisible} />
 
-      {generatingDocId && (
-        <View className='zx-loading-overlay'>
-          <View className='zx-loading-modal'>
-            <View className='zx-spinner' />
-            <Text className='zx-loading-title'>AI 正在阅读口袋资料</Text>
-            <Text className='zx-loading-sub'>{generatingText}</Text>
-          </View>
-        </View>
-      )}
+      {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='knowledge' />}
     </View>
   )
 }

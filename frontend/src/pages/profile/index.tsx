@@ -7,8 +7,6 @@ import {
   getDueReviews,
   getMasteryOverview,
   markQuestionForReview,
-  generateQuizAsync,
-  pollQuizTask,
   updateUserProfile,
   setCachedUser,
   waitForLogin,
@@ -27,7 +25,14 @@ import {
   readSwrCache,
   writeSwrCache,
 } from '../../services/v2Adapters'
+import {
+  getBackgroundQuizState,
+  startBackgroundQuizGeneration,
+  subscribeBackgroundQuiz,
+  type BackgroundQuizState,
+} from '../../services/backgroundQuizManager'
 import FloatingDock from '../../components/FloatingDock'
+import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
 export default function ProfilePage() {
@@ -44,13 +49,14 @@ export default function ProfilePage() {
     () => readSwrCache<MasteryOverviewResponse>('profile_overview'),
   )
   const [expandedCardId, setExpandedCardId] = useState<number | null>(null)
+  const [selectedStampIdx, setSelectedStampIdx] = useState<number | null>(null)
   const [totalHistory, setTotalHistory] = useState(0)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draftName, setDraftName] = useState('')
-  const [startingDueQuiz, setStartingDueQuiz] = useState(false)
+  const [bgQuiz, setBgQuiz] = useState<BackgroundQuizState>(() => getBackgroundQuizState())
   const [dockVisible, setDockVisible] = useState(true)
 
   const loadProfile = useCallback(async () => {
@@ -106,6 +112,7 @@ export default function ProfilePage() {
     Taro.eventCenter.trigger('zx:tab-change', 'profile')
     void loadProfile()
     void loadHistory(1, true)
+    return subscribeBackgroundQuiz(setBgQuiz)
   })
 
   useDidHide(() => {
@@ -120,14 +127,32 @@ export default function ProfilePage() {
     [overview],
   )
 
+  const resolvedStampIdx = useMemo(() => {
+    if (selectedStampIdx !== null && stampWeek[selectedStampIdx]) return selectedStampIdx
+    let lastDone = -1
+    stampWeek.forEach((d, i) => {
+      if ((d.completed_count || 0) > 0) lastDone = i
+    })
+    if (lastDone >= 0) return lastDone
+    const todayIdx = stampWeek.findIndex((d) => d.is_today)
+    return todayIdx >= 0 ? todayIdx : 0
+  }, [selectedStampIdx, stampWeek])
+  const activeStampDay = stampWeek[resolvedStampIdx]
+
   const handleLoadMore = () => {
     if (!hasMore || loadingMore) return
     void loadHistory(page + 1, false)
   }
 
-  const handleViewDetail = (quizId: string) => {
+  const handleViewDetail = (item: QuizHistoryItem) => {
+    if (item.is_submitted === false) {
+      Taro.navigateTo({
+        url: `/pages/quiz/index?quizId=${encodeURIComponent(item.quiz_id)}`,
+      })
+      return
+    }
     Taro.navigateTo({
-      url: `/pages/report/index?quizId=${encodeURIComponent(quizId)}`,
+      url: `/pages/report/index?quizId=${encodeURIComponent(item.quiz_id)}`,
     })
   }
 
@@ -169,30 +194,19 @@ export default function ProfilePage() {
     })
   }
 
-  const handleAiVariantCards = async (cards: DueReviewCardItem[]) => {
-    if (startingDueQuiz || cards.length === 0) return
-    setStartingDueQuiz(true)
-    try {
-      const ids = cards.slice(0, 6).map((c) => c.card_id)
-      const topicNames = Array.from(new Set(cards.map((c) => c.domain_name))).join('、')
-      const { task_id } = await generateQuizAsync({
-        user_input: `针对错题「${topicNames || '核心薄弱点'}」生成举一反三变式强化测验`,
-        question_count: Math.max(1, ids.length),
-        adaptive_mode: false,
-        enable_web_search: true,
-        review_card_ids: ids,
-      })
-      const quizData = await pollQuizTask(task_id)
-      invalidateSwrCache('home_')
-      setActiveQuizSession(quizData, [])
-      Taro.navigateTo({
-        url: `/pages/quiz/index?quizId=${encodeURIComponent(quizData.quiz_id)}`,
-      })
-    } catch (err: any) {
-      Taro.showToast({ title: err?.message || '调起变式复习失败', icon: 'none' })
-    } finally {
-      setStartingDueQuiz(false)
-    }
+  const handleAiVariantCards = (cards: DueReviewCardItem[]) => {
+    if (cards.length === 0) return
+    const ids = cards.slice(0, 6).map((c) => c.card_id)
+    const topicNames = Array.from(new Set(cards.map((c) => c.domain_name))).join('、')
+    void startBackgroundQuizGeneration({
+      user_input: `针对错题「${topicNames || '核心薄弱点'}」生成举一反三变式强化测验`,
+      question_count: Math.max(1, ids.length),
+      adaptive_mode: false,
+      enable_web_search: true,
+      review_card_ids: ids,
+      displayTopic: `错题变式 (${ids.length}题)`,
+      initiatedRoute: 'pages/profile/index',
+    })
   }
 
   const handleMarkMastered = async (card: DueReviewCardItem) => {
@@ -289,20 +303,25 @@ export default function ProfilePage() {
         </View>
       </View>
 
-      {/* DAYPATCH 打卡印章微条 */}
+      {/* DAYPATCH 打卡印章微条（支持点击任意一天下钻当天学过的具体测验与考点） */}
       <View className='zx-card stamp-card'>
         <View className='stamp-head'>
           <Text className='stamp-title'>本周学习印章</Text>
-          <Text className='stamp-sub'>共测验 {profile?.quiz_count ?? 0} 局</Text>
+          <Text className='stamp-sub'>点击任意一天看明细 · 共 {profile?.quiz_count ?? 0} 局</Text>
         </View>
         <View className='stamp-grid'>
           {stampWeek.map((d, idx) => {
             const done = d.completed_count > 0
+            const isSel = resolvedStampIdx === idx
             return (
-              <View key={`${d.date_num}-${idx}`} className='stamp-cell'>
+              <View
+                key={`${d.date_num}-${idx}`}
+                className='stamp-cell zx-press'
+                onClick={() => setSelectedStampIdx(idx)}
+              >
                 <Text className='stamp-wk'>{d.day_label}</Text>
                 <View
-                  className={`stamp-badge ${done ? 'is-yes' : d.is_today ? 'is-today-idle' : ''}`}
+                  className={`stamp-badge ${done ? 'is-yes' : d.is_today ? 'is-today-idle' : ''} ${isSel ? 'is-selected' : ''}`}
                 >
                   <Text>{d.is_today && done ? 'YES!' : done ? 'AHA' : d.is_today ? '今日' : d.date_num}</Text>
                 </View>
@@ -310,6 +329,45 @@ export default function ProfilePage() {
             )
           })}
         </View>
+
+        {activeStampDay && (
+          <View className='stamp-detail-box'>
+            <View className='stamp-detail-head'>
+              <Text className='stamp-detail-title'>
+                {activeStampDay.is_today ? '今日' : `周${activeStampDay.day_label}`}（{activeStampDay.date_num}日）· 完成 {activeStampDay.completed_count} 题
+              </Text>
+              {typeof activeStampDay.avg_accuracy === 'number' && (
+                <Text className='stamp-detail-acc'>平均 {Math.round(activeStampDay.avg_accuracy)}%</Text>
+              )}
+            </View>
+            {activeStampDay.sessions && activeStampDay.sessions.length > 0 ? (
+              <View className='stamp-session-list'>
+                {activeStampDay.sessions.map((sess) => (
+                  <View
+                    key={sess.quiz_id}
+                    className='stamp-session-row zx-press'
+                    onClick={() =>
+                      Taro.navigateTo({
+                        url: `/pages/report/index?quizId=${encodeURIComponent(sess.quiz_id)}`,
+                      })
+                    }
+                  >
+                    <View>
+                      <Text className='stamp-sess-title'>{sess.title}</Text>
+                      <Text className='stamp-sess-sub'>
+                        {sess.domain_name} · {sess.question_count} 题
+                        {sess.weak_points.length > 0 ? ` · ${sess.weak_points.join('、')}` : ''}
+                      </Text>
+                    </View>
+                    <Text className='stamp-sess-acc'>{Math.round(sess.accuracy)}%</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text className='stamp-detail-empty'>当日暂无已交卷记录</Text>
+            )}
+          </View>
+        )}
       </View>
 
       {/* ARQ 待复习错题本（支持手风琴展开选项/答案/解析 + 秒开回顾 + AI变式 + 掌握毕业） */}
@@ -331,7 +389,7 @@ export default function ProfilePage() {
                 className='btn-due-variant zx-press'
                 onClick={() => handleAiVariantCards(dueReviews.items.slice(0, 6))}
               >
-                <Text>{startingDueQuiz ? '组题中...' : 'AI 变式'}</Text>
+                <Text>{bgQuiz.status === 'running' ? '出题中...' : 'AI 变式'}</Text>
               </View>
               <View
                 className='btn-due-go zx-press'
@@ -437,20 +495,22 @@ export default function ProfilePage() {
         <View className='history-list'>
           {historyItems.map((item) => {
             const acc = Math.round(item.accuracy)
+            const pending = item.is_submitted === false
             return (
               <View
                 key={item.quiz_id}
                 className='zx-card history-card zx-press'
-                onClick={() => handleViewDetail(item.quiz_id)}
+                onClick={() => handleViewDetail(item)}
               >
                 <View className='history-left'>
                   <Text className='history-title'>{item.title}</Text>
                   <Text className='history-meta'>
                     {item.created_at} · {item.question_count} 题
+                    {item.domain_name ? ` · ${item.domain_name}` : ''}
                   </Text>
                 </View>
-                <View className='acc-tag'>
-                  <Text>{acc}%</Text>
+                <View className={`acc-tag ${pending ? 'is-pending' : ''}`}>
+                  <Text>{pending ? '待完成 · 继续 ›' : `${acc}%`}</Text>
                 </View>
               </View>
             )
@@ -462,6 +522,8 @@ export default function ProfilePage() {
           )}
         </View>
       )}
+
+      <BackgroundTaskPill visible={dockVisible} />
 
       {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='profile' />}
     </View>

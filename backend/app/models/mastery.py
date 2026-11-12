@@ -27,6 +27,9 @@ class DomainMasterySummary(BaseModel):
     due_review_count: int = 0
     recommended_count: int = 6
     below_threshold: bool = False
+    next_review_day_label: str = "明日巩固"
+    next_recommended_difficulty: str = "中等进阶"
+    schedule_reason: str = ""
     difficulty_stats: DifficultyMatrixStats = Field(default_factory=DifficultyMatrixStats)
 
 
@@ -36,14 +39,39 @@ class RetentionCurvePoint(BaseModel):
     baseline_pct: Optional[float] = None
     is_today: bool = False
     is_recovery: bool = False
+    is_actual: bool = False
+    quiz_title: Optional[str] = None
+
+
+class WeeklyRhythmSessionItem(BaseModel):
+    quiz_id: str
+    title: str
+    domain_name: str = "综合知识域"
+    question_count: int = 0
+    accuracy: float = 0.0
+    weak_points: list[str] = Field(default_factory=list)
 
 
 class WeeklyRhythmDay(BaseModel):
     day_label: str
     date_num: str
+    date_str: str = ""
     completed_count: int = 0
+    quiz_count: int = 0
+    avg_accuracy: Optional[float] = None
     is_today: bool = False
     active: bool = False
+    sessions: list[WeeklyRhythmSessionItem] = Field(default_factory=list)
+
+
+class MasteryScheduleSummary(BaseModel):
+    domain_id: Optional[int] = None
+    domain_name: str = "综合知识域"
+    when_label: str = "明日巩固"
+    recommended_count: int = 4
+    focus_difficulty: str = "中等进阶"
+    critical_days: float = 3.0
+    reason: str = ""
 
 
 class MasteryOverviewResponse(BaseModel):
@@ -52,6 +80,7 @@ class MasteryOverviewResponse(BaseModel):
     due_review_total: int = 0
     subscribe_remaining: int = 0
     focus_domain: Optional[DomainMasterySummary] = None
+    next_plan: Optional[MasteryScheduleSummary] = None
     domains: list[DomainMasterySummary] = Field(default_factory=list)
     retention_curve: list[RetentionCurvePoint] = Field(default_factory=list)
     weekly_rhythm: list[WeeklyRhythmDay] = Field(default_factory=list)

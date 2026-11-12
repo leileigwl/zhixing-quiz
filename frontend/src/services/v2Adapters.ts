@@ -68,15 +68,19 @@ export function invalidateSwrCache(prefix?: string): void {
 
 const WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 
-/** 计算真实 7 日节律条：优先直接映射后端 WeeklyRhythmDay[]，兜底才构造本地 7 日 */
+/** 计算真实 7 日节律条：优先直接映射后端 WeeklyRhythmDay[]，保留完整日期、局数与明细 */
 export function buildRealCalendarStrip(input: number[] | WeeklyRhythmDay[] = []): WeeklyRhythmDay[] {
   if (Array.isArray(input) && input.length > 0 && typeof input[0] === 'object') {
     return (input as WeeklyRhythmDay[]).slice(-7).map((item) => ({
       day_label: item.day_label || '',
       date_num: item.date_num || '',
+      date_str: item.date_str || '',
       completed_count: Number(item.completed_count || 0),
+      quiz_count: Number(item.quiz_count || 0),
+      avg_accuracy: item.avg_accuracy ?? null,
       is_today: Boolean(item.is_today),
       active: Boolean(item.active),
+      sessions: Array.isArray(item.sessions) ? item.sessions : [],
     }))
   }
 
@@ -92,9 +96,13 @@ export function buildRealCalendarStrip(input: number[] | WeeklyRhythmDay[] = [])
     result.push({
       day_label: WEEK_LABELS[dayIdx],
       date_num: dd,
+      date_str: d.toISOString().slice(0, 10),
       completed_count: count,
+      quiz_count: 0,
+      avg_accuracy: null,
       is_today: offset === 0,
       active: offset === 0 || count > 0,
+      sessions: [],
     })
   }
   return result
@@ -291,6 +299,15 @@ export function buildFallbackMasteryOverview(
     overall_retention: latestAcc,
     due_review_total: historyItems.filter((h) => h.accuracy < 80).length,
     subscribe_remaining: 0,
+    next_plan: {
+      domain_id: 1,
+      domain_name: focusName,
+      when_label: '3 天后巩固',
+      recommended_count: computeRecommendedCount('familiar', latestAcc),
+      focus_difficulty: latestAcc < 50 ? '基础巩固为主' : '中等阶梯突破',
+      critical_days: 3.5,
+      reason: `按当前 ${latestAcc}% 保持率推算，建议 3 天后按 ${computeRecommendedCount('familiar', latestAcc)} 题巩固`,
+    },
     focus_domain: {
       domain_id: 1,
       name: focusName,

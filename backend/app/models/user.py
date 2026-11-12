@@ -58,8 +58,10 @@ class QuizHistoryItem(BaseModel):
     title: str
     accuracy: float
     question_count: int
+    domain_id: Optional[int] = None
     domain_name: Optional[str] = None
     source_type: Optional[str] = None
+    is_submitted: bool = True
     created_at: str
 
 
@@ -75,6 +77,7 @@ class QuizDetailResponse(BaseModel):
     title: str
     summary: str
     user_input: Optional[str] = None
+    domain_id: Optional[int] = None
     domain_name: Optional[str] = None
     source_type: Optional[str] = None
     questions: list

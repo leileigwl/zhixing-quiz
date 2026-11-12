@@ -17,6 +17,7 @@ import {
 } from '../../services/api'
 import {
   getActiveQuizSession,
+  getSavedDraftForQuiz,
   setActiveAnswerRecords,
   setActiveQuizSession,
   updateActiveQuizImages,
@@ -59,16 +60,27 @@ export default function QuizPage() {
             image_status: detail.image_status,
             image_notice: detail.image_notice,
           }
+          const restoredRecords =
+            detail.answer_records && detail.answer_records.length > 0
+              ? detail.answer_records
+              : getSavedDraftForQuiz(detail.quiz_id)
           setQuizData(restored)
-          setActiveQuizSession(restored, detail.answer_records || [])
-          if (detail.answer_records?.length) {
-            setAnswerRecords(detail.answer_records)
-            const firstAns = detail.answer_records.find((r) => r.question_id === detail.questions[0]?.id)
-            if (firstAns) {
-              setSelectedAnswers(firstAns.selected_answers)
-              setSubmitted(true)
-              setExplainVisible(true)
-              setIsReviewReadonly(true)
+          setActiveQuizSession(restored, restoredRecords)
+          if (restoredRecords.length > 0) {
+            setAnswerRecords(restoredRecords)
+            const firstUnansweredIdx = detail.questions.findIndex(
+              (q) => !restoredRecords.some((r) => r.question_id === q.id),
+            )
+            if (firstUnansweredIdx > 0 && !(detail.answer_records && detail.answer_records.length > 0)) {
+              setCurrentIndex(firstUnansweredIdx)
+            } else {
+              const firstAns = restoredRecords.find((r) => r.question_id === detail.questions[0]?.id)
+              if (firstAns) {
+                setSelectedAnswers(firstAns.selected_answers)
+                setSubmitted(true)
+                setExplainVisible(true)
+                setIsReviewReadonly(true)
+              }
             }
           }
         })

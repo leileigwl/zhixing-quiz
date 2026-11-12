@@ -1,20 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { View, Text, Textarea, Image, ScrollView } from '@tarojs/components'
+import { View, Text, Textarea, Image } from '@tarojs/components'
 import Taro, { useDidHide, useDidShow } from '@tarojs/taro'
 import {
-  ensureLogin,
-  generateQuizAsync,
-  pollQuizTask,
   getCachedUser,
   getUserProfile,
   setCachedUser,
-  getQuizHistory,
   getKnowledgeDocuments,
   getMasteryOverview,
   getDueReviews,
   waitForLogin,
   type UserBrief,
-  type QuizHistoryItem,
   type KnowledgeDocumentItem,
   type MasteryOverviewResponse,
   type DueReviewsResponse,
@@ -26,21 +21,30 @@ import {
   buildEmptyDueReviews,
   buildFallbackMasteryOverview,
   buildInstantReviewQuiz,
-  buildRealCalendarStrip,
   computeRecommendedCount,
-  invalidateSwrCache,
   readSwrCache,
   writeSwrCache,
 } from '../../services/v2Adapters'
+import {
+  getBackgroundQuizState,
+  startBackgroundQuizGeneration,
+  subscribeBackgroundQuiz,
+  type BackgroundQuizState,
+} from '../../services/backgroundQuizManager'
 import FloatingDock from '../../components/FloatingDock'
-import GeometricProp from '../../components/GeometricProp'
+import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
 const QUICK_TOPICS = ['RAG 检索', 'HTTP/3', '分布式锁']
 
-const COUNT_CHOICES: Array<{ value: QuestionCountChoice; label: string }> = [
+const PRIMARY_COUNT_CHOICES: Array<{ value: 'fast3' | 'adaptive'; label: string }> = [
+  { value: 'fast3', label: '快速 3题' },
+  { value: 'adaptive', label: '智能推荐' },
+]
+
+const ALL_COUNT_CHOICES: Array<{ value: QuestionCountChoice; label: string }> = [
   { value: 3, label: '3题' },
-  { value: 'adaptive', label: '自适应' },
+  { value: 'adaptive', label: '智能推荐' },
   { value: 5, label: '5题' },
   { value: 10, label: '10题' },
 ]
@@ -51,10 +55,15 @@ const SELF_LEVELS: Array<{ value: SelfRatedLevel; label: string }> = [
   { value: 'mastered', label: '熟练' },
 ]
 
+const SELF_LABELS: Record<SelfRatedLevel, string> = {
+  unfamiliar: '陌生',
+  familiar: '略懂',
+  mastered: '熟练',
+}
+
 export default function IndexPage() {
   const [inputValue, setInputValue] = useState('')
   const [referenceText, setReferenceText] = useState('')
-  const [showReferenceInput, setShowReferenceInput] = useState(false)
   const [enableWebSearch, setEnableWebSearch] = useState(true)
   const [generateImages, setGenerateImages] = useState(false)
   const [questionChoice, setQuestionChoice] = useState<QuestionCountChoice>('adaptive')
@@ -62,14 +71,12 @@ export default function IndexPage() {
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([])
   const [selectedDomainId, setSelectedDomainId] = useState<number | undefined>(undefined)
 
-  const [loading, setLoading] = useState(false)
-  const [loadingText, setLoadingText] = useState('正在创建出题任务...')
+  const [showMaterialSheet, setShowMaterialSheet] = useState(false)
+  const [showSettingsSheet, setShowSettingsSheet] = useState(false)
   const [dockVisible, setDockVisible] = useState(true)
+  const [bgQuiz, setBgQuiz] = useState<BackgroundQuizState>(() => getBackgroundQuizState())
 
   const [user, setUser] = useState<UserBrief | null>(() => getCachedUser())
-  const [historyItems, setHistoryItems] = useState<QuizHistoryItem[]>(
-    () => readSwrCache<QuizHistoryItem[]>('home_history') || [],
-  )
   const [docs, setDocs] = useState<KnowledgeDocumentItem[]>(
     () => readSwrCache<KnowledgeDocumentItem[]>('home_docs') || [],
   )
@@ -79,6 +86,8 @@ export default function IndexPage() {
   const [dueReviews, setDueReviews] = useState<DueReviewsResponse>(
     () => readSwrCache<DueReviewsResponse>('home_due_all') || buildEmptyDueReviews(),
   )
+
+  useEffect(() => subscribeBackgroundQuiz(setBgQuiz), [])
 
   const loadData = useCallback(async (domainId?: number) => {
     await waitForLogin()
@@ -92,9 +101,8 @@ export default function IndexPage() {
     if (swrOv) setOverview(swrOv)
     if (swrDue) setDueReviews(swrDue)
 
-    const [profileRes, histRes, docsRes, masteryRes, dueRes] = await Promise.all([
+    const [profileRes, docsRes, masteryRes, dueRes] = await Promise.all([
       getUserProfile().catch(() => null),
-      getQuizHistory(1, 5).catch(() => null),
       getKnowledgeDocuments().catch(() => null),
       getMasteryOverview(domainId),
       getDueReviews(15, { domainId }),
@@ -110,10 +118,6 @@ export default function IndexPage() {
       }
       setUser(brief)
       setCachedUser(brief)
-    }
-    if (histRes) {
-      setHistoryItems(histRes.items)
-      writeSwrCache('home_history', histRes.items)
     }
     if (docsRes) {
       setDocs(docsRes.items)
@@ -144,12 +148,11 @@ export default function IndexPage() {
   })
 
   const effectiveOverview = useMemo(
-    () => overview ?? buildFallbackMasteryOverview(historyItems, docs),
-    [overview, historyItems, docs],
+    () => overview ?? buildFallbackMasteryOverview([], docs),
+    [overview, docs],
   )
 
   const domains = effectiveOverview.domains || []
-
   const activeFocusDomain = useMemo(() => {
     if (selectedDomainId) {
       return domains.find((d) => d.domain_id === selectedDomainId) || effectiveOverview.focus_domain
@@ -157,18 +160,15 @@ export default function IndexPage() {
     return effectiveOverview.focus_domain
   }, [selectedDomainId, domains, effectiveOverview.focus_domain])
 
-  const weekStrip = useMemo(
-    () =>
-      overview?.weekly_rhythm?.length === 7
-        ? overview.weekly_rhythm
-        : buildRealCalendarStrip(),
-    [overview],
-  )
-
   const dueCount = selectedDomainId
     ? dueReviews.total_due
     : dueReviews.total_due || effectiveOverview.due_review_total
   const streakDays = user?.streak_days ?? effectiveOverview.streak_days
+  const todayCompleted = useMemo(() => {
+    const todayBar = effectiveOverview.weekly_rhythm?.find((d) => d.is_today)
+    return todayBar?.completed_count || 0
+  }, [effectiveOverview.weekly_rhythm])
+
   const recommendedNum = useMemo(
     () =>
       questionChoice === 'adaptive'
@@ -178,25 +178,10 @@ export default function IndexPage() {
   )
 
   const readyDocs = useMemo(() => docs.filter((d) => d.status === 'ready'), [docs])
-
-  const scopedReadyDocs = useMemo(() => {
-    if (!selectedDomainId) return readyDocs
-    const matched = readyDocs.filter((d) => d.domain_id === selectedDomainId)
-    return matched.length > 0 ? matched : readyDocs
-  }, [readyDocs, selectedDomainId])
-
   const selectedDocs = useMemo(
     () => readyDocs.filter((d) => selectedDocIds.includes(d.doc_id)),
     [readyDocs, selectedDocIds],
   )
-
-  const scopedHistory = useMemo(() => {
-    if (!selectedDomainId || !activeFocusDomain) return historyItems.slice(0, 2)
-    const matched = historyItems.filter(
-      (h) => h.domain_name && h.domain_name === activeFocusDomain.name,
-    )
-    return (matched.length > 0 ? matched : historyItems).slice(0, 2)
-  }, [historyItems, selectedDomainId, activeFocusDomain])
 
   const toggleDocSelection = (docId: string) => {
     setSelectedDocIds((prev) =>
@@ -204,73 +189,11 @@ export default function IndexPage() {
     )
   }
 
-  const handleSelectFocusDomain = (domainId?: number) => {
-    setSelectedDomainId(domainId)
-    setSelectedDocIds([])
-  }
-
-  const startQuizFlow = async (opts: {
-    prompt: string
-    referenceText?: string
-    reviewCardIds?: number[]
-    docIds?: string[]
-    domainId?: number
-  }) => {
-    if (loading) return
-    setLoading(true)
-    setLoadingText('正在调度自适应出题任务...')
-
-    try {
-      const authed = await ensureLogin()
-      if (!authed) {
-        Taro.showToast({ title: '正在建立登录会话，请稍后重试', icon: 'none' })
-        return
-      }
-
-      const { task_id } = await generateQuizAsync({
-        user_input: opts.prompt,
-        reference_text: opts.referenceText,
-        question_count: recommendedNum,
-        adaptive_mode: questionChoice === 'adaptive',
-        self_rated_level: selfRated,
-        doc_id: opts.docIds?.[0],
-        doc_ids: opts.docIds && opts.docIds.length > 0 ? opts.docIds : undefined,
-        domain_id: opts.domainId,
-        enable_web_search: enableWebSearch,
-        generate_images: generateImages,
-        review_card_ids: opts.reviewCardIds,
-      })
-
-      setLoadingText(
-        enableWebSearch ? '正在并行检索知识文档与实时网页...' : 'DeepSeek 正在按你的掌握画像组卷...',
-      )
-
-      const quizData = await pollQuizTask(task_id, (status, task) => {
-        if (task?.stage_message) {
-          setLoadingText(task.stage_message)
-        } else if (status === 'running') {
-          setLoadingText('AI 正在精准编排题目与解析...')
-        }
-      })
-
-      if (quizData.image_notice) {
-        Taro.showToast({ title: quizData.image_notice, icon: 'none', duration: 2800 })
-      }
-
-      invalidateSwrCache('home_')
-      setActiveQuizSession(quizData, [])
-      Taro.navigateTo({
-        url: `/pages/quiz/index?quizId=${encodeURIComponent(quizData.quiz_id)}`,
-      })
-    } catch (err: any) {
-      Taro.showToast({ title: err?.message || '生成失败，请稍后重试', icon: 'none' })
-    } finally {
-      setLoading(false)
-      setLoadingText('正在创建出题任务...')
-    }
-  }
-
   const handleGenerate = () => {
+    if (bgQuiz.status === 'running') {
+      Taro.showToast({ title: '题目正在后台生成中，可先逛其他页面', icon: 'none' })
+      return
+    }
     const trimmed = inputValue.trim()
     const refTrimmed = referenceText.trim()
     const docNames = selectedDocs.map((d) => `《${d.file_name}》`).join('、')
@@ -284,18 +207,31 @@ export default function IndexPage() {
           : '')
 
     if (!prompt) {
-      Taro.showToast({ title: '请输入主题、粘贴资料或选用知识文档', icon: 'none' })
+      Taro.showToast({ title: '请输入主题，或点「+ 资料/文档」引入素材', icon: 'none' })
       return
     }
-    void startQuizFlow({
-      prompt,
-      referenceText: refTrimmed || undefined,
-      docIds: selectedDocs.map((d) => d.doc_id),
-      domainId: activeFocusDomain?.domain_id,
+
+    const displayTopic =
+      trimmed ||
+      (selectedDocs[0]?.file_name.replace(/\.[^.]+$/, '') || '') ||
+      '学习材料精炼自测'
+
+    void startBackgroundQuizGeneration({
+      user_input: prompt,
+      reference_text: refTrimmed || undefined,
+      question_count: recommendedNum,
+      adaptive_mode: questionChoice === 'adaptive',
+      self_rated_level: selfRated,
+      doc_id: selectedDocs[0]?.doc_id,
+      doc_ids: selectedDocs.length > 0 ? selectedDocs.map((d) => d.doc_id) : undefined,
+      domain_id: selectedDomainId,
+      enable_web_search: enableWebSearch,
+      generate_images: generateImages,
+      displayTopic,
+      initiatedRoute: 'pages/index/index',
     })
   }
 
-  /** V2.1 秒开错题复习：<50ms 用本地已拉取题干与选项直接开刷，拒绝 25s 白等 */
   const handleDueCardTap = () => {
     if (dueReviews.items.length > 0) {
       const instantQuiz = buildInstantReviewQuiz(dueReviews.items, activeFocusDomain?.name)
@@ -308,19 +244,15 @@ export default function IndexPage() {
     Taro.switchTab({ url: '/pages/mastery/index' })
   }
 
-  const handleFocusCardTap = () => {
-    const name = activeFocusDomain?.name || 'RAG 架构'
-    setInputValue(`针对「${name}」薄弱环生成一套自适应测验`)
-  }
-
   const avatarInitial = user?.nickname?.[0] || '知'
-  const dateObj = new Date()
-  const dateLabel = `${dateObj.getMonth() + 1}月${dateObj.getDate()}日`
+  const materialCount = (referenceText.trim() ? 1 : 0) + selectedDocs.length
+  const isGenerating = bgQuiz.status === 'running'
+  const primaryCountKey: 'fast3' | 'adaptive' = questionChoice === 3 ? 'fast3' : 'adaptive'
 
   return (
     <View className='index-page'>
-      {/* 1. 顶部 Greet 栏 */}
-      <View className='home-header'>
+      {/* 1. 顶部紧致状态栏：问候状态 + 待复习微胶囊 */}
+      <View className='home-topbar'>
         <View
           className='home-greet zx-press'
           onClick={() => Taro.switchTab({ url: '/pages/profile/index' })}
@@ -335,183 +267,76 @@ export default function IndexPage() {
           <View className='greet-texts'>
             <Text className='greet-title'>继续精进，{user?.nickname || '同学'}</Text>
             <Text className='greet-sub'>
-              {dateLabel} · 连续复习 {streakDays} 天
+              连续 {streakDays} 天 · 今日已练 {todayCompleted} 题
             </Text>
           </View>
         </View>
 
         <View
-          className='header-curve-btn zx-press'
-          onClick={() => Taro.switchTab({ url: '/pages/mastery/index' })}
+          className={`due-pill zx-press ${dueCount > 0 ? 'is-butter' : 'is-sky'}`}
+          onClick={handleDueCardTap}
         >
-          <View className='mini-search-glyph'>
-            <View className='msg-ring' />
-            <View className='msg-stem' />
-          </View>
+          <Text>
+            {dueCount > 0 ? `${dueCount} 道待复习 · 秒开 →` : '查看记忆曲线 ›'}
+          </Text>
         </View>
       </View>
 
-      {/* 2. MOVEPOP 7 日节律条 */}
-      <View className='week-strip'>
-        {weekStrip.map((d, idx) => (
-          <View key={`${d.date_num}-${idx}`} className={`day-pill ${d.is_today ? 'is-today' : ''}`}>
-            <Text className='day-wk'>{d.day_label}</Text>
-            <Text className='day-num'>{d.date_num}</Text>
-          </View>
-        ))}
-      </View>
-
-      {/* 2.5 专注知识域工作区切换条（解决多领域混杂问题） */}
-      {domains.length > 0 && (
-        <ScrollView scrollX enableFlex showScrollbar={false} className='domain-bar-scroll'>
-          <View className='domain-bar'>
-            <View
-              className={`domain-chip zx-press ${!selectedDomainId ? 'is-on' : ''}`}
-              onClick={() => handleSelectFocusDomain(undefined)}
-            >
-              <Text>全部系统</Text>
+      {/* 2. 首屏正中央：聚焦「发起新测验」极简主卡（一屏直达无滚动） */}
+      <View className='home-center-stage'>
+        <View className='composer-card'>
+          <View className='composer-head'>
+            <View className='composer-title-wrap'>
+              <Text className='composer-kicker'>发起新测验</Text>
+              {selectedDomainId && activeFocusDomain && (
+                <Text className='composer-domain-tag'>· {activeFocusDomain.name}</Text>
+              )}
             </View>
-            {domains.map((dom) => (
+
+            <View className='composer-tools'>
               <View
-                key={dom.domain_id}
-                className={`domain-chip zx-press ${selectedDomainId === dom.domain_id ? 'is-on' : ''}`}
-                onClick={() =>
-                  handleSelectFocusDomain(
-                    selectedDomainId === dom.domain_id ? undefined : dom.domain_id,
-                  )
-                }
+                className={`tool-chip zx-press ${materialCount > 0 ? 'is-on' : ''}`}
+                onClick={() => setShowMaterialSheet(true)}
               >
-                <Text>{dom.name}</Text>
-                {dom.due_review_count > 0 && (
-                  <View className='domain-due-badge'>
-                    <Text>{dom.due_review_count}</Text>
-                  </View>
-                )}
+                <Text>{materialCount > 0 ? `资料 ×${materialCount}` : '+ 资料/文档'}</Text>
+              </View>
+              <View
+                className='tool-chip zx-press'
+                onClick={() => setShowSettingsSheet(true)}
+              >
+                <Text>
+                  ⚙ {SELF_LABELS[selfRated]}
+                  {generateImages ? '·配图' : ''}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <Textarea
+            className='composer-textarea'
+            placeholder='想考自己什么知识点？输入主题，或点右上角导入资料/文档...'
+            placeholderClass='composer-placeholder'
+            value={inputValue}
+            onInput={(e) => setInputValue(e.detail.value)}
+            maxlength={500}
+            autoHeight={false}
+          />
+
+          {/* 3 枚干净快捷主题词 */}
+          <View className='quick-row'>
+            {QUICK_TOPICS.map((t) => (
+              <View
+                key={t}
+                className='quick-chip zx-press'
+                onClick={() => setInputValue(`请帮我检验「${t}」的核心机制与易错点`)}
+              >
+                <Text>{t}</Text>
               </View>
             ))}
           </View>
-        </ScrollView>
-      )}
 
-      {/* 3. 双卡 Bento（奶油黄错题秒开回顾 + 雾天蓝当前专注域） */}
-      <View className='bento-grid'>
-        <View className='bento-tile is-butter zx-press' onClick={handleDueCardTap}>
-          <View className='bento-top'>
-            <View className='micro-tag'>
-              <Text>DUE TODAY</Text>
-            </View>
-            <GeometricProp variant='cards' />
-          </View>
-          <View className='bento-bottom'>
-            <Text className='bento-val'>
-              {String(dueCount).padStart(2, '0')} {dueCount > 0 ? '待刷' : '清零'}
-            </Text>
-            <Text className='bento-sub'>
-              {dueCount > 0 ? '秒开错题本 · 即时巩固' : '暂无到期 · 查看记忆曲线'}
-            </Text>
-          </View>
-        </View>
-
-        <View className='bento-tile is-sky zx-press' onClick={handleFocusCardTap}>
-          <View className='bento-top'>
-            <View className='micro-tag'>
-              <Text>FOCUS DOMAIN</Text>
-            </View>
-            <GeometricProp variant='target' />
-          </View>
-          <View className='bento-bottom'>
-            <Text className='bento-val is-domain'>{activeFocusDomain?.name || 'RAG 架构'}</Text>
-            <Text className='bento-sub'>
-              掌握 {Math.round(activeFocusDomain?.mastery_score ?? 74)}% · 建议{' '}
-              {activeFocusDomain?.recommended_count ?? 6} 题
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* 4. 方案 B 纯净白三源融合出题舱 */}
-      <View className='composer-card'>
-        <View className='composer-head'>
-          <Text className='composer-kicker'>发起新测验</Text>
-          <View className='composer-actions'>
-            <View
-              className={`ref-toggle-chip zx-press ${showReferenceInput || referenceText ? 'is-on' : ''}`}
-              onClick={() => setShowReferenceInput((prev) => !prev)}
-            >
-              <Text>
-                {referenceText.trim()
-                  ? `✓ 已贴资料 ${referenceText.trim().length}字`
-                  : showReferenceInput
-                    ? '收起资料'
-                    : '+ 粘贴资料'}
-              </Text>
-            </View>
-            {selectedDocs.length > 0 && (
-              <View
-                className='selected-doc-chip zx-press'
-                onClick={() => setSelectedDocIds([])}
-              >
-                <Text>📎 {selectedDocs.length} 份文档 ×</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        <Textarea
-          className='composer-textarea'
-          placeholder='输入学习主题，或结合粘贴笔记 / 知识文档 / 联网检索三源出题...'
-          placeholderClass='composer-placeholder'
-          value={inputValue}
-          onInput={(e) => setInputValue(e.detail.value)}
-          maxlength={500}
-          autoHeight={false}
-        />
-
-        {showReferenceInput && (
-          <View className='reference-drawer'>
-            <Textarea
-              className='reference-textarea'
-              placeholder='粘贴你想考察的笔记原文、代码片段或课程讲义（最多 12000 字）...'
-              placeholderClass='composer-placeholder'
-              value={referenceText}
-              onInput={(e) => setReferenceText(e.detail.value)}
-              maxlength={12000}
-            />
-          </View>
-        )}
-
-        {/* 快捷词 + 多选口袋文档快速挂接 */}
-        <View className='quick-row'>
-          {QUICK_TOPICS.map((t) => (
-            <View
-              key={t}
-              className='quick-chip zx-press'
-              onClick={() => setInputValue(`请帮我检验「${t}」的核心机制与易错点`)}
-            >
-              <Text>{t}</Text>
-            </View>
-          ))}
-          {scopedReadyDocs.slice(0, 3).map((doc) => {
-            const isPicked = selectedDocIds.includes(doc.doc_id)
-            const cleanName = doc.file_name.replace(/\.[^.]+$/, '')
-            return (
-              <View
-                key={doc.doc_id}
-                className={`quick-chip is-doc zx-press ${isPicked ? 'is-doc-on' : ''}`}
-                onClick={() => toggleDocSelection(doc.doc_id)}
-              >
-                <Text className='quick-doc-txt'>
-                  {isPicked ? '✓ ' : '📄 '}
-                  {cleanName}
-                </Text>
-              </View>
-            )
-          })}
-        </View>
-
-        {/* 按键第一行：DeepSeek 胶囊组 + 题量读数 */}
-        <View className='controls-row'>
-          <View className='ds-group'>
+          {/* 极简核心 2 项控制行：智能搜索开关 + 题量 2 选 1 */}
+          <View className='controls-row'>
             <View
               className={`ds-pill zx-press ${enableWebSearch ? 'is-active' : 'is-muted'}`}
               onClick={() => setEnableWebSearch((prev) => !prev)}
@@ -523,120 +348,209 @@ export default function IndexPage() {
               <Text>智能搜索</Text>
             </View>
 
-            <View
-              className={`ds-pill zx-press ${generateImages ? 'is-active' : 'is-muted'}`}
-              onClick={() => setGenerateImages((prev) => !prev)}
-            >
-              <View className='ds-pic'>
-                <View className='dsp-dot' />
-              </View>
-              <Text>配图</Text>
+            <View className='seg-bar'>
+              {PRIMARY_COUNT_CHOICES.map((c) => {
+                const isOn =
+                  questionChoice === 'adaptive'
+                    ? c.value === 'adaptive'
+                    : questionChoice === 3
+                      ? c.value === 'fast3'
+                      : c.value === primaryCountKey
+                return (
+                  <View
+                    key={c.value}
+                    className={`seg-item zx-press ${isOn ? 'is-on' : ''}`}
+                    onClick={() =>
+                      setQuestionChoice(c.value === 'fast3' ? 3 : 'adaptive')
+                    }
+                  >
+                    <Text>
+                      {c.value === 'adaptive' && questionChoice !== 3 && questionChoice !== 'adaptive'
+                        ? `已选 ${questionChoice}题`
+                        : c.value === 'adaptive'
+                          ? `智能推荐 ${recommendedNum}题`
+                          : c.label}
+                    </Text>
+                  </View>
+                )
+              })}
             </View>
           </View>
 
-          <Text className='mode-readout'>
-            {questionChoice === 'adaptive' ? `推荐 ${recommendedNum} 题` : `${recommendedNum} 题模式`}
-          </Text>
-        </View>
-
-        {/* 按键第二行：出题节奏 seg-bar */}
-        <View className='seg-row'>
-          <Text className='seg-label'>出题节奏</Text>
-          <View className='seg-bar'>
-            {COUNT_CHOICES.map((c) => (
-              <View
-                key={String(c.value)}
-                className={`seg-item zx-press ${questionChoice === c.value ? 'is-on' : ''}`}
-                onClick={() => setQuestionChoice(c.value)}
-              >
-                <Text>{c.label}</Text>
+          {/* 黑曜石全圆角主行动按钮（异步时不锁全屏，按钮内转圈指示） */}
+          <View
+            className={`zx-btn-obsidian ${isGenerating ? 'is-running' : ''}`}
+            onClick={handleGenerate}
+          >
+            {isGenerating ? (
+              <View className='btn-inline-running'>
+                <View className='inline-spinner' />
+                <Text>后台出题中 ({bgQuiz.elapsedSec}s) · 可逛其他页</Text>
               </View>
-            ))}
+            ) : (
+              <>
+                <Text>开始测验</Text>
+                <Text>→</Text>
+              </>
+            )}
           </View>
-        </View>
-
-        {/* 按键第三行：冷启动当前熟悉度 */}
-        <View className='seg-row is-compact'>
-          <Text className='seg-label'>当前熟悉度</Text>
-          <View className='seg-bar'>
-            {SELF_LEVELS.map((lv) => (
-              <View
-                key={lv.value}
-                className={`seg-item zx-press ${selfRated === lv.value ? 'is-on' : ''}`}
-                onClick={() => setSelfRated(lv.value)}
-              >
-                <Text>{lv.label}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* 黑曜石全圆角主行动按钮 */}
-        <View
-          className={`zx-btn-obsidian ${loading ? 'is-disabled' : ''}`}
-          onClick={handleGenerate}
-        >
-          <Text>{loading ? '正在调度组卷...' : '开始自适应测验'}</Text>
-          <Text>→</Text>
         </View>
       </View>
 
-      {/* 5. 最近练习精简列表（支持专注域过滤） */}
-      <View className='recent-head'>
-        <Text className='recent-heading'>
-          {selectedDomainId && activeFocusDomain ? `${activeFocusDomain.name} · 记录` : '最近记录'}
-        </Text>
-        <Text
-          className='recent-more'
-          onClick={() => Taro.switchTab({ url: '/pages/profile/index' })}
-        >
-          全部档案 ›
-        </Text>
-      </View>
-
-      {scopedHistory.length === 0 ? (
-        <View className='zx-card recent-empty'>
-          <Text className='recent-empty-text'>暂无记录，输入上方主题或前往「口袋」传笔记开刷</Text>
-        </View>
-      ) : (
-        <View className='recent-list'>
-          {scopedHistory.map((item) => (
-            <View
-              key={item.quiz_id}
-              className='zx-card recent-item zx-press'
-              onClick={() =>
-                Taro.navigateTo({
-                  url: `/pages/report/index?quizId=${encodeURIComponent(item.quiz_id)}`,
-                })
-              }
-            >
-              <View className='recent-info'>
-                <Text className='recent-title'>{item.title}</Text>
-                <Text className='recent-meta'>
-                  {item.created_at} · {item.question_count} 题
-                </Text>
-              </View>
-              <View className='recent-acc'>
-                <Text>{Math.round(item.accuracy)}%</Text>
-              </View>
+      {/* 抽屉 1：三源资料与文档多选半屏弹层 */}
+      {showMaterialSheet && (
+        <View className='sheet-mask' onClick={() => setShowMaterialSheet(false)}>
+          <View className='sheet-panel' onClick={(e) => e.stopPropagation()}>
+            <View className='sheet-head'>
+              <Text className='sheet-title'>导入参考资料与知识文档</Text>
+              <Text className='sheet-done' onClick={() => setShowMaterialSheet(false)}>
+                完成
+              </Text>
             </View>
-          ))}
+
+            <Text className='sheet-label'>粘贴笔记原文 / 错题段落（最多 12000 字）</Text>
+            <View className='sheet-textarea-box'>
+              <Textarea
+                className='sheet-textarea'
+                placeholder='在此粘贴你想让 AI 重点考察的教材原文、代码片段或课程笔记...'
+                placeholderClass='composer-placeholder'
+                value={referenceText}
+                onInput={(e) => setReferenceText(e.detail.value)}
+                maxlength={12000}
+              />
+            </View>
+
+            <View className='sheet-doc-head'>
+              <Text className='sheet-label'>选用口袋已解析文档（支持多选）</Text>
+              <Text
+                className='sheet-link'
+                onClick={() => {
+                  setShowMaterialSheet(false)
+                  Taro.switchTab({ url: '/pages/knowledge/index' })
+                }}
+              >
+                去口袋上传 ›
+              </Text>
+            </View>
+
+            {readyDocs.length === 0 ? (
+              <Text className='sheet-empty'>暂无就绪文档，可先前往「口袋」上传 PDF / Word / MD</Text>
+            ) : (
+              <View className='sheet-doc-list'>
+                {readyDocs.slice(0, 6).map((doc) => {
+                  const picked = selectedDocIds.includes(doc.doc_id)
+                  return (
+                    <View
+                      key={doc.doc_id}
+                      className={`sheet-doc-row zx-press ${picked ? 'is-on' : ''}`}
+                      onClick={() => toggleDocSelection(doc.doc_id)}
+                    >
+                      <View className='sheet-doc-info'>
+                        <Text className='sheet-doc-name'>{doc.file_name}</Text>
+                        <Text className='sheet-doc-meta'>
+                          {doc.domain_name || '综合知识域'} · {doc.chunk_count || 1} 切片
+                        </Text>
+                      </View>
+                      <View className={`sheet-check ${picked ? 'is-on' : ''}`}>
+                        <Text>{picked ? '✓' : '+'}</Text>
+                      </View>
+                    </View>
+                  )
+                })}
+              </View>
+            )}
+          </View>
         </View>
       )}
+
+      {/* 抽屉 2：高级出题设置（专注域 / 熟悉度自评 / 题量 / AI配图） */}
+      {showSettingsSheet && (
+        <View className='sheet-mask' onClick={() => setShowSettingsSheet(false)}>
+          <View className='sheet-panel' onClick={(e) => e.stopPropagation()}>
+            <View className='sheet-head'>
+              <Text className='sheet-title'>出题偏好设置</Text>
+              <Text className='sheet-done' onClick={() => setShowSettingsSheet(false)}>
+                完成
+              </Text>
+            </View>
+
+            {domains.length > 0 && (
+              <View className='sheet-group'>
+                <Text className='sheet-label'>限定知识域（影响曲线聚焦与错题过滤）</Text>
+                <View className='sheet-pills'>
+                  <View
+                    className={`sheet-pill ${!selectedDomainId ? 'is-on' : ''}`}
+                    onClick={() => setSelectedDomainId(undefined)}
+                  >
+                    <Text>全部域</Text>
+                  </View>
+                  {domains.map((dom) => (
+                    <View
+                      key={dom.domain_id}
+                      className={`sheet-pill ${selectedDomainId === dom.domain_id ? 'is-on' : ''}`}
+                      onClick={() => setSelectedDomainId(dom.domain_id)}
+                    >
+                      <Text>
+                        {dom.name}
+                        {dom.due_review_count > 0 ? ` (${dom.due_review_count})` : ''}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View className='sheet-group'>
+              <Text className='sheet-label'>题量档位</Text>
+              <View className='sheet-pills'>
+                {ALL_COUNT_CHOICES.map((c) => (
+                  <View
+                    key={String(c.value)}
+                    className={`sheet-pill ${questionChoice === c.value ? 'is-on' : ''}`}
+                    onClick={() => setQuestionChoice(c.value)}
+                  >
+                    <Text>{c.label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View className='sheet-group'>
+              <Text className='sheet-label'>当前熟悉度自评</Text>
+              <View className='sheet-pills'>
+                {SELF_LEVELS.map((lv) => (
+                  <View
+                    key={lv.value}
+                    className={`sheet-pill ${selfRated === lv.value ? 'is-on' : ''}`}
+                    onClick={() => setSelfRated(lv.value)}
+                  >
+                    <Text>{lv.label}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View
+              className={`sheet-switch-row zx-press ${generateImages ? 'is-on' : ''}`}
+              onClick={() => setGenerateImages((prev) => !prev)}
+            >
+              <View>
+                <Text className='sheet-switch-title'>AI 辅助概念配图</Text>
+                <Text className='sheet-switch-sub'>后台异步绘制不阻塞作答</Text>
+              </View>
+              <View className={`sheet-toggle ${generateImages ? 'is-on' : ''}`}>
+                <View className='sheet-knob' />
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* 跨页不阻塞悬浮异步进度胶囊 */}
+      <BackgroundTaskPill visible={dockVisible} />
 
       {/* 跨端 H5 悬浮黑曜石 Dock（Weapp 由 custom-tab-bar 接管） */}
       {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='index' />}
-
-      {/* 异步阶段加载遮罩 */}
-      {loading && (
-        <View className='zx-loading-overlay'>
-          <View className='zx-loading-modal'>
-            <View className='zx-spinner' />
-            <Text className='zx-loading-title'>AI 正在为你定制题组</Text>
-            <Text className='zx-loading-sub'>{loadingText}</Text>
-          </View>
-        </View>
-      )}
     </View>
   )
 }

@@ -758,8 +758,10 @@ export interface QuizHistoryItem {
   title: string
   accuracy: number
   question_count: number
+  domain_id?: number
   domain_name?: string
   source_type?: QuizSourceType
+  is_submitted?: boolean
   created_at: string
 }
 
@@ -845,6 +847,9 @@ export interface DomainMasterySummary {
   due_review_count: number
   recommended_count: number
   below_threshold: boolean
+  next_review_day_label?: string
+  next_recommended_difficulty?: string
+  schedule_reason?: string
   difficulty_stats: DifficultyMatrixStats
 }
 
@@ -854,14 +859,39 @@ export interface RetentionCurvePoint {
   baseline_pct?: number
   is_today?: boolean
   is_recovery?: boolean
+  is_actual?: boolean
+  quiz_title?: string
+}
+
+export interface WeeklyRhythmSessionItem {
+  quiz_id: string
+  title: string
+  domain_name: string
+  question_count: number
+  accuracy: number
+  weak_points: string[]
 }
 
 export interface WeeklyRhythmDay {
   day_label: string
   date_num: string
+  date_str?: string
   completed_count: number
+  quiz_count?: number
+  avg_accuracy?: number | null
   is_today: boolean
   active: boolean
+  sessions?: WeeklyRhythmSessionItem[]
+}
+
+export interface MasteryScheduleSummary {
+  domain_id?: number
+  domain_name: string
+  when_label: string
+  recommended_count: number
+  focus_difficulty: string
+  critical_days: number
+  reason: string
 }
 
 export interface MasteryOverviewResponse {
@@ -870,6 +900,7 @@ export interface MasteryOverviewResponse {
   due_review_total: number
   subscribe_remaining: number
   focus_domain: DomainMasterySummary | null
+  next_plan?: MasteryScheduleSummary | null
   domains: DomainMasterySummary[]
   retention_curve: RetentionCurvePoint[]
   weekly_rhythm: WeeklyRhythmDay[]

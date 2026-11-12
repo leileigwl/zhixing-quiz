@@ -17,7 +17,7 @@ import {
   type RetentionCurvePoint,
   type WeeklyRhythmDay,
 } from '../../services/api'
-import { getActiveQuizSession } from '../../services/quizSessionStore'
+import { clearSavedDraftForQuiz, getActiveQuizSession } from '../../services/quizSessionStore'
 import { buildFallbackMasteryOverview, invalidateSwrCache } from '../../services/v2Adapters'
 import RetentionCurveCanvas from '../../components/RetentionCurveCanvas'
 import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
@@ -51,7 +51,11 @@ export default function ReportPage() {
     wrongCount: number
     streakDays?: number
     domainName?: string
+    domainMasteryAfter?: number
+    stabilityDaysAfter?: number
+    dueCardsCreated?: number
   } | null>(null)
+  const [selectedDayIdx, setSelectedDayIdx] = useState<number | null>(null)
   const [report, setReport] = useState<ReportData | null>(null)
   const [reportStatus, setReportStatus] = useState<ReportStatusEnum | 'idle'>('idle')
   const [reportError, setReportError] = useState<string | null>(null)
@@ -122,6 +126,7 @@ export default function ReportPage() {
           invalidateSwrCache('home_')
           invalidateSwrCache('mastery_')
           invalidateSwrCache('profile_')
+          clearSavedDraftForQuiz(targetQuiz.quiz_id)
           if (cancelled) return
 
           setServerStats({
@@ -130,6 +135,9 @@ export default function ReportPage() {
             wrongCount: res.wrong_count,
             streakDays: res.streak_days,
             domainName: res.domain_name,
+            domainMasteryAfter: res.domain_mastery_after,
+            stabilityDaysAfter: res.stability_days_after,
+            dueCardsCreated: res.due_cards_created,
           })
           if (res.session_retention_curve && res.session_retention_curve.length >= 2) {
             setSessionCurve(res.session_retention_curve)
@@ -222,6 +230,42 @@ export default function ReportPage() {
     [overview],
   )
 
+  const localWeakKps = useMemo(() => {
+    if (!quizData?.questions) return [] as string[]
+    const wrongIds = new Set(answerRecords.filter((r) => !r.is_correct).map((r) => r.question_id))
+    const kps = quizData.questions
+      .filter((q) => wrongIds.has(q.id) && q.knowledge_point)
+      .map((q) => q.knowledge_point)
+    return Array.from(new Set(kps)).slice(0, 3)
+  }, [quizData, answerRecords])
+
+  const localOkKps = useMemo(() => {
+    if (!quizData?.questions) return [] as string[]
+    const okIds = new Set(answerRecords.filter((r) => r.is_correct).map((r) => r.question_id))
+    const kps = quizData.questions
+      .filter((q) => okIds.has(q.id) && q.knowledge_point)
+      .map((q) => q.knowledge_point)
+    return Array.from(new Set(kps)).slice(0, 3)
+  }, [quizData, answerRecords])
+
+  const displayCurve =
+    sessionCurve && sessionCurve.length >= 2 ? sessionCurve : effectiveOverview.retention_curve
+  const displayRhythm =
+    sessionRhythm && sessionRhythm.length === 7 ? sessionRhythm : effectiveOverview.weekly_rhythm
+  const activeDayIdx = useMemo(() => {
+    if (selectedDayIdx !== null && displayRhythm[selectedDayIdx]) return selectedDayIdx
+    const todayIdx = displayRhythm.findIndex((d) => d.is_today)
+    return todayIdx >= 0 ? todayIdx : 0
+  }, [selectedDayIdx, displayRhythm])
+  const activeDay = displayRhythm[activeDayIdx]
+  const recoveryPt = displayCurve.find((p) => p.is_recovery)
+  const totalQ = quizData?.questions?.length || answerRecords.length || 0
+  const okQ = serverStats?.correctCount ?? localCorrectCount
+  const domainLabel = serverStats?.domainName || quizData?.domain_name || '本次专题'
+  const stabilityLabel =
+    serverStats?.stabilityDaysAfter ?? effectiveOverview.focus_domain?.stability_days ?? 5
+  const nextPlan = effectiveOverview.next_plan
+
   const handleEnableReminder = async () => {
     if (subscribed) return
     await grantSubscribeQuota({ count: 1, preferred_hour: 20 })
@@ -263,6 +307,39 @@ export default function ReportPage() {
         </View>
       </View>
 
+      {/* 本次复盘一图看懂（人话三步结论：答得怎样 / 曲线原因 / 下次安排） */}
+      <View className='zx-card digest-card'>
+        <Text className='digest-head'>本次诊断结论</Text>
+        <View className='digest-row'>
+          <Text className='digest-num'>1</Text>
+          <Text className='digest-txt'>
+            「{domainLabel}」共 {totalQ} 题答对 {okQ} 题（{accuracy}%）
+            {localWeakKps.length > 0
+              ? `；重点失分在：${localWeakKps.join('、')}`
+              : localOkKps.length > 0
+                ? `；已稳固掌握：${localOkKps.join('、')}`
+                : ''}。
+          </Text>
+        </View>
+        <View className='digest-row'>
+          <Text className='digest-num'>2</Text>
+          <Text className='digest-txt'>
+            曲线解说：本次巩固后预计短期保持率达{' '}
+            {Math.round(recoveryPt?.retention_pct ?? accuracy)}%（记忆稳定性 S = {stabilityLabel}{' '}
+            天），灰虚线代表不复习时的自然遗忘下滑。
+          </Text>
+        </View>
+        <View className='digest-row'>
+          <Text className='digest-num'>3</Text>
+          <Text className='digest-txt'>
+            后续安排：
+            {wrongCount > 0
+              ? `已将 ${wrongCount} 道错题设为「今日待巩固」，回首页或「曲线」即可 0.1s 秒开重练。`
+              : nextPlan?.reason || `保持节奏，建议 ${nextPlan?.when_label || '按曲线提醒'} 再刷一组拔高。`}
+          </Text>
+        </View>
+      </View>
+
       {/* 学习记忆曲线 */}
       <View className='zx-card report-panel'>
         <View className='panel-head'>
@@ -275,11 +352,7 @@ export default function ReportPage() {
         </View>
         <RetentionCurveCanvas
           canvasId='report-retention-canvas'
-          points={
-            sessionCurve && sessionCurve.length >= 2
-              ? sessionCurve
-              : effectiveOverview.retention_curve
-          }
+          points={displayCurve}
         />
         <View className='curve-legend'>
           <View className='legend-item'>
@@ -296,16 +369,24 @@ export default function ReportPage() {
       {/* 本周复习节律 */}
       <View className='zx-card report-panel'>
         <View className='panel-head'>
-          <Text className='panel-title'>本周复习节律</Text>
-          <Text className='panel-sub'>答对 {serverStats?.correctCount ?? localCorrectCount} · 错题 {wrongCount}</Text>
+          <Text className='panel-title'>本周完成题数</Text>
+          <Text className='panel-sub'>
+            答对 {serverStats?.correctCount ?? localCorrectCount} · 错题 {wrongCount}
+          </Text>
         </View>
         <SevenDayRhythmBar
-          days={
-            sessionRhythm && sessionRhythm.length === 7
-              ? sessionRhythm
-              : effectiveOverview.weekly_rhythm
-          }
+          days={displayRhythm}
+          selectedIndex={activeDayIdx}
+          onSelectDay={(_day, idx) => setSelectedDayIdx(idx)}
         />
+        {activeDay && activeDay.sessions && activeDay.sessions.length > 0 && (
+          <View className='report-day-summary'>
+            <Text className='report-day-txt'>
+              {activeDay.is_today ? '今日' : `周${activeDay.day_label}`}（{activeDay.date_num}日）累计完成{' '}
+              {activeDay.completed_count} 题 · 共 {activeDay.quiz_count} 场测验
+            </Text>
+          </View>
+        )}
       </View>
 
       {loading ? (
