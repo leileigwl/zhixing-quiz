@@ -132,7 +132,7 @@
 | `/knowledge/documents` | `POST` / `GET` | 必选 JWT | 10MB / 10 篇 + 防压缩炸弹 | 上传异步入 ARQ + Chroma HTTP 解析 / 列表 |
 | `/knowledge/documents/{doc_id}` | `GET` / `DELETE` | 必选 JWT | 校验 `user_id` | 轮询解析状态与自动归类领域 / 级联删除 |
 | `/quiz/generate/async` | `POST` | 必选 JWT | **Redis Lua 限流** + 校验 `doc_id/doc_ids` | 创建自适应三源并行出题任务（支持 `allow_prewarm` 0.1s 命中域级预热库、`reference_text >= 200` 智能跳过冗余联网、多文档 `doc_ids` 与 1~6 卡错题变式） |
-| `/quiz/task/{task_id}` | `GET` | 必选 JWT | **校验任务归属 `user_id`** | 轮询任务阶段与完整出题结果 (`recommended_count/source_type/domain`) |
+| `/quiz/task/{task_id}` | `GET` | 必选 JWT | **校验任务归属 `user_id`** | 轮询实时出题阶段 (`stage_message`)、5 段耗时与 TTFT/TPS 指标 (`telemetry`) 及完整结果 |
 | `/quiz/{quiz_id}/images` | `GET` | 必选 JWT | **校验测验归属 `user_id`** | 轮询题目后台异步配图 URL |
 | `/quiz/generate` | `POST` | 必选 JWT | Redis Lua 限流 + 校验 `doc_id` | 同步出题 |
 | `/report/submit` | `POST` | 必选 JWT | **校验归属 + 单事务防并发覆盖 + SM-2** | 秒返算分、更新三维画像与打卡、即时激活到期错题卡 / 推进 `source_review_card_ids` 进度，并返回当次双轨 `session_retention_curve` 与 `weekly_rhythm` |

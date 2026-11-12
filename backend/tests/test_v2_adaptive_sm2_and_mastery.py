@@ -531,4 +531,87 @@ class TestV23PrewarmAndSmartSearch:
         mock_refill.assert_awaited_once_with(9, 2)
 
 
+class TestV24TelemetryAndRetry:
+    """V2.4 出题全链路 5 段耗时埋点、TTFT 假死自动重试与任务状态透传单测"""
+
+    async def test_ttft_stall_triggers_retry_and_records_telemetry(self):
+        from app.models.quiz import QuizOutput
+        from app.services import quiz_service
+
+        sample_output = QuizOutput(
+            title="分布式锁核验",
+            summary="重试恢复验证",
+            questions=[_sample_question(f"q{i}", "medium") for i in range(1, 4)],
+        )
+        call_count = 0
+
+        async def _flaky_stream(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise TimeoutError("llm_ttft_stall_28s")
+            cb = kwargs.get("on_question_progress")
+            if cb:
+                await cb(2)
+            return sample_output, {
+                "model": "deepseek-ai/DeepSeek-V3.2",
+                "llm_ttft_ms": 920,
+                "llm_total_ms": 14500,
+                "output_chars": 1280,
+                "completion_tokens": 410,
+                "tps": 30.2,
+            }
+
+        with (
+            patch("app.services.quiz_service.generate_quiz_with_telemetry", side_effect=_flaky_stream),
+            patch("app.services.quiz_service.task_repository.update_task_stage", AsyncMock()) as mock_stage,
+        ):
+            out, tel = await quiz_service._generate_quiz_with_retry(
+                task_id="task_retry_demo",
+                user_input="分布式锁",
+                question_count=3,
+                difficulty="medium",
+                search_context="",
+                telemetry={"queue_wait_ms": 42, "rag_search_ms": 1150},
+            )
+
+        assert call_count == 2
+        assert len(out.questions) == 3
+        assert tel["attempt"] == 2
+        assert "llm_ttft_stall_28s" in (tel["retry_reason"] or "")
+        assert tel["llm_ttft_ms"] == 920
+        assert tel["tps"] == 30.2
+        assert mock_stage.await_count >= 2
+
+    async def test_get_quiz_task_status_returns_telemetry(self):
+        from app.services import quiz_service
+
+        cached_row = {
+            "task_id": "task_obs_1",
+            "user_id": 5,
+            "status": "running",
+            "stage": "generating_quiz",
+            "stage_message": "AI 正在编排第 2/3 题...",
+            "telemetry": {
+                "model": "deepseek-ai/DeepSeek-V3.2",
+                "attempt": 1,
+                "queue_wait_ms": 35,
+                "rag_search_ms": 2100,
+                "context_chars": 1800,
+                "source_type": "web_search",
+            },
+            "result_json": None,
+            "error_message": None,
+        }
+        with patch("app.services.quiz_service.task_repository.get_task", AsyncMock(return_value=cached_row)):
+            status = await quiz_service.get_quiz_task_status("task_obs_1", user_id=5)
+
+        assert status.stage_message == "AI 正在编排第 2/3 题..."
+        assert status.telemetry is not None
+        assert status.telemetry.queue_wait_ms == 35
+        assert status.telemetry.rag_search_ms == 2100
+        assert status.telemetry.source_type == "web_search"
+
+
+
 

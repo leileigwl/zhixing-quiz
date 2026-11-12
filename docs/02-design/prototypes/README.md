@@ -12,6 +12,7 @@
   - [`v2-architecture-diagram.html`](v2-architecture-diagram.html)：V2 系统部署与高并发解耦架构图（Multi-Worker + Redis + ARQ + 独立 Chroma + LCEL 路由）与 12 表 ER 关系图。
   - [`zhixing-quiz-v2-prototype.html`](zhixing-quiz-v2-prototype.html)：V2 早期多物种 6 屏交互探索稿（已按高净度审美重定调至 `v2-editorial-3palettes.html`）。
   - [`v2-editorial-3palettes.html`](v2-editorial-3palettes.html)：V2.0 极简高净度三套定调方案与核心内页延续标准（`LUCEN 虹彩雾白` / `MOVEPOP 暖石膏` / `lingobud 天雾暖阳` + `DAYPATCH` 半透明口袋 + 只读上一题回看 + `学习记忆曲线`）。
+  - [`v2-mastery-and-progress-redesign.html`](v2-mastery-and-progress-redesign.html)：V2.4 等待文案去重与曲线页「洞察优先 + 至多 1 枚轻入口」重构交互原型（已获用户确认并落地）。
 
   1. **闯关首页（Tab 1）**：顶部用户简况 + XP 徽章、多行输入卡片、快捷示例标签、配图开关、开始出题按钮与轮询加载态、最近闯关入口。
   2. **知识库页（Tab 2）**：上传规范提示（格式/10MB/10 篇）、上传区域、文档卡片列表（状态标签、切片数、开始闯关、删除）。

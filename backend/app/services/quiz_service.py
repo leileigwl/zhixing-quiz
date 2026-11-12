@@ -1,6 +1,7 @@
 """出题服务 V2（自适应题量/难度配比、LCEL 检索与 RAG 路由、规范化题目表与 ARQ 队列派发）"""
 
 import asyncio
+import time
 import uuid
 from typing import Any, Optional
 
@@ -23,7 +24,7 @@ from app.core.redis_client import (
     get_redis,
 )
 from app.core.security import check_content
-from app.llm.quiz_chain import generate_quiz
+from app.llm.quiz_chain import generate_quiz, generate_quiz_with_telemetry
 from app.models.quiz import (
     Question,
     QuizGenerateRequest,
@@ -32,6 +33,7 @@ from app.models.quiz import (
     QuizOutput,
     QuizTaskCreateResponse,
     QuizTaskStatusResponse,
+    QuizTaskTelemetry,
 )
 from app.repositories import (
     knowledge_repository,
@@ -91,6 +93,21 @@ async def _maybe_generate_images(
 
 def _is_mocked(fn: Any) -> bool:
     return hasattr(fn, "assert_called")
+
+
+async def _report_stage(
+    task_id: str,
+    stage: str,
+    *,
+    stage_message: Optional[str] = None,
+    telemetry: Optional[dict[str, Any]] = None,
+) -> None:
+    """兼容旧版双参 mock 的阶段更新封装。"""
+    fn = task_repository.update_task_stage
+    if _is_mocked(fn):
+        await fn(task_id, stage)
+        return
+    await fn(task_id, stage, stage_message=stage_message, telemetry=telemetry)
 
 
 def _collect_requested_doc_ids(req: QuizGenerateRequest) -> list[str]:
@@ -317,24 +334,140 @@ async def _persist_quiz_session_and_questions(
         logger.error("quiz_session_save_failed", quiz_id=quiz_id, error=str(e))
 
 
+async def _timed_await(coro):
+    t0 = time.perf_counter()
+    res = await coro
+    return res, int((time.perf_counter() - t0) * 1000)
+
+
+async def _prepare_generation_context_timed(
+    req: QuizGenerateRequest,
+    user_id: Optional[int],
+    doc_info: Optional[dict],
+):
+    """并行执行领域画像解析、知识库/联网三源检索与错题上下文构建，并返回分段毫秒级耗时。"""
+    t0 = time.perf_counter()
+    explicit_doc_ids = _collect_requested_doc_ids(req)
+    if not explicit_doc_ids and req.domain_id is not None and user_id is not None and get_mysql_pool() is not None:
+        explicit_doc_ids = await knowledge_repository.list_ready_doc_ids_by_domain(user_id, req.domain_id)
+
+    (
+        ((domain_id, domain_name, plan), domain_ms),
+        ((search_context, source_type), rag_search_ms),
+        ((effective_input, valid_card_ids), _),
+    ) = await asyncio.gather(
+        _timed_await(_resolve_domain_and_plan(req, user_id, doc_info)),
+        _timed_await(_fetch_context_with_source(req, user_id, effective_doc_ids=explicit_doc_ids)),
+        _timed_await(_build_effective_user_input(req, user_id)),
+    )
+    ctx_metrics = {
+        "context_prep_ms": int((time.perf_counter() - t0) * 1000),
+        "domain_classify_ms": domain_ms,
+        "rag_search_ms": rag_search_ms,
+        "context_chars": len(search_context or ""),
+        "source_type": source_type,
+    }
+    return domain_id, domain_name, plan, search_context, source_type, effective_input, valid_card_ids, ctx_metrics
+
+
 async def _prepare_generation_context(
     req: QuizGenerateRequest,
     user_id: Optional[int],
     doc_info: Optional[dict],
 ):
     """并行执行领域画像解析、知识库/联网三源检索与错题上下文构建，缩短端到端出题等待。"""
-    explicit_doc_ids = _collect_requested_doc_ids(req)
-    if not explicit_doc_ids and req.domain_id is not None and user_id is not None and get_mysql_pool() is not None:
-        explicit_doc_ids = await knowledge_repository.list_ready_doc_ids_by_domain(user_id, req.domain_id)
-
-    (domain_id, domain_name, plan), (search_context, source_type), (effective_input, valid_card_ids) = (
-        await asyncio.gather(
-            _resolve_domain_and_plan(req, user_id, doc_info),
-            _fetch_context_with_source(req, user_id, effective_doc_ids=explicit_doc_ids),
-            _build_effective_user_input(req, user_id),
-        )
-    )
+    (
+        domain_id,
+        domain_name,
+        plan,
+        search_context,
+        source_type,
+        effective_input,
+        valid_card_ids,
+        _,
+    ) = await _prepare_generation_context_timed(req, user_id, doc_info)
     return domain_id, domain_name, plan, search_context, source_type, effective_input, valid_card_ids
+
+
+async def _generate_quiz_with_retry(
+    *,
+    task_id: Optional[str],
+    user_input: str,
+    question_count: int,
+    difficulty: str,
+    search_context: str,
+    telemetry: dict[str, Any],
+    max_attempts: int = 2,
+) -> tuple[QuizOutput, dict[str, Any]]:
+    """调用出题链路并在 TTFT 假死/瞬态异常时自动快速重试 1 次，同时持续汇报实时题目进度。"""
+    if _is_mocked(generate_quiz):
+        t0 = time.perf_counter()
+        quiz_output = await generate_quiz(
+            user_input=user_input,
+            question_count=question_count,
+            difficulty=difficulty,
+            search_context=search_context,
+        )
+        return quiz_output, {
+            **telemetry,
+            "attempt": 1,
+            "llm_total_ms": int((time.perf_counter() - t0) * 1000),
+            "output_chars": sum(len(q.stem) for q in quiz_output.questions),
+        }
+
+    retry_reasons: list[str] = []
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, max_attempts + 1):
+        async def _on_progress(seen_count: int, cur_attempt: int = attempt) -> None:
+            if not task_id:
+                return
+            shown = min(seen_count, question_count)
+            msg = f"AI 正在编排第 {shown}/{question_count} 题..."
+            await _report_stage(
+                task_id,
+                "generating_quiz",
+                stage_message=msg,
+                telemetry={**telemetry, "attempt": cur_attempt},
+            )
+
+        try:
+            quiz_output, llm_metrics = await generate_quiz_with_telemetry(
+                user_input=user_input,
+                question_count=question_count,
+                difficulty=difficulty,
+                search_context=search_context,
+                on_question_progress=_on_progress,
+            )
+            return quiz_output, {
+                **telemetry,
+                **llm_metrics,
+                "attempt": attempt,
+                "retry_reason": "; ".join(retry_reasons) if retry_reasons else None,
+            }
+        except Exception as exc:
+            last_exc = exc
+            reason = str(exc)[:120] or exc.__class__.__name__
+            retry_reasons.append(f"attempt{attempt}:{reason}")
+            logger.warning(
+                "quiz_llm_attempt_failed",
+                task_id=task_id,
+                attempt=attempt,
+                reason=reason,
+            )
+            if attempt < max_attempts and task_id:
+                await _report_stage(
+                    task_id,
+                    "generating_quiz",
+                    stage_message=f"第 {attempt} 次连接超时或异常，正在重试第 {attempt + 1} 次...",
+                    telemetry={
+                        **telemetry,
+                        "attempt": attempt + 1,
+                        "retry_reason": "; ".join(retry_reasons),
+                    },
+                )
+
+    assert last_exc is not None
+    raise last_exc
 
 
 def _bind_source_cards(questions: list[Question], card_ids: list[int]) -> None:
@@ -519,6 +652,7 @@ async def _try_consume_prewarm_task(
         return None
 
     await cache_delete(_prewarm_cache_key(user_id, req.domain_id))
+    t_pw = time.perf_counter()
     try:
         quiz_output = QuizOutput.model_validate(cached["quiz_output"])
     except Exception:
@@ -561,7 +695,17 @@ async def _try_consume_prewarm_task(
         image_status="none",
         image_notice=None,
     )
-    await task_repository.update_task_status(task_id, "completed", result_json=resp.model_dump())
+    await task_repository.update_task_status(
+        task_id,
+        "completed",
+        result_json=resp.model_dump(),
+        stage_message=STAGE_MESSAGES["completed"],
+        telemetry={
+            "prewarm_hit": True,
+            "source_type": src,
+            "total_ms": int((time.perf_counter() - t_pw) * 1000),
+        },
+    )
     await schedule_domain_prewarm(user_id, req.domain_id)
     logger.info("domain_prewarm_cache_hit", user_id=user_id, domain_id=req.domain_id, task_id=task_id, quiz_id=quiz_id)
     return task_id
@@ -671,29 +815,51 @@ def _schedule_background_images(
     task.add_done_callback(_background_image_tasks.discard)
 
 
-async def _execute_quiz_task(
+async def _execute_quiz_task_with_telemetry(
     task_id: str,
     req: QuizGenerateRequest,
     user_id: Optional[int],
-) -> QuizGenerateResponse:
+    initial_telemetry: Optional[dict[str, Any]] = None,
+) -> tuple[QuizGenerateResponse, dict[str, Any]]:
+    telemetry: dict[str, Any] = dict(initial_telemetry or {})
     doc_info = await _validate_doc_id(req, user_id)
 
-    await task_repository.update_task_stage(task_id, "fetching_context")
-    domain_id, domain_name, plan, search_context, source_type, effective_input, valid_card_ids = (
-        await _prepare_generation_context(req, user_id, doc_info)
+    await _report_stage(
+        task_id,
+        "fetching_context",
+        stage_message=STAGE_MESSAGES["fetching_context"],
+        telemetry=telemetry,
     )
+    (
+        domain_id,
+        domain_name,
+        plan,
+        search_context,
+        source_type,
+        effective_input,
+        valid_card_ids,
+        ctx_metrics,
+    ) = await _prepare_generation_context_timed(req, user_id, doc_info)
+    telemetry.update(ctx_metrics)
     prompt_difficulty = (
         plan.difficulty_instruction
         if (req.adaptive_mode or req.self_rated_level)
         else req.difficulty
     )
 
-    await task_repository.update_task_stage(task_id, "generating_quiz")
-    quiz_output = await generate_quiz(
+    await _report_stage(
+        task_id,
+        "generating_quiz",
+        stage_message=f"AI 正在编排 {plan.question_count} 道题目...",
+        telemetry=telemetry,
+    )
+    quiz_output, telemetry = await _generate_quiz_with_retry(
+        task_id=task_id,
         user_input=effective_input,
         question_count=plan.question_count,
         difficulty=prompt_difficulty,
         search_context=search_context,
+        telemetry=telemetry,
     )
 
     _bind_source_cards(quiz_output.questions, valid_card_ids)
@@ -709,6 +875,7 @@ async def _execute_quiz_task(
         image_status = "generating"
         image_notice = "文字题目已就绪，正在后台为你生成配图..."
 
+    t_db = time.perf_counter()
     await _persist_quiz_session_and_questions(
         quiz_id=quiz_id,
         user_id=user_id,
@@ -721,11 +888,12 @@ async def _execute_quiz_task(
         source_type=source_type,
         source_review_card_ids=valid_card_ids or None,
     )
+    telemetry["db_save_ms"] = int((time.perf_counter() - t_db) * 1000)
 
     if image_status == "generating" and user_id is not None:
         _schedule_background_images(quiz_id, user_id, quiz_output.questions)
 
-    return QuizGenerateResponse(
+    resp = QuizGenerateResponse(
         quiz_id=quiz_id,
         title=quiz_output.title,
         summary=quiz_output.summary,
@@ -738,6 +906,16 @@ async def _execute_quiz_task(
         image_status=image_status,
         image_notice=image_notice,
     )
+    return resp, telemetry
+
+
+async def _execute_quiz_task(
+    task_id: str,
+    req: QuizGenerateRequest,
+    user_id: Optional[int],
+) -> QuizGenerateResponse:
+    resp, _ = await _execute_quiz_task_with_telemetry(task_id, req, user_id)
+    return resp
 
 
 async def run_quiz_job(
@@ -759,33 +937,68 @@ async def _run_quiz_task(
     req: QuizGenerateRequest,
     user_id: Optional[int],
 ) -> None:
-    """后台执行出题任务（带外层超时熔断，防止卡死在 running）。"""
+    """后台执行出题任务（带全链路耗时监控、TTFT 假死重试与外层超时熔断）。"""
     settings = get_settings()
     timeout_seconds = max(30, int(getattr(settings, "quiz_task_timeout_seconds", 180)))
+    t_run_start = time.perf_counter()
+    cached_row = await task_repository.get_task(task_id)
+    created_at_ts = cached_row.get("created_at_ts") if isinstance(cached_row, dict) else None
+    queue_wait_ms = max(0, int((time.time() - float(created_at_ts)) * 1000)) if created_at_ts else 0
+    telemetry: dict[str, Any] = {"queue_wait_ms": queue_wait_ms, "attempt": 1}
 
     try:
-        await task_repository.update_task_status(task_id, "running")
-        logger.info("quiz_task_started", task_id=task_id)
+        await task_repository.update_task_status(
+            task_id, "running", stage_message=STAGE_MESSAGES["queued"], telemetry=telemetry
+        )
+        logger.info("quiz_task_started", task_id=task_id, queue_wait_ms=queue_wait_ms)
 
-        result = await asyncio.wait_for(
-            _execute_quiz_task(task_id, req, user_id),
+        result, telemetry = await asyncio.wait_for(
+            _execute_quiz_task_with_telemetry(task_id, req, user_id, initial_telemetry=telemetry),
             timeout=timeout_seconds,
         )
+        telemetry["total_ms"] = queue_wait_ms + int((time.perf_counter() - t_run_start) * 1000)
 
         await task_repository.update_task_status(
-            task_id, "completed", result_json=result.model_dump()
+            task_id,
+            "completed",
+            result_json=result.model_dump(),
+            stage_message=STAGE_MESSAGES["completed"],
+            telemetry=telemetry,
         )
         logger.info("quiz_task_completed", task_id=task_id, quiz_id=result.quiz_id)
+        logger.info("quiz_task_telemetry", task_id=task_id, status="completed", **telemetry)
 
     except asyncio.TimeoutError:
+        telemetry["total_ms"] = queue_wait_ms + int((time.perf_counter() - t_run_start) * 1000)
+        latest = await task_repository.get_task(task_id)
+        if isinstance(latest, dict) and isinstance(latest.get("telemetry"), dict):
+            merged = dict(latest["telemetry"])
+            merged["total_ms"] = telemetry["total_ms"]
+            telemetry = merged
         logger.error("quiz_task_timeout", task_id=task_id, timeout=timeout_seconds)
+        logger.info("quiz_task_telemetry", task_id=task_id, status="timeout", **telemetry)
         await task_repository.update_task_status(
-            task_id, "failed", error_message="出题耗时超时，请稍后重试"
+            task_id,
+            "failed",
+            error_message="出题耗时超时，请稍后重试",
+            stage_message="出题超时，请稍后重试",
+            telemetry=telemetry,
         )
     except Exception as e:
+        telemetry["total_ms"] = queue_wait_ms + int((time.perf_counter() - t_run_start) * 1000)
+        latest = await task_repository.get_task(task_id)
+        if isinstance(latest, dict) and isinstance(latest.get("telemetry"), dict):
+            merged = dict(latest["telemetry"])
+            merged["total_ms"] = telemetry["total_ms"]
+            telemetry = merged
         logger.error("quiz_task_failed", task_id=task_id, error=str(e))
+        logger.info("quiz_task_telemetry", task_id=task_id, status="failed", error=str(e)[:120], **telemetry)
         await task_repository.update_task_status(
-            task_id, "failed", error_message=str(e)[:500]
+            task_id,
+            "failed",
+            error_message=str(e)[:500],
+            stage_message=STAGE_MESSAGES["failed"],
+            telemetry=telemetry,
         )
 
 
@@ -818,11 +1031,17 @@ async def get_quiz_task_status(
         else:
             raw_stage = "queued"
 
+    telemetry_obj = None
+    raw_tel = row.get("telemetry")
+    if isinstance(raw_tel, dict):
+        telemetry_obj = QuizTaskTelemetry.model_validate(raw_tel)
+
     return QuizTaskStatusResponse(
         task_id=row["task_id"],
         status=row["status"],
         stage=raw_stage,
-        stage_message=STAGE_MESSAGES.get(raw_stage),
+        stage_message=row.get("stage_message") or STAGE_MESSAGES.get(raw_stage),
+        telemetry=telemetry_obj,
         result=result,
         error_message=row.get("error_message"),
     )

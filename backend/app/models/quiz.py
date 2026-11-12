@@ -111,6 +111,28 @@ class QuizTaskCreateResponse(BaseModel):
     task_id: str
 
 
+class QuizTaskTelemetry(BaseModel):
+    """出题后台任务分阶段耗时与重试可观测指标。"""
+
+    model: Optional[str] = None
+    attempt: int = 1
+    retry_reason: Optional[str] = None
+    queue_wait_ms: Optional[int] = None
+    context_prep_ms: Optional[int] = None
+    domain_classify_ms: Optional[int] = None
+    rag_search_ms: Optional[int] = None
+    llm_ttft_ms: Optional[int] = None
+    llm_total_ms: Optional[int] = None
+    db_save_ms: Optional[int] = None
+    total_ms: Optional[int] = None
+    context_chars: int = 0
+    output_chars: int = 0
+    completion_tokens: Optional[int] = None
+    tps: Optional[float] = None
+    source_type: Optional[str] = None
+    prewarm_hit: bool = False
+
+
 class QuizTaskStatusResponse(BaseModel):
     """轮询任务状态的响应"""
 
@@ -118,6 +140,7 @@ class QuizTaskStatusResponse(BaseModel):
     status: Literal["pending", "running", "completed", "failed"]
     stage: Literal["queued", "fetching_context", "generating_quiz", "completed", "failed"] = "queued"
     stage_message: str | None = None
+    telemetry: QuizTaskTelemetry | None = None
     result: "QuizGenerateResponse | None" = None
     error_message: str | None = None
 

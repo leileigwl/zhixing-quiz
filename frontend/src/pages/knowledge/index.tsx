@@ -256,7 +256,7 @@ export default function KnowledgePage() {
       domain_id: doc.domain_id,
       enable_web_search: true,
       displayTopic: doc.file_name.replace(/\.[^.]+$/, ''),
-      originTag: 'knowledge-doc',
+      originTag: `knowledge-doc:${doc.doc_id}`,
       initiatedRoute: 'pages/knowledge/index',
     })
   }
@@ -364,7 +364,11 @@ export default function KnowledgePage() {
                       className='btn-doc-quiz zx-press'
                       onClick={() => handleStartQuiz(doc)}
                     >
-                      <Text>{bgQuiz.status === 'running' ? '出题中...' : '出题 →'}</Text>
+                      <Text>
+                        {bgQuiz.status === 'running' && bgQuiz.originTag === `knowledge-doc:${doc.doc_id}`
+                          ? '出题中...'
+                          : '出题 →'}
+                      </Text>
                     </View>
                   ) : (
                     <View className={`doc-status ${st.cls}`}>

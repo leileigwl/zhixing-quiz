@@ -390,7 +390,11 @@ export default function ProfilePage() {
                 className='btn-due-variant zx-press'
                 onClick={() => handleAiVariantCards(dueReviews.items.slice(0, 6))}
               >
-                <Text>{bgQuiz.status === 'running' ? '出题中...' : 'AI 变式'}</Text>
+                <Text>
+                  {bgQuiz.status === 'running' && bgQuiz.originTag === 'profile-card'
+                    ? '出题中...'
+                    : 'AI 变式'}
+                </Text>
               </View>
               <View
                 className='btn-due-go zx-press'

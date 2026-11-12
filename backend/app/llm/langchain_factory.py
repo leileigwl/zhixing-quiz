@@ -17,5 +17,7 @@ def get_chat_model(temperature: float = 0.4) -> ChatOpenAI:
         api_key=api_key,
         temperature=temperature,
         max_tokens=4096,
+        request_timeout=150.0,
+        max_retries=0,
         model_kwargs={"response_format": {"type": "json_object"}},
     )

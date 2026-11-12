@@ -43,9 +43,7 @@ export default function BackgroundTaskPill({ visible = true }: { visible?: boole
                   : `《${state.topic}》未生成`}
             </Text>
             <Text className='bg-pill-sub'>
-              {state.status === 'running'
-                ? `${state.stageMessage}（可先切页浏览或刷错题）`
-                : state.stageMessage}
+              {state.stageMessage}
             </Text>
           </View>
         </View>

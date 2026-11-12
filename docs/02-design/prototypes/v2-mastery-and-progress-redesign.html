@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>zhixing-quiz V2.4 原型 · 等待文案去重与曲线洞察页极简重构</title>
+  <style>
+    :root {
+      --bg: #F6F5F0;
+      --card: #FFFFFF;
+      --soft: #F1EFEA;
+      --ink: #18181B;
+      --sub: #71717A;
+      --muted: #A1A1AA;
+      --obsidian: #18181B;
+      --butter: #FBE082;
+      --sky: #D5ECFA;
+      --lavender: #E6EAFC;
+      --blue: #2563EB;
+      --coral: #E11D48;
+      --mint: #10B981;
+      --line: rgba(24, 24, 27, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      background: #EAE8E1;
+      color: var(--ink);
+      padding: 28px 20px 60px;
+    }
+    .header {
+      max-width: 1240px;
+      margin: 0 auto 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .header p { font-size: 13px; color: var(--sub); margin-top: 4px; }
+    .mode-switch {
+      display: inline-flex;
+      background: #E0DDD4;
+      padding: 4px;
+      border-radius: 999px;
+      gap: 4px;
+    }
+    .mode-btn {
+      border: 0;
+      background: transparent;
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--sub);
+      cursor: pointer;
+    }
+    .mode-btn.active { background: var(--obsidian); color: #FFF; }
+    .stage-grid {
+      max-width: 1240px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 390px));
+      justify-content: center;
+      gap: 28px;
+    }
+    .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .phone-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--sub);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .phone {
+      width: 390px;
+      height: 844px;
+      background: var(--bg);
+      border-radius: 44px;
+      border: 8px solid #1C1C1E;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 60px rgba(24,24,27,0.14);
+    }
+    .notch {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .pill-cam {
+      width: 96px; height: 24px; background: #18181B; border-radius: 999px;
+    }
+    .scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 16px 128px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .scroll.no-scroll { overflow: hidden; }
+    .scroll > * { flex-shrink: 0; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 2px;
+    }
+    .user-left { display: flex; align-items: center; gap: 10px; }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: #27272A; color: #FFF; font-size: 14px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .hello { font-size: 16px; font-weight: 700; }
+    .streak { font-size: 12px; color: var(--sub); margin-top: 2px; }
+    .top-pill {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+    }
+    .bento-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .bento {
+      border-radius: 22px; padding: 14px; display: flex; flex-direction: column;
+      justify-content: space-between; height: 112px;
+    }
+    .bento.butter { background: var(--butter); }
+    .bento.sky { background: var(--sky); }
+    .bento-tag {
+      display: inline-block; width: fit-content; padding: 3px 8px; border-radius: 999px;
+      background: rgba(24,24,27,0.08); font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    }
+    .bento-title { font-size: 18px; font-weight: 800; margin-top: 4px; }
+    .bento-sub { font-size: 11px; color: #3F3F46; }
+    .card {
+      background: var(--card); border-radius: 24px; padding: 16px;
+      border: 1px solid rgba(24,24,27,0.05);
+    }
+    .composer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .composer-title { font-size: 15px; font-weight: 700; }
+    .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .mini-chip {
+      background: var(--soft); padding: 5px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; color: #3F3F46;
+    }
+    .mini-chip.is-blue { background: #EFF6FF; color: var(--blue); border: 1px solid #BFDBFE; }
+    .prompt-box {
+      background: #FAF9F5; border-radius: 16px; padding: 12px 14px;
+      font-size: 14px; line-height: 1.5; min-height: 76px; margin-bottom: 10px;
+    }
+    .opt-row { display: flex; justify-content: space-between; align-items: center; margin: 10px 0 12px; }
+    .seg { background: var(--soft); border-radius: 999px; padding: 3px; display: inline-flex; gap: 2px; }
+    .seg span { padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 999px; color: var(--sub); }
+    .seg span.on { background: #FFF; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .btn-obsidian {
+      background: var(--obsidian); color: #FFF; border-radius: 999px;
+      padding: 14px 20px; display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-size: 15px; font-weight: 700;
+    }
+    .spinner {
+      width: 14px; height: 14px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.28); border-top-color: #FBE082;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .diff-note {
+      margin-top: 8px; font-size: 11px; color: #15803D; background: #ECFDF5;
+      padding: 7px 10px; border-radius: 12px; line-height: 1.45;
+    }
+    /* Dock & Floating Pill */
+    .dock {
+      position: absolute; left: 20px; right: 20px; bottom: 18px;
+      height: 58px; background: var(--obsidian); border-radius: 999px;
+      display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; padding: 6px;
+      box-shadow: 0 14px 32px rgba(24,24,27,0.22);
+    }
+    .dock-tab {
+      height: 46px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+      color: #A1A1AA; font-size: 12px; font-weight: 600;
+    }
+    .dock-tab.on { background: #FFF; color: var(--obsidian); }
+    .bg-pill {
+      position: absolute; left: 16px; right: 16px; bottom: 86px;
+      background: rgba(24,24,27,0.94); color: #FFF; border-radius: 20px;
+      padding: 11px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      box-shadow: 0 10px 28px rgba(24,24,27,0.25);
+    }
+    .bg-pill-left { display: flex; align-items: center; gap: 10px; }
+    .bg-pill-title { font-size: 13px; font-weight: 700; }
+    .bg-pill-sub { font-size: 11px; color: #D4D4D8; margin-top: 2px; }
+    /* Mastery Page Redesign */
+    .kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted); }
+    .h1-page { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; }
+    .domain-pills { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+    .d-pill {
+      white-space: nowrap; padding: 7px 13px; border-radius: 999px;
+      background: var(--card); font-size: 12px; font-weight: 600; color: var(--sub);
+      border: 1px solid var(--line);
+    }
+    .d-pill.on { background: var(--obsidian); color: #FFF; border-color: var(--obsidian); }
+    .kpi-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .kpi-box {
+      background: var(--card); border-radius: 18px; padding: 12px;
+      border: 1px solid rgba(24,24,27,0.05);
+    }
+    .kpi-lbl { font-size: 11px; color: var(--sub); }
+    .kpi-val { font-size: 20px; font-weight: 800; margin-top: 4px; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .panel-title { font-size: 14px; font-weight: 700; }
+    .panel-warn { font-size: 11px; font-weight: 700; color: var(--coral); }
+    .panel-sub { font-size: 11px; color: var(--sub); }
+    .curve-svg { width: 100%; height: 118px; display: block; }
+    /* Light Insight Bar replacing heavy schedule-card CTA */
+    .insight-strip {
+      background: #EEF2FF;
+      border: 1px solid rgba(37, 99, 235, 0.14);
+      border-radius: 20px;
+      padding: 13px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .insight-top { display: flex; justify-content: space-between; align-items: center; }
+    .insight-badge {
+      background: var(--butter); color: var(--ink); font-size: 11px; font-weight: 700;
+      padding: 3px 9px; border-radius: 999px;
+    }
+    .insight-meta { font-size: 11px; font-weight: 700; color: var(--blue); }
+    .insight-desc { font-size: 12px; line-height: 1.5; color: #3F3F46; }
+    /* Bars */
+    .bars { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; align-items: end; padding-top: 8px; }
+    .bar-col { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .bar-num { font-size: 10px; font-weight: 700; color: var(--sub); height: 14px; }
+    .bar-track {
+      width: 30px; height: 74px; background: var(--soft); border-radius: 999px;
+      display: flex; align-items: flex-end; overflow: hidden;
+    }
+    .bar-fill { width: 100%; border-radius: 999px; background: #18181B; }
+    .bar-fill.sel { background: #7CC4EE; }
+    .bar-lbl { font-size: 11px; color: var(--sub); padding: 2px 7px; border-radius: 999px; }
+    .bar-lbl.sel { background: #E0F2FE; color: #0369A1; font-weight: 700; }
+    /* Difficulty */
+    .diff-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+    .diff-name { font-size: 12px; color: var(--sub); width: 32px; }
+    .diff-track { flex: 1; height: 8px; background: var(--soft); border-radius: 999px; overflow: hidden; }
+    .diff-fill { height: 100%; border-radius: 999px; }
+    /* Mistake header + single compact pill */
+    .compact-cta {
+      background: var(--obsidian); color: #FFF; font-size: 11px; font-weight: 700;
+      padding: 6px 12px; border-radius: 999px; cursor: pointer;
+    }
+    .mistake-item {
+      background: #FAF9F5; border-radius: 16px; padding: 12px; margin-top: 8px;
+      border: 1px solid rgba(24,24,27,0.05);
+    }
+    .m-head { display: flex; justify-content: space-between; font-size: 11px; color: var(--sub); margin-bottom: 4px; }
+    .m-domain { background: var(--sky); color: #0369A1; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+    .m-stem { font-size: 13px; font-weight: 600; line-height: 1.45; }
+    .m-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+    .m-hint { font-size: 11px; color: var(--muted); }
+    .m-skip {
+      font-size: 11px; font-weight: 600; color: #3F3F46; background: #FFF;
+      border: 1px solid var(--line); padding: 4px 10px; border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>知行快刷 V2.4 · 进度文案精简 & 曲线「洞察优先」重构原型</h1>
+      <p>1) 去掉所有「可逛其他页」文案 + 首页去重计时；2) 曲线页取消堆砌刷题大按钮，仅保留洞察 + 错题区至多 1 枚轻入口</p>
+    </div>
+    <div class="mode-switch">
+      <button class="mode-btn active" onclick="setMistakeMode(true, this)">曲线页：有待巩固错题 (5)</button>
+      <button class="mode-btn" onclick="setMistakeMode(false, this)">曲线页：无到期错题 (0 刷题按钮)</button>
+    </div>
+  </div>
+
+  <div class="stage-grid">
+    <!-- 1. Home In-Progress (No duplicate pill, no "可逛其他页") -->
+    <div class="phone-wrap">
+      <div class="phone-label">1. 首页 · 发起出题中（单一清爽计时）</div>
+      <div class="phone">
+        <div class="notch">
+          <span>17:13</span>
+          <div class="pill-cam"></div>
+          <span>5G 100%</span>
+        </div>
+        <div class="scroll no-scroll">
+          <div class="topbar">
+            <div class="user-left">
+              <div class="avatar">S</div>
+              <div>
+                <div class="hello">继续精进, Simple</div>
+                <div class="streak">连续 2 天 · 今日已练 6 题</div>
+              </div>
+            </div>
+            <div class="top-pill">曲线日程 ›</div>
+          </div>
+
+          <div class="bento-2">
+            <div class="bento butter">
+              <span class="bento-tag">DUE TODAY</span>
+              <div>
+                <div class="bento-title">05 待巩固</div>
+                <div class="bento-sub">0.1s 秒开错题回忆</div>
+              </div>
+            </div>
+            <div class="bento sky">
+              <span class="bento-tag">FOCUS DOMAIN</span>
+              <div>
+                <div class="bento-title">大模型与 AI</div>
+                <div class="bento-sub">掌握 43% · 一键开刷 4 题</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="composer-head">
+              <span class="composer-title">发起新测验 · <span style="color:#2563EB;font-size:13px;">计算机科学</span></span>
+              <div class="chip-row">
+                <span class="mini-chip">+ 资料/文档</span>
+                <span class="mini-chip">⚙ 熟练</span>
+              </div>
+            </div>
+            <div class="prompt-box">请帮我检验「分布式锁」的核心机制与易错点</div>
+            <div class="chip-row">
+              <span class="mini-chip">RAG 检索</span>
+              <span class="mini-chip">HTTP/3</span>
+              <span class="mini-chip">分布式锁</span>
+            </div>
+            <div class="opt-row">
+              <span class="mini-chip is-blue">🌐 智能搜索</span>
+              <div class="seg">
+                <span>快速 3题</span>
+                <span class="on">智能推荐 3题</span>
+              </div>
+            </div>
+            <div class="btn-obsidian">
+              <div class="spinner"></div>
+              <span>出题中 (14s)</span>
+            </div>
+            <div class="diff-note">
+              ✓ 已去掉「· 可逛其他页」；首页不再同时压底部重复黑条，仅保留按钮内单一秒表。
+            </div>
+          </div>
+        </div>
+
+        <div class="dock">
+          <div class="dock-tab on">今日</div>
+          <div class="dock-tab">口袋</div>
+          <div class="dock-tab">曲线</div>
+          <div class="dock-tab">我的</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Away from Home Floating Pill (Real backend stage progress) -->
+    <div class="phone-wrap">
+      <div class="phone-label">2. 切离首页时 · 悬浮胶囊实时阶段</div>
+      <div class="phone">
+        <div class="notch">
+          <span>17:13</span>
+          <div class="pill-cam"></div>
+          <span>5G 100%</span>
+        </div>
+        <div class="scroll">
+          <div style="margin-bottom:2px;">
+            <div class="kicker">KNOWLEDGE POCKET</div>
+            <div class="h1-page">知识资料与文档库</div>
+          </div>
+          <div class="card" style="padding:18px;color:var(--sub);font-size:13px;line-height:1.65;">
+            当用户从首页点开出题后切换到「口袋 / 曲线 / 我的」页面时，底部才浮现单一条进度胶囊，<strong>实时展示后端真实阶段</strong>（无任何多余引导提示词）：<br /><br />
+            • <code>fetching_context</code>：AI 正在检索知识资料与核心考点...<br />
+            • <code>generating_quiz</code>：<strong>AI 正在编排第 2/3 题...</strong><br />
+            • 若上游首字停顿触发自动重试：<strong>第 1 次连接超时或异常，正在重试第 2 次...</strong><br />
+            • 出题完成：绿色胶囊 <strong>《分布式锁》已就绪 · 点击开始作答 →</strong>
+          </div>
+        </div>
+
+        <div class="bg-pill">
+          <div class="bg-pill-left">
+            <div class="spinner"></div>
+            <div>
+              <div class="bg-pill-title">正在生成《分布式锁》(14s)</div>
+              <div class="bg-pill-sub">AI 正在编排第 2/3 题...</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dock">
+          <div class="dock-tab">今日</div>
+          <div class="dock-tab on">口袋</div>
+          <div class="dock-tab">曲线</div>
+          <div class="dock-tab">我的</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Mastery Page Insight-First Redesign -->
+    <div class="phone-wrap">
+      <div class="phone-label">3. 曲线页 · 纯洞察优先 + 至多 1 枚轻重练入口</div>
+      <div class="phone">
+        <div class="notch">
+          <span>17:13</span>
+          <div class="pill-cam"></div>
+          <span>5G 100%</span>
+        </div>
+        <div class="scroll">
+          <div>
+            <div class="kicker">MEMORY RETENTION</div>
+            <div class="h1-page">学习记忆曲线与能力图谱</div>
+          </div>
+
+          <div class="domain-pills">
+            <span class="d-pill">全部域</span>
+            <span class="d-pill on">大模型与 AI</span>
+            <span class="d-pill">RAG 架构</span>
+            <span class="d-pill">综合知识域</span>
+          </div>
+
+          <div class="kpi-3">
+            <div class="kpi-box">
+              <div class="kpi-lbl">总体保持率</div>
+              <div class="kpi-val">82%</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-lbl">当前待复习</div>
+              <div class="kpi-val" id="kpi-due">5 题</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-lbl">连续复习</div>
+              <div class="kpi-val">2 天</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="panel-head">
+              <span class="panel-title">大模型与 AI · 记忆曲线</span>
+              <span class="panel-warn">50% 临界提醒</span>
+            </div>
+            <svg class="curve-svg" viewBox="0 0 330 110">
+              <line x1="8" y1="62" x2="322" y2="62" stroke="#E11D48" stroke-dasharray="4 4" stroke-width="1.2" opacity="0.65" />
+              <text x="266" y="57" fill="#E11D48" font-size="10" font-weight="700">50% 警戒</text>
+              <path d="M 16 26 L 68 78 L 122 50 L 176 28 C 218 32, 260 66, 314 90" fill="none" stroke="#18181B" stroke-width="2.4" stroke-linecap="round" />
+              <path d="M 176 28 C 210 58, 250 84, 314 96" fill="none" stroke="#A1A1AA" stroke-dasharray="4 4" stroke-width="1.6" />
+              <circle cx="176" cy="28" r="4.5" fill="#2563EB" />
+              <text x="150" y="16" fill="#2563EB" font-size="10" font-weight="700">巩固 82%</text>
+            </svg>
+          </div>
+
+          <!-- Light Insight Strip: NO giant black button here -->
+          <div class="insight-strip">
+            <div class="insight-top">
+              <span class="insight-badge" id="insight-badge">下次遗忘节点 · 明日 20:00</span>
+              <span class="insight-meta">稳定性 S = 5.15 天</span>
+            </div>
+            <div class="insight-desc" id="insight-desc">
+              预计约 2 天后回落至 50% 临界线，建议届时巩固 4 题（基础巩固为主）。如需立即新组题，可回「今日」页一键发起。
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="panel-head">
+              <span class="panel-title">本周完成题数</span>
+              <span class="panel-sub">共 59 题 · 点击柱子看明细</span>
+            </div>
+            <div class="bars">
+              <div class="bar-col"><span class="bar-num"></span><div class="bar-track"></div><span class="bar-lbl">日</span></div>
+              <div class="bar-col"><span class="bar-num"></span><div class="bar-track"></div><span class="bar-lbl">一</span></div>
+              <div class="bar-col"><span class="bar-num"></span><div class="bar-track"></div><span class="bar-lbl">二</span></div>
+              <div class="bar-col"><span class="bar-num">30</span><div class="bar-track"><div class="bar-fill sel" style="height:90%"></div></div><span class="bar-lbl sel">三</span></div>
+              <div class="bar-col"><span class="bar-num">29</span><div class="bar-track"><div class="bar-fill" style="height:86%"></div></div><span class="bar-lbl">今</span></div>
+              <div class="bar-col"><span class="bar-num"></span><div class="bar-track"></div><span class="bar-lbl">五</span></div>
+              <div class="bar-col"><span class="bar-num"></span><div class="bar-track"></div><span class="bar-lbl">六</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="panel-head">
+              <span class="panel-title">难度掌握分布</span>
+              <span class="panel-sub">三阶准确率</span>
+            </div>
+            <div class="diff-row">
+              <span class="diff-name">基础</span>
+              <div class="diff-track"><div class="diff-fill" style="width:88%;background:#10B981;"></div></div>
+              <span class="panel-sub" style="font-weight:700;">88%</span>
+            </div>
+            <div class="diff-row">
+              <span class="diff-name">中等</span>
+              <div class="diff-track"><div class="diff-fill" style="width:62%;background:#F59E0B;"></div></div>
+              <span class="panel-sub" style="font-weight:700;">62%</span>
+            </div>
+            <div class="diff-row">
+              <span class="diff-name">困难</span>
+              <div class="diff-track"><div class="diff-fill" style="width:35%;background:#E11D48;"></div></div>
+              <span class="panel-sub" style="font-weight:700;">35%</span>
+            </div>
+          </div>
+
+          <!-- Mistakes section: ONLY 1 restrained compact pill when due > 0; 0 buttons when due == 0 -->
+          <div class="card" id="mistakes-card">
+            <div class="panel-head" style="margin-bottom:4px;">
+              <span class="panel-title">待巩固错题 (5)</span>
+              <span class="compact-cta">重练 5 题 ›</span>
+            </div>
+            <div class="mistake-item">
+              <div class="m-head">
+                <span class="m-domain">大模型与 AI</span>
+                <span>第 1/3 轮</span>
+              </div>
+              <div class="m-stem">在推理阶段引入 KV Cache 后，主要优化了 Transformer 哪一步的计算冗余？</div>
+              <div class="m-footer">
+                <span class="m-hint">点击展开查看答案与解析</span>
+                <span class="m-skip">已掌握</span>
+              </div>
+            </div>
+            <div class="diff-note">
+              ✓ 移除原「按曲线安排出题 →」、卡片内「秒开重做 / AI 变式」与底部巨型黑按钮，只留顶部 1 枚轻胶囊，无错题时全页 0 个刷题按钮。
+            </div>
+          </div>
+        </div>
+
+        <div class="dock">
+          <div class="dock-tab">今日</div>
+          <div class="dock-tab">口袋</div>
+          <div class="dock-tab on">曲线</div>
+          <div class="dock-tab">我的</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function setMistakeMode(hasDue, btn) {
+      document.querySelectorAll('.mode-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('kpi-due').textContent = hasDue ? '5 题' : '0 题';
+      document.getElementById('mistakes-card').style.display = hasDue ? 'block' : 'none';
+      document.getElementById('insight-badge').textContent = hasDue
+        ? '今日有 5 道待复习 · 明日 20:00 预警'
+        : '下次遗忘节点 · 2 天后';
+      document.getElementById('insight-desc').textContent = hasDue
+        ? '当前域仍有 5 道到期错题；可在下方点「重练 5 题 ›」快速清零，曲线随后跃升。'
+        : '暂无到期错题，当前页面保持纯图谱洞察（0 个刷题按钮）；预计约 2 天后跌破 50%，建议届时在「今日」页巩固 4 题。';
+    }
+  </script>
+</body>
+</html>

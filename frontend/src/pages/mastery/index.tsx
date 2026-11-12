@@ -25,7 +25,6 @@ import {
 } from '../../services/v2Adapters'
 import {
   getBackgroundQuizState,
-  startBackgroundQuizGeneration,
   subscribeBackgroundQuiz,
   type BackgroundQuizState,
 } from '../../services/backgroundQuizManager'
@@ -131,35 +130,6 @@ export default function MasteryPage() {
     })
   }
 
-  const handleStartAiPractice = (
-    cards?: DueReviewCardItem[],
-    originTag: string = 'mastery-schedule',
-  ) => {
-    const targetCards = cards || dueReviews.items.slice(0, 6)
-    const reviewIds = cards ? targetCards.map((c) => c.card_id) : []
-    const domainName = activeDomain?.name || nextPlan?.domain_name || '综合知识'
-    const recCount =
-      reviewIds.length > 0
-        ? Math.max(1, reviewIds.length)
-        : nextPlan?.recommended_count || activeDomain?.recommended_count || 5
-
-    void startBackgroundQuizGeneration({
-      user_input:
-        reviewIds.length > 0
-          ? `针对到期薄弱点「${domainName}」进行变式间隔巩固复习`
-          : `针对「${domainName}」按记忆曲线节奏（${nextPlan?.focus_difficulty || '中等进阶'}）巩固核心考点`,
-      question_count: recCount,
-      adaptive_mode: reviewIds.length === 0,
-      domain_id: activeDomain?.domain_id,
-      enable_web_search: reviewIds.length > 0,
-      allow_prewarm: reviewIds.length === 0 && Boolean(activeDomain?.domain_id),
-      review_card_ids: reviewIds.length > 0 ? reviewIds : undefined,
-      displayTopic: `${domainName} · ${recCount}题`,
-      originTag,
-      initiatedRoute: 'pages/mastery/index',
-    })
-  }
-
   const handleMarkMastered = async (card: DueReviewCardItem) => {
     const res = await markQuestionForReview({
       quiz_id: card.quiz_id,
@@ -248,28 +218,20 @@ export default function MasteryPage() {
         </View>
       </View>
 
-      {/* 曲线驱动日程与下次出题调度 */}
+      {/* 曲线洞察与下次遗忘预警（纯阅读提示，去除了重复出题大按钮） */}
       {nextPlan && (
         <View className='zx-card schedule-card'>
           <View className='schedule-head'>
             <View className='schedule-badge'>
-              <Text>下次安排 · {nextPlan.when_label}</Text>
+              <Text>下次遗忘节点 · {nextPlan.when_label}</Text>
             </View>
             <Text className='schedule-meta'>
-              推荐 {nextPlan.recommended_count} 题 · {nextPlan.focus_difficulty}
+              稳定性 S = {activeDomain?.stability_days ?? 5} 天
             </Text>
           </View>
-          <Text className='schedule-reason'>{nextPlan.reason}</Text>
-          <View
-            className='schedule-go zx-press'
-            onClick={() => handleStartAiPractice(undefined, 'mastery-schedule')}
-          >
-            <Text>
-              {bgQuiz.status === 'running' && bgQuiz.originTag === 'mastery-schedule'
-                ? `正在后台生成中 (${bgQuiz.elapsedSec}s)...`
-                : `按曲线安排出题 (${nextPlan.recommended_count} 题) →`}
-            </Text>
-          </View>
+          <Text className='schedule-reason'>
+            {nextPlan.reason}。如需新组题练习，可回「今日」页一键发起。
+          </Text>
         </View>
       )}
 
@@ -369,12 +331,17 @@ export default function MasteryPage() {
         </View>
       )}
 
-      {/* 待复习错题手风琴清单 */}
+      {/* 待复习错题手风琴清单（仅标题旁保留 1 枚轻胶囊，无错题时全页 0 个刷题按钮） */}
       {dueReviews.items.length > 0 && (
         <View className='zx-card curve-panel'>
           <View className='panel-head'>
             <Text className='panel-title'>待巩固错题 ({dueReviews.items.length})</Text>
-            <Text className='panel-sub'>点击展开答案与解析</Text>
+            <View
+              className='mastery-compact-cta zx-press'
+              onClick={() => handleInstantReview()}
+            >
+              <Text>重练 {Math.min(6, dueReviews.items.length)} 题 ›</Text>
+            </View>
           </View>
           <View className='mastery-due-list'>
             {dueReviews.items.slice(0, 8).map((card) => {
@@ -409,19 +376,8 @@ export default function MasteryPage() {
                       {card.explanation && (
                         <Text className='mastery-due-explain'>{card.explanation}</Text>
                       )}
-                      <View className='mastery-due-btns'>
-                        <View
-                          className='md-btn is-dark zx-press'
-                          onClick={() => handleInstantReview([card])}
-                        >
-                          <Text>秒开重做</Text>
-                        </View>
-                        <View
-                          className='md-btn is-blue zx-press'
-                          onClick={() => handleStartAiPractice([card], 'mastery-card')}
-                        >
-                          <Text>AI 变式</Text>
-                        </View>
+                      <View className='mastery-due-footer'>
+                        <Text className='mastery-due-hint'>点击题目可收起</Text>
                         <View
                           className='md-btn is-light zx-press'
                           onClick={() => handleMarkMastered(card)}
@@ -435,25 +391,6 @@ export default function MasteryPage() {
               )
             })}
           </View>
-        </View>
-      )}
-
-      {dueReviews.items.length > 0 ? (
-        <View className='zx-btn-obsidian' onClick={() => handleInstantReview()}>
-          <Text>秒开清零 {dueReviews.total_due || dueReviews.items.length} 道错题</Text>
-          <Text>→</Text>
-        </View>
-      ) : (
-        <View
-          className='zx-btn-obsidian'
-          onClick={() => handleStartAiPractice(undefined, 'mastery-cta')}
-        >
-          <Text>
-            {bgQuiz.status === 'running' && bgQuiz.originTag === 'mastery-cta'
-              ? `后台出题中 (${bgQuiz.elapsedSec}s)...`
-              : `按当前画像再刷一组「${activeDomain?.name || '精选'}」`}
-          </Text>
-          <Text>→</Text>
         </View>
       )}
 

@@ -191,7 +191,7 @@ export default function IndexPage() {
 
   const handleGenerate = () => {
     if (bgQuiz.status === 'running') {
-      Taro.showToast({ title: '题目正在后台生成中，可先逛其他页面', icon: 'none' })
+      Taro.showToast({ title: '上一组题正在生成中，请稍候', icon: 'none' })
       return
     }
     const trimmed = inputValue.trim()
@@ -273,10 +273,13 @@ export default function IndexPage() {
   const materialCount = (referenceText.trim() ? 1 : 0) + selectedDocs.length
   const isCustomRunning = bgQuiz.status === 'running' && bgQuiz.originTag === 'home-custom'
   const isFocusRunning = bgQuiz.status === 'running' && bgQuiz.originTag === 'home-focus'
+  const showHomePill =
+    bgQuiz.status !== 'idle' &&
+    (bgQuiz.status !== 'running' || (!isCustomRunning && !isFocusRunning))
   const primaryCountKey: 'fast3' | 'adaptive' = questionChoice === 3 ? 'fast3' : 'adaptive'
 
   return (
-    <View className={`index-page ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
+    <View className={`index-page ${showHomePill ? 'has-bg-pill' : ''}`}>
       {/* 1. 顶部紧致状态栏（防右侧小屏裁切） */}
       <View className='home-topbar'>
         <View
@@ -438,7 +441,7 @@ export default function IndexPage() {
           {isCustomRunning ? (
             <View className='btn-inline-running'>
               <View className='inline-spinner' />
-              <Text>后台出题中 ({bgQuiz.elapsedSec}s) · 可逛其他页</Text>
+              <Text>出题中 ({bgQuiz.elapsedSec}s)</Text>
             </View>
           ) : (
             <>
@@ -598,7 +601,7 @@ export default function IndexPage() {
         </View>
       )}
 
-      <BackgroundTaskPill visible={dockVisible} />
+      <BackgroundTaskPill visible={dockVisible && showHomePill} />
 
       {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='index' />}
     </View>

@@ -266,11 +266,27 @@
   color: var(--ink-500);
 }
 
-.mastery-due-btns {
+.mastery-due-footer {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-top: 10px;
-  flex-wrap: wrap;
+}
+
+.mastery-due-hint {
+  font-size: 20px;
+  color: var(--ink-400);
+}
+
+.mastery-compact-cta {
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: var(--ink-900);
+  color: #ffffff;
+  font-size: 21px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .md-btn {
@@ -352,19 +368,6 @@
   font-size: 23px;
   line-height: 1.55;
   color: var(--ink-700);
-  margin-bottom: 16px;
-}
-
-.schedule-go {
-  height: 76px;
-  border-radius: 999px;
-  background: var(--ink-900);
-  color: #ffffff;
-  font-size: 23px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .week-drill-box {

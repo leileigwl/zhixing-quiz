@@ -102,7 +102,7 @@ export async function startBackgroundQuizGeneration(
   },
 ): Promise<void> {
   if (currentState.status === 'running') {
-    Taro.showToast({ title: '上一组题正在后台生成中，可先浏览其他页面', icon: 'none' })
+    Taro.showToast({ title: '上一组题正在生成中，请稍候', icon: 'none' })
     return
   }
 
