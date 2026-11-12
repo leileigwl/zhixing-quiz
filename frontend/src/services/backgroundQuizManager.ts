@@ -15,6 +15,7 @@ export interface BackgroundQuizState {
   status: BgQuizStatus
   taskId?: string
   topic: string
+  originTag?: string
   stageMessage: string
   startedAt: number
   elapsedSec: number
@@ -97,6 +98,7 @@ export async function startBackgroundQuizGeneration(
   params: GenerateQuizAsyncParams & {
     displayTopic: string
     initiatedRoute?: string
+    originTag?: string
   },
 ): Promise<void> {
   if (currentState.status === 'running') {
@@ -109,6 +111,7 @@ export async function startBackgroundQuizGeneration(
   currentState = {
     status: 'running',
     topic: params.displayTopic.slice(0, 16),
+    originTag: params.originTag,
     stageMessage: '正在调度并行检索与出题...',
     startedAt: Date.now(),
     elapsedSec: 0,

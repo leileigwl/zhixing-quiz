@@ -1,19 +1,23 @@
 .index-page {
   min-height: 100vh;
   background: var(--bg-canvas);
-  padding: 24px 36px calc(190px + env(safe-area-inset-bottom));
+  padding: 20px 32px calc(180px + env(safe-area-inset-bottom));
   box-sizing: border-box;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
 
-/* 1. 紧致顶部状态栏 */
+.index-page.has-bg-pill {
+  padding-bottom: calc(290px + env(safe-area-inset-bottom));
+}
+
+/* 1. 紧致顶部状态栏（防右侧 375px 小屏裁切） */
 .home-topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   margin-bottom: 20px;
 }
 
@@ -22,13 +26,13 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
 }
 
 .monogram-circle,
 .monogram-img {
-  width: 64px;
-  height: 64px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -38,7 +42,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--ink-900);
 }
@@ -51,7 +55,7 @@
 }
 
 .greet-title {
-  font-size: 29px;
+  font-size: 27px;
   font-weight: 800;
   color: var(--ink-900);
   letter-spacing: -0.02em;
@@ -64,59 +68,126 @@
   font-size: 20px;
   color: var(--ink-500);
   margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.due-pill {
-  padding: 12px 22px;
+.topbar-badge {
+  padding: 10px 20px;
   border-radius: 999px;
+  background: #ffffff;
+  color: var(--ink-700);
   font-size: 21px;
   font-weight: 700;
   white-space: nowrap;
   flex-shrink: 0;
-  color: var(--ink-900);
+  box-shadow: 0 4px 14px rgba(20, 21, 26, 0.05);
 }
 
-.due-pill.is-butter {
+/* 2. 上方双快捷卡（紧凑高密度、填补空白且保证一屏不滚动） */
+.mini-bento-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.mini-tile {
+  border-radius: 36px;
+  padding: 22px 24px;
+  height: 176px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.mini-tile.is-butter {
   background: var(--accent-butter);
-  box-shadow: 0 8px 18px -6px rgba(244, 208, 111, 0.7);
 }
 
-.due-pill.is-sky {
+.mini-tile.is-sky {
   background: var(--accent-sky);
 }
 
-/* 2. 首屏居中核心舞台 */
-.home-center-stage {
-  flex: 1;
+.mini-top {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
 }
 
+.mini-tag {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(20, 21, 26, 0.08);
+  color: var(--ink-900);
+  white-space: nowrap;
+}
+
+.mini-arrow {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--ink-900);
+}
+
+.mini-bottom {
+  display: flex;
+  flex-direction: column;
+}
+
+.mini-val {
+  font-size: 34px;
+  font-weight: 800;
+  color: var(--ink-900);
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-val.is-domain {
+  font-size: 30px;
+}
+
+.mini-sub {
+  font-size: 19px;
+  color: rgba(20, 21, 26, 0.7);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 3. 核心出题主卡 */
 .composer-card {
   background: var(--surface-card);
-  border-radius: 52px;
-  padding: 36px;
-  box-shadow: 0 18px 46px rgba(20, 21, 26, 0.06);
+  border-radius: 46px;
+  padding: 30px;
+  box-shadow: 0 16px 40px rgba(20, 21, 26, 0.05);
 }
 
 .composer-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .composer-title-wrap {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
 .composer-kicker {
-  font-size: 32px;
+  font-size: 29px;
   font-weight: 800;
   color: var(--ink-900);
   letter-spacing: -0.02em;
@@ -124,7 +195,7 @@
 }
 
 .composer-domain-tag {
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 600;
   color: var(--ds-blue);
   white-space: nowrap;
@@ -135,16 +206,16 @@
 .composer-tools {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
 .tool-chip {
-  padding: 8px 18px;
+  padding: 8px 16px;
   border-radius: 999px;
   background: #f4f4f6;
   color: var(--ink-700);
-  font-size: 21px;
+  font-size: 20px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -156,14 +227,14 @@
 
 .composer-textarea {
   width: 100%;
-  height: 156px;
-  font-size: 30px;
-  line-height: 1.5;
+  height: 118px;
+  font-size: 27px;
+  line-height: 1.48;
   font-weight: 600;
   color: var(--ink-900);
   background: #faf9f6;
-  border-radius: 28px;
-  padding: 20px 24px;
+  border-radius: 24px;
+  padding: 16px 20px;
   box-sizing: border-box;
 }
 
@@ -175,37 +246,36 @@
 .quick-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin: 20px 0 24px;
+  gap: 10px;
+  margin: 16px 0 18px;
 }
 
 .quick-chip {
-  padding: 10px 22px;
+  padding: 8px 18px;
   border-radius: 999px;
   background: #f5f5f7;
   color: var(--ink-700);
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 500;
   white-space: nowrap;
 }
 
-/* 极简 2 项控制行 */
 .controls-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 26px;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
 .ds-pill {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  height: 60px;
-  padding: 0 22px;
+  gap: 8px;
+  height: 56px;
+  padding: 0 20px;
   border-radius: 999px;
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 600;
   white-space: nowrap;
   flex-shrink: 0;
@@ -225,8 +295,8 @@
 
 .ds-globe {
   position: relative;
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 2.5px solid currentColor;
   flex-shrink: 0;
@@ -234,7 +304,7 @@
 
 .dsg-meridian {
   position: absolute;
-  left: 5px;
+  left: 4px;
   top: -1px;
   bottom: -1px;
   width: 9px;
@@ -247,14 +317,14 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: 9px;
+  top: 8px;
   height: 2px;
   background: currentColor;
 }
 
 .seg-bar {
   display: inline-flex;
-  padding: 6px;
+  padding: 5px;
   border-radius: 999px;
   background: rgba(20, 21, 26, 0.05);
   gap: 4px;
@@ -262,9 +332,9 @@
 }
 
 .seg-item {
-  padding: 10px 20px;
+  padding: 8px 18px;
   border-radius: 999px;
-  font-size: 21px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--ink-500);
   white-space: nowrap;
@@ -288,8 +358,8 @@
 }
 
 .inline-spinner {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.25);
   border-top-color: #f4d06f;

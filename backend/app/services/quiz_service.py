@@ -15,7 +15,13 @@ from app.core.exceptions import (
     QuizGenerationError,
     ResourceNotFoundError,
 )
-from app.core.redis_client import get_arq_pool
+from app.core.redis_client import (
+    cache_delete,
+    cache_get_json,
+    cache_set_json,
+    get_arq_pool,
+    get_redis,
+)
 from app.core.security import check_content
 from app.llm.quiz_chain import generate_quiz
 from app.models.quiz import (
@@ -40,7 +46,11 @@ from app.services import (
     mastery_service,
     rag_service,
 )
-from app.services.search_service import fetch_knowledge_context, resolve_knowledge_context
+from app.services.search_service import (
+    fetch_knowledge_context,
+    has_recency_signal,
+    resolve_knowledge_context,
+)
 
 logger = structlog.get_logger()
 
@@ -119,6 +129,10 @@ async def _fetch_context_with_source(
 ) -> tuple[str, str]:
     """三源融合 LCEL 检索路由：用户粘贴材料 + 私有知识库（单/多/域全库）+ Tavily 联网搜索。"""
     target_doc_ids = effective_doc_ids if effective_doc_ids is not None else _collect_requested_doc_ids(req)
+    ref_text = (getattr(req, "reference_text", None) or "").strip()
+    effective_web = bool(req.enable_web_search) and not (
+        len(ref_text) >= 200 and not has_recency_signal(req.user_input)
+    )
 
     if target_doc_ids:
         if len(target_doc_ids) == 1 and _is_mocked(rag_service.fetch_rag_context):
@@ -129,7 +143,7 @@ async def _fetch_context_with_source(
             user_id=user_id,
             doc_id=target_doc_ids[0],
             doc_ids=target_doc_ids,
-            enable_web_search=req.enable_web_search,
+            enable_web_search=effective_web,
         )
         return _merge_reference_text(req, ctx, src)
 
@@ -139,7 +153,7 @@ async def _fetch_context_with_source(
 
     ctx, src = await resolve_knowledge_context(
         user_input=req.user_input,
-        enable_web_search=req.enable_web_search,
+        enable_web_search=effective_web,
     )
     return _merge_reference_text(req, ctx, src)
 
@@ -194,13 +208,17 @@ async def _resolve_domain_and_plan(
                 domain_name = doc_info.get("domain_name")
 
             if domain_id is None:
-                # 优先毫秒级关键词规则分类；未命中时仅对短文本调语义归类
+                # 优先毫秒级关键词规则分类；未命中时限时 2.5s 调语义归类，避免阻塞主链路
                 guessed_name, color = domain_classifier.classify_domain_deterministic(req.user_input)
                 if guessed_name == "综合知识域" and len(req.user_input.strip()) >= 8:
                     existing = [d["name"] for d in await mastery_repository.list_user_domains(user_id)]
-                    guessed_name, color = await domain_classifier.classify_domain_with_llm(
-                        req.user_input, existing
-                    )
+                    try:
+                        guessed_name, color = await asyncio.wait_for(
+                            domain_classifier.classify_domain_with_llm(req.user_input, existing),
+                            timeout=2.5,
+                        )
+                    except asyncio.TimeoutError:
+                        pass
                 dom = await mastery_repository.get_or_create_domain(user_id, guessed_name, color)
                 domain_id, domain_name = dom["domain_id"], dom["name"]
 
@@ -395,15 +413,173 @@ async def handle_quiz_generate(
     )
 
 
+PREWARM_TTL_SECONDS = 21600
+PREWARM_LOCK_SECONDS = 120
+
+
+def _prewarm_cache_key(user_id: int, domain_id: int) -> str:
+    return f"zx:prewarm:{user_id}:{domain_id}"
+
+
+def _prewarm_lock_key(user_id: int, domain_id: int) -> str:
+    return f"zx:prewarm_lock:{user_id}:{domain_id}"
+
+
+async def schedule_domain_prewarm(user_id: Optional[int], domain_id: Optional[int]) -> None:
+    """触发 ARQ 在后台为薄弱/最近活跃知识域悄悄预备下一套自适应题，命中时可 0.1s 秒开。"""
+    if user_id is None or domain_id is None:
+        return
+    try:
+        redis_client = get_redis()
+        if redis_client is not None:
+            acquired = await redis_client.set(
+                _prewarm_lock_key(user_id, domain_id),
+                "1",
+                ex=PREWARM_LOCK_SECONDS,
+                nx=True,
+            )
+            if not acquired:
+                return
+        arq_pool = get_arq_pool()
+        settings = get_settings()
+        if settings.enable_arq_queue and arq_pool is not None:
+            await arq_pool.enqueue_job(
+                "job_prewarm_domain_quiz",
+                user_id,
+                domain_id,
+                _job_id=f"prewarm:{user_id}:{domain_id}",
+            )
+    except Exception as exc:
+        logger.debug("schedule_domain_prewarm_skipped", user_id=user_id, domain_id=domain_id, error=str(exc))
+
+
+async def generate_and_cache_prewarm_quiz(user_id: int, domain_id: int) -> bool:
+    """后台生成 1 套自适应知识域测验并缓存到 Redis，不写历史记录直至用户真正点击开刷。"""
+    try:
+        dom = await mastery_repository.get_domain_by_id(domain_id, user_id)
+        if not dom:
+            return False
+        domain_name = dom["name"]
+        req = QuizGenerateRequest(
+            user_input=f"针对「{domain_name}」核心重难点与常见误区生成自适应巩固测验",
+            question_count=5,
+            adaptive_mode=True,
+            domain_id=domain_id,
+            enable_web_search=False,
+            generate_images=False,
+        )
+        doc_info = None
+        explicit_doc_ids = await knowledge_repository.list_ready_doc_ids_by_domain(user_id, domain_id)
+        if explicit_doc_ids:
+            doc_info = await knowledge_repository.get_document(explicit_doc_ids[0], user_id)
+        d_id, d_name, plan, search_context, source_type, effective_input, _ = (
+            await _prepare_generation_context(req, user_id, doc_info)
+        )
+        quiz_output = await generate_quiz(
+            user_input=effective_input,
+            question_count=plan.question_count,
+            difficulty=plan.difficulty_instruction,
+            search_context=search_context,
+        )
+        payload = {
+            "quiz_output": quiz_output.model_dump(),
+            "domain_id": d_id or domain_id,
+            "domain_name": d_name or domain_name,
+            "source_type": source_type,
+            "recommended_count": plan.recommended_count,
+            "adaptive_reason": plan.reason,
+            "user_input": req.user_input,
+        }
+        await cache_set_json(_prewarm_cache_key(user_id, domain_id), payload, ttl_seconds=PREWARM_TTL_SECONDS)
+        logger.info("domain_quiz_prewarmed", user_id=user_id, domain_id=domain_id, count=len(quiz_output.questions))
+        return True
+    except Exception as exc:
+        logger.warning("domain_quiz_prewarm_failed", user_id=user_id, domain_id=domain_id, error=str(exc))
+        return False
+
+
+async def _try_consume_prewarm_task(
+    req: QuizGenerateRequest,
+    user_id: Optional[int],
+) -> Optional[str]:
+    """若命中该域预备题库，直接 0.1s 落盘任务为 completed 并在后台补发下一组。"""
+    if (
+        not req.allow_prewarm
+        or user_id is None
+        or req.domain_id is None
+        or (req.reference_text or "").strip()
+        or _collect_requested_doc_ids(req)
+        or req.review_card_ids
+        or req.generate_images
+    ):
+        return None
+
+    cached = await cache_get_json(_prewarm_cache_key(user_id, req.domain_id))
+    if not isinstance(cached, dict) or not cached.get("quiz_output"):
+        return None
+
+    await cache_delete(_prewarm_cache_key(user_id, req.domain_id))
+    try:
+        quiz_output = QuizOutput.model_validate(cached["quiz_output"])
+    except Exception:
+        return None
+
+    task_id = f"task_{uuid.uuid4().hex[:12]}"
+    quiz_id = f"quiz_{uuid.uuid4().hex[:12]}"
+    d_id = cached.get("domain_id") or req.domain_id
+    d_name = cached.get("domain_name")
+    src = cached.get("source_type") or "llm_direct"
+
+    await task_repository.create_task(
+        task_id=task_id,
+        user_id=user_id,
+        user_input=req.user_input,
+        question_count=len(quiz_output.questions),
+        difficulty=req.difficulty,
+    )
+    await _persist_quiz_session_and_questions(
+        quiz_id=quiz_id,
+        user_id=user_id,
+        quiz_output=quiz_output,
+        user_input=req.user_input[:1800],
+        image_status="none",
+        image_notice=None,
+        domain_id=d_id,
+        domain_name=d_name,
+        source_type=src,
+    )
+    resp = QuizGenerateResponse(
+        quiz_id=quiz_id,
+        title=quiz_output.title,
+        summary=quiz_output.summary,
+        questions=quiz_output.questions,
+        source_type=src,
+        domain_id=d_id,
+        domain_name=d_name,
+        recommended_count=cached.get("recommended_count"),
+        adaptive_reason=cached.get("adaptive_reason"),
+        image_status="none",
+        image_notice=None,
+    )
+    await task_repository.update_task_status(task_id, "completed", result_json=resp.model_dump())
+    await schedule_domain_prewarm(user_id, req.domain_id)
+    logger.info("domain_prewarm_cache_hit", user_id=user_id, domain_id=req.domain_id, task_id=task_id, quiz_id=quiz_id)
+    return task_id
+
+
 async def create_quiz_task(
     req: QuizGenerateRequest,
     user_id: Optional[int] = None,
 ) -> QuizTaskCreateResponse:
-    """创建异步出题任务，立即返回 task_id（优先 ARQ Redis 入队，本地回退 asyncio）。"""
+    """创建异步出题任务，优先尝试 0.1s 命中域预热缓存，未命中则由 ARQ Worker 异步生成。"""
     if not check_content(req.user_input):
         raise ContentFilterError("输入内容包含不当内容，请修改后重试")
 
     await _validate_doc_id(req, user_id)
+
+    fast_task_id = await _try_consume_prewarm_task(req, user_id)
+    if fast_task_id:
+        return QuizTaskCreateResponse(task_id=fast_task_id)
 
     task_id = f"task_{uuid.uuid4().hex[:12]}"
 

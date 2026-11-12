@@ -228,6 +228,7 @@ export interface GenerateQuizAsyncParams {
   enable_web_search?: boolean
   generate_images?: boolean
   review_card_ids?: number[]
+  allow_prewarm?: boolean
 }
 
 export function generateQuizAsync(
@@ -261,6 +262,7 @@ export function generateQuizAsync(
       enable_web_search: payload.enable_web_search ?? true,
       generate_images: payload.generate_images ?? false,
       review_card_ids: payload.review_card_ids,
+      allow_prewarm: payload.allow_prewarm ?? false,
     },
   })
 }
@@ -273,8 +275,8 @@ export function getQuizTaskStatus(taskId: string) {
 export function pollQuizTask(
   taskId: string,
   onProgress?: (status: string, task: QuizTaskStatus) => void,
-  initialIntervalMs = 700,
-  maxAttempts = 120,
+  initialIntervalMs = 500,
+  maxAttempts = 150,
 ): Promise<QuizData> {
   return new Promise((resolve, reject) => {
     let attempts = 0
@@ -303,7 +305,7 @@ export function pollQuizTask(
           reject(new Error('出题超时，请稍后重试'))
           return
         }
-        const delay = attempts < 8 ? initialIntervalMs : 1100
+        const delay = attempts < 6 ? initialIntervalMs : 950
         timer = setTimeout(tick, delay)
       } catch (err) {
         settled = true
@@ -312,7 +314,7 @@ export function pollQuizTask(
       }
     }
 
-    timer = setTimeout(tick, Math.min(450, initialIntervalMs))
+    timer = setTimeout(tick, 220)
   })
 }
 

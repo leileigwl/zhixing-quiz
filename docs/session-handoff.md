@@ -4,31 +4,31 @@
 
 ## 当前阶段
 
-**`zhixing-quiz` V2.2（在 V2.1 基础上完成首页一屏化重塑、曲线=日程联动与历史实测节点、本周学习印章/节律可下钻明细、未交卷草稿分离、`本次诊断结论`三步人话复盘及非阻塞后台异步出题悬浮胶囊）已完成前后端升级、双端编译与 Playwright 全流程验收。**
+**`zhixing-quiz` V2.3（在 V2.2 基础上完成首页「极简不空旷」双砖平衡一屏与小屏防裁切、`SevenDayRhythmBar` 柱图去晕染与均线/胶囊选中态精修、曲线页冗余 AI 按钮瘦身与 `originTag` 按钮状态隔离、报告页 `"ARQ"` 术语彻底替换为白话微信提醒、以及“后端域级 pre-warm Redis 预备题库 (`0.1s` 秒开) + JSON 强制格式 + 智能跳过冗余联网检索”非换模型速度优化）已完成前后端升级、双端编译与 Playwright 全流程验收。**
 
 ## 已完成核心改造
 
-1. **V2.2 首页一屏直达 + 轻量化出题交互（[`frontend/src/pages/index/index.tsx`](../frontend/src/pages/index/index.tsx)）**：
-   - 首页重塑为「顶部状态条（问候/连胜/待复习秒刷微胶囊）+ 居中核心 `发起新测验` 大卡 + 底部胶囊 Dock」，实测 `390×844` 一屏 `scrollH=844` 零滑动看完；去掉原首页 7 日条、全部系统横条、巨大双 Bento 与最近记录。
-   - 出题卡片仅保留主题输入、3 枚快捷词、`智能搜索` 开关与 `快速 3题 / 智能推荐` 2 项直选；三源粘贴文本与多文档多选收敛至「`+ 资料/文档`」半屏抽屉，知识域限定、熟悉度自评、题量微调与 AI 配图收敛至「`设置 ⚙`」抽屉。
-2. **V2.2 非阻塞分级异步与客户端镜像缓存（[`backgroundQuizManager.ts`](../frontend/src/services/backgroundQuizManager.ts)、[`BackgroundTaskPill`](../frontend/src/components/BackgroundTaskPill/index.tsx)、[`quizSessionStore.ts`](../frontend/src/services/quizSessionStore.ts)）**：
-   - 耗时 AI 出题（含口袋单文档出题、曲线计划出题、错题 AI 变式）移除全屏遮罩，改为按钮原地转圈 + 跨页面轻量悬浮进度胶囊（可自由切换去刷错题或浏览其他页；留首页时就绪自动进题，切走则胶囊转绿点击进入）；交卷结算与错题毕业维持局部防重放锁。
-   - 客户端接入 SWR 画像/错题缓存与按 `quiz_id` 隔离的作答草稿持久化，避免切换页面重载丢失；历史列表区分 `is_submitted=False` 为「`待完成 · 继续 ›`」直接断点续刷，不再误标 `0%`。
-3. **V2.2 差异化实测曲线 + 曲线日程联动 + 本周进度下钻 + 3步诊断报告（[`mastery_service.py`](../backend/app/services/mastery_service.py)、[`pages/mastery/index.tsx`](../frontend/src/pages/mastery/index.tsx)、[`pages/report/index.tsx`](../frontend/src/pages/report/index.tsx)、[`pages/profile/index.tsx`](../frontend/src/pages/profile/index.tsx)）**：
-   - [`build_retention_curve`](../backend/app/services/mastery_service.py) 叠加各知识域真实历次已交卷得分节点（`is_actual`）与专属稳定性 `S`，生成跨领域显著差异的波形，并在 [`MasteryOverviewResponse.next_plan`](../backend/app/models/mastery.py) 计算跌破 50% 临界天数、下次建议复习时机、题量及难度侧重，曲线页支持「按曲线安排出题 →」。
-   - 本周进度柱图与「我的 · 本周学习印章」接入 [`get_user_weekly_sessions`](../backend/app/repositories/mastery_repository.py) 当日测验明细下钻（点击任意日期查看学过哪些测验、题数、正确率与薄弱点）。
-   - 报告页首屏新增「本次诊断结论」三步人话卡（本次答题与失分点 / 曲线保持率变化原因 / 后续日程与秒开安排）。
-4. **微信小程序主端与后端核心基座（V2.0/V2.1）**：
-   - 自包含 [`custom-tab-bar`](../frontend/src/custom-tab-bar/index.tsx) 产出 `4350` B 独立 `index.wxss`（`styleIsolation: 'apply-shared'`）、六页统一安全区底距；MySQL 12 表 + Redis Lua 原子限流 + Chroma HTTP (`:8001`) + ARQ Worker + 真实 Tavily 实时联网检索。
+1. **V2.3 首页一屏平衡重塑与 375px 小屏零裁切（[`frontend/src/pages/index/index.tsx`](../frontend/src/pages/index/index.tsx)）**：
+   - 修复 V2.2 顶部留白过多与 `375px` 小屏右上角徽章裁切问题，顶栏收敛为精简胶囊「`曲线日程 ›`」，新增 `176px` 紧凑双砖（左侧暖黄 `DUE TODAY` `0.1s` 秒开到期错题，右侧天蓝 `FOCUS DOMAIN` 带 `allow_prewarm: true` 一键开刷最需巩固知识域），下方衔接紧凑 `发起新测验` 大卡，在 `375×812` 与 `390×844` 均严格一屏零滚动。
+2. **V2.3 图表/文案去工程化打磨与状态隔离（[`SevenDayRhythmBar`](../frontend/src/components/SevenDayRhythmBar/index.tsx)、[`pages/mastery/index.tsx`](../frontend/src/pages/mastery/index.tsx)、[`pages/report/index.tsx`](../frontend/src/pages/report/index.tsx)、[`backgroundQuizManager.ts`](../frontend/src/services/backgroundQuizManager.ts)）**：
+   - 修复 `SevenDayRhythmBar` 胶囊轨道外圈蓝色模糊阴影与顶端圆角缝隙，拓宽柱条至 `34px×116px`，补充每周日均虚线参考线（`.zx-bar-avg-line`）与清晰的日期选中胶囊（`.zx-bar-lbl-pill.is-selected`）。
+   - 移除 `MasteryPage` 底部曾与 `.bg-pill` 重叠的冗余 `btn-secondary-ai` 按钮，全站补充 `.has-bg-pill` 底部安全避让空间，并通过 `originTag` 隔离后台任务触发来源的按钮转圈状态（首页大卡、Focus 砖与曲线页 CTA 互不误伤）。
+   - 报告页底部「`开启明日 ARQ 到期提醒`」改为通俗文案「**`开启微信复习提醒（明晚 20:00）`**」。
+3. **V2.3 非换模型提速与 Redis 域级 Pre-Warm 预热池（[`quiz_service.py`](../backend/app/services/quiz_service.py)、[`arq_worker.py`](../backend/app/workers/arq_worker.py)、[`search_service.py`](../backend/app/services/search_service.py)、[`langchain_factory.py`](../backend/app/llm/langchain_factory.py)）**：
+   - 保留 `.env` 当前 `deepseek-ai/DeepSeek-V3.2` 配置，改为工程侧结构性提速：`ChatOpenAI` 启用 `response_format={"type": "json_object"}`、`classify_domain_with_llm` 加 `2.5s` 超时兜底、Tavily 检索收紧为 `max_results=3` 与 `8s` 超时、且当提供 `>= 200` 字参考资料且无时效性关键词时智能跳过外网检索。
+   - 新增 ARQ 后台预备任务 `job_prewarm_domain_quiz` 与 Redis 预热缓存（`zx:prewarm:{user_id}:{domain_id}`），交卷更新画像后静默在后台为薄弱/活跃知识域预生成一套自适应测验；用户点击首页 Sky 焦点砖或曲线页 `按曲线安排出题` 时携带 `allow_prewarm: true`，命中即 **`0.1s` 瞬时进入答题** 并后台自动补货下一套。
+4. **V2.2 / V2.1 核心底座能力（一并保留）**：
+   - 非阻塞后台异步出题悬浮胶囊（`.bg-pill`）、实测+预测双轨差异化记忆曲线、周明细与印章下钻、未交卷草稿分离（`is_submitted=False`）、`本次诊断结论` 3 步复盘、自包含 `custom-tab-bar` (`4350` B 独立 `index.wxss`)、MySQL 12 表 + Redis Lua 原子限流 + Chroma HTTP (`:8001`) + ARQ Worker。
 
-## 已执行的真实校验（2026-11-12，基于 V2.2 最终代码重跑）
+## 已执行的真实校验（2026-11-12，基于 V2.3 最终代码重跑）
 
 - **后端静态检查与单测**：
   - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run ruff check app tests` -> **`All checks passed!`**
-  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run pytest -q` -> **`188 passed in 1.73s`**（含 V2.2 域曲线实测分叉、日程临界推算、周明细下钻及 V2.1 即时 SM-2 全覆盖）。
-- **双端编译与 Playwright 移动端 H5 V2.2 E2E（`390×844` · `2x` DPR）**：
-  - `pnpm typecheck`、`NODE_ENV=development pnpm build:h5` 与 `pnpm build:weapp:local` 均退出码 `0`（`frontend/dist/` 当前保留最新微信小程序构建产物，含独立 `dist/custom-tab-bar/index.wxss`）。
-  - Playwright 实测 V2.2 完整链路：首页 `scrollH=844 <= 844` 一屏零滚动、`+ 资料/文档` 与 `⚙` 抽屉正常开关、发起出题零全屏遮罩（`.zx-loading-overlay=0`）并自由切到 `曲线` 与 `我的` 页面查看悬浮胶囊、切换知识域重绘曲线并点击本周印章/柱图展开具体测验明细、后台就绪后点击绿色胶囊进题交卷验证 3 步诊断结论与双轨曲线：`PAGE_ERRORS: 0`、`CONSOLE_ERRORS: 0`、`HTTP_ERRORS: 0`。
+  - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run pytest -q` -> **`189 passed`**（含 V2.3 `TestV23PrewarmAndSmartSearch` Redis 预热消费与智能跳过外网检索覆盖）。
+  - 真实环境 Pre-Warm 链路实测：`generate_and_cache_prewarm_quiz` 缓存 6 题后，HTTP `POST /api/v1/quiz/generate/async`（`allow_prewarm=true`）+ `GET /api/v1/quiz/task/{id}` 返回 `completed` 实测耗时 **`0.106s`**。
+- **双端编译与 Playwright 移动端 H5 V2.3 E2E（`375×812` & `390×844`）**：
+  - `pnpm typecheck`、`NODE_ENV=development pnpm build:h5` 与 `pnpm build:weapp:local` 均退出码 `0`（`frontend/dist/` 保留最新微信小程序构建产物，含 `4350` B 独立 `dist/custom-tab-bar/index.wxss`）。
+  - Playwright 实测：`375×812`（`scrollH=812`、`right=359<=375`）与 `390×844`（`scrollH=844`、`right=373<=390`）首页双砖+卡片一屏零裁切；点击焦点砖不误伤首页大卡按钮、曲线页 `.btn-secondary-ai=0`、`.has-bg-pill` 避让悬浮胶囊（`ctaBottom=673 < pillTop=711`）、`SevenDayRhythmBar` 日均线与选中胶囊就位、报告页 `0` `"ARQ"` 字样且呈现「`开启微信复习提醒（明晚 20:00）`」，`PAGE_ERRORS: 0`、`CONSOLE_ERRORS: 0`、`HTTP_ERRORS: 0`。
 
 ## 本地已启动服务状态
 

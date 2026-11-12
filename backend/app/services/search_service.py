@@ -13,8 +13,8 @@ from app.core.config import get_settings
 
 logger = structlog.get_logger()
 
-MAX_CONTEXT_LENGTH = 5000
-SEARCH_TIMEOUT_SECONDS = 20
+MAX_CONTEXT_LENGTH = 3200
+SEARCH_TIMEOUT_SECONDS = 8
 
 _URL_PATTERN = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 _RECENCY_KEYWORDS = ("最新", "最近", "今日", "今年", "2025", "2026", "刚刚", "新发布", "changelog")
@@ -70,7 +70,7 @@ async def _run_tavily_search(query: str, api_key: str) -> str:
     from langchain_tavily import TavilySearch
 
     searcher = TavilySearch(
-        max_results=5,
+        max_results=3,
         include_raw_content=False,
         include_answer=False,
         tavily_api_key=api_key,

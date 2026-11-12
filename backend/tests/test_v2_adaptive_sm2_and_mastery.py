@@ -488,3 +488,47 @@ class TestV22ScheduleAndWeeklyDrilldown:
         assert today_item.sessions[0].title == "Transformer 注意力"
 
 
+class TestV23PrewarmAndSmartSearch:
+    async def test_prewarm_cache_hit_consumes_and_creates_completed_task(self):
+        from app.models.quiz import QuizGenerateRequest, QuizOutput
+        from app.services import quiz_service
+
+        sample_output = QuizOutput(
+            title="预热测验：计算机网络",
+            summary="后台预生成巩固题组",
+            questions=[_sample_question(f"q{i}", "medium") for i in range(1, 4)],
+        )
+        cached_payload = {
+            "quiz_output": sample_output.model_dump(),
+            "domain_id": 2,
+            "domain_name": "计算机网络",
+            "source_type": "llm_direct",
+            "recommended_count": 3,
+            "adaptive_reason": "预热加速",
+        }
+        with (
+            patch("app.services.quiz_service.cache_get_json", AsyncMock(return_value=cached_payload)),
+            patch("app.services.quiz_service.cache_delete", AsyncMock()) as mock_del,
+            patch("app.services.quiz_service.task_repository.create_task", AsyncMock()),
+            patch("app.services.quiz_service._persist_quiz_session_and_questions", AsyncMock()),
+            patch("app.services.quiz_service.task_repository.update_task_status", AsyncMock()) as mock_done,
+            patch("app.services.quiz_service.schedule_domain_prewarm", AsyncMock()) as mock_refill,
+        ):
+            res = await quiz_service.create_quiz_task(
+                QuizGenerateRequest(
+                    user_input="按曲线安排巩固计算机网络",
+                    question_count=3,
+                    adaptive_mode=True,
+                    domain_id=2,
+                    allow_prewarm=True,
+                ),
+                user_id=9,
+            )
+        assert res.task_id.startswith("task_")
+        mock_del.assert_awaited_once()
+        mock_done.assert_awaited_once()
+        assert mock_done.call_args.args[1] == "completed"
+        mock_refill.assert_awaited_once_with(9, 2)
+
+
+

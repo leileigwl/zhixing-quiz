@@ -205,6 +205,7 @@ export default function ProfilePage() {
       enable_web_search: true,
       review_card_ids: ids,
       displayTopic: `错题变式 (${ids.length}题)`,
+      originTag: 'profile-card',
       initiatedRoute: 'pages/profile/index',
     })
   }
@@ -240,7 +241,7 @@ export default function ProfilePage() {
   const streakDays = profile?.streak_days ?? Math.max(1, historyItems.length)
 
   return (
-    <View className='profile-page'>
+    <View className={`profile-page ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
       {/* 个人档案头部卡 */}
       <View className='zx-card profile-hero'>
         {process.env.TARO_ENV === 'weapp' ? (

@@ -228,6 +228,31 @@ export default function IndexPage() {
       enable_web_search: enableWebSearch,
       generate_images: generateImages,
       displayTopic,
+      originTag: 'home-custom',
+      initiatedRoute: 'pages/index/index',
+    })
+  }
+
+  /** 右侧薄弱主攻快捷卡：优先 0.1s 命中该域预热题库，未预热则后台异步出题 */
+  const handleFocusTileTap = () => {
+    const dom = activeFocusDomain
+    if (!dom) {
+      Taro.switchTab({ url: '/pages/mastery/index' })
+      return
+    }
+    if (bgQuiz.status === 'running') {
+      Taro.showToast({ title: '题目正在后台生成中', icon: 'none' })
+      return
+    }
+    void startBackgroundQuizGeneration({
+      user_input: `针对「${dom.name}」核心重难点与常见误区生成自适应巩固测验`,
+      question_count: dom.recommended_count || 4,
+      adaptive_mode: true,
+      domain_id: dom.domain_id,
+      enable_web_search: false,
+      allow_prewarm: true,
+      displayTopic: `${dom.name} · ${dom.recommended_count || 4}题`,
+      originTag: 'home-focus',
       initiatedRoute: 'pages/index/index',
     })
   }
@@ -246,12 +271,13 @@ export default function IndexPage() {
 
   const avatarInitial = user?.nickname?.[0] || '知'
   const materialCount = (referenceText.trim() ? 1 : 0) + selectedDocs.length
-  const isGenerating = bgQuiz.status === 'running'
+  const isCustomRunning = bgQuiz.status === 'running' && bgQuiz.originTag === 'home-custom'
+  const isFocusRunning = bgQuiz.status === 'running' && bgQuiz.originTag === 'home-focus'
   const primaryCountKey: 'fast3' | 'adaptive' = questionChoice === 3 ? 'fast3' : 'adaptive'
 
   return (
-    <View className='index-page'>
-      {/* 1. 顶部紧致状态栏：问候状态 + 待复习微胶囊 */}
+    <View className={`index-page ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
+      {/* 1. 顶部紧致状态栏（防右侧小屏裁切） */}
       <View className='home-topbar'>
         <View
           className='home-greet zx-press'
@@ -273,127 +299,153 @@ export default function IndexPage() {
         </View>
 
         <View
-          className={`due-pill zx-press ${dueCount > 0 ? 'is-butter' : 'is-sky'}`}
-          onClick={handleDueCardTap}
+          className='topbar-badge zx-press'
+          onClick={() => Taro.switchTab({ url: '/pages/mastery/index' })}
         >
-          <Text>
-            {dueCount > 0 ? `${dueCount} 道待复习 · 秒开 →` : '查看记忆曲线 ›'}
-          </Text>
+          <Text>曲线日程 ›</Text>
         </View>
       </View>
 
-      {/* 2. 首屏正中央：聚焦「发起新测验」极简主卡（一屏直达无滚动） */}
-      <View className='home-center-stage'>
-        <View className='composer-card'>
-          <View className='composer-head'>
-            <View className='composer-title-wrap'>
-              <Text className='composer-kicker'>发起新测验</Text>
-              {selectedDomainId && activeFocusDomain && (
-                <Text className='composer-domain-tag'>· {activeFocusDomain.name}</Text>
-              )}
-            </View>
-
-            <View className='composer-tools'>
-              <View
-                className={`tool-chip zx-press ${materialCount > 0 ? 'is-on' : ''}`}
-                onClick={() => setShowMaterialSheet(true)}
-              >
-                <Text>{materialCount > 0 ? `资料 ×${materialCount}` : '+ 资料/文档'}</Text>
-              </View>
-              <View
-                className='tool-chip zx-press'
-                onClick={() => setShowSettingsSheet(true)}
-              >
-                <Text>
-                  ⚙ {SELF_LABELS[selfRated]}
-                  {generateImages ? '·配图' : ''}
-                </Text>
-              </View>
-            </View>
+      {/* 2. 紧致双快捷区（填补空白、秒开复习与薄弱域一键开刷，仍保持整页一屏零滚动） */}
+      <View className='mini-bento-grid'>
+        <View className='mini-tile is-butter zx-press' onClick={handleDueCardTap}>
+          <View className='mini-top'>
+            <Text className='mini-tag'>DUE TODAY</Text>
+            <Text className='mini-arrow'>→</Text>
           </View>
-
-          <Textarea
-            className='composer-textarea'
-            placeholder='想考自己什么知识点？输入主题，或点右上角导入资料/文档...'
-            placeholderClass='composer-placeholder'
-            value={inputValue}
-            onInput={(e) => setInputValue(e.detail.value)}
-            maxlength={500}
-            autoHeight={false}
-          />
-
-          {/* 3 枚干净快捷主题词 */}
-          <View className='quick-row'>
-            {QUICK_TOPICS.map((t) => (
-              <View
-                key={t}
-                className='quick-chip zx-press'
-                onClick={() => setInputValue(`请帮我检验「${t}」的核心机制与易错点`)}
-              >
-                <Text>{t}</Text>
-              </View>
-            ))}
+          <View className='mini-bottom'>
+            <Text className='mini-val'>
+              {String(dueCount).padStart(2, '0')} {dueCount > 0 ? '待巩固' : '清零'}
+            </Text>
+            <Text className='mini-sub'>
+              {dueCount > 0 ? '0.1s 秒开错题回忆' : '暂无到期 · 查看曲线'}
+            </Text>
           </View>
+        </View>
 
-          {/* 极简核心 2 项控制行：智能搜索开关 + 题量 2 选 1 */}
-          <View className='controls-row'>
-            <View
-              className={`ds-pill zx-press ${enableWebSearch ? 'is-active' : 'is-muted'}`}
-              onClick={() => setEnableWebSearch((prev) => !prev)}
-            >
-              <View className='ds-globe'>
-                <View className='dsg-meridian' />
-                <View className='dsg-equator' />
-              </View>
-              <Text>智能搜索</Text>
-            </View>
-
-            <View className='seg-bar'>
-              {PRIMARY_COUNT_CHOICES.map((c) => {
-                const isOn =
-                  questionChoice === 'adaptive'
-                    ? c.value === 'adaptive'
-                    : questionChoice === 3
-                      ? c.value === 'fast3'
-                      : c.value === primaryCountKey
-                return (
-                  <View
-                    key={c.value}
-                    className={`seg-item zx-press ${isOn ? 'is-on' : ''}`}
-                    onClick={() =>
-                      setQuestionChoice(c.value === 'fast3' ? 3 : 'adaptive')
-                    }
-                  >
-                    <Text>
-                      {c.value === 'adaptive' && questionChoice !== 3 && questionChoice !== 'adaptive'
-                        ? `已选 ${questionChoice}题`
-                        : c.value === 'adaptive'
-                          ? `智能推荐 ${recommendedNum}题`
-                          : c.label}
-                    </Text>
-                  </View>
-                )
-              })}
-            </View>
+        <View className='mini-tile is-sky zx-press' onClick={handleFocusTileTap}>
+          <View className='mini-top'>
+            <Text className='mini-tag'>FOCUS DOMAIN</Text>
+            <Text className='mini-arrow'>{isFocusRunning ? '···' : '⚡'}</Text>
           </View>
+          <View className='mini-bottom'>
+            <Text className='mini-val is-domain'>{activeFocusDomain?.name || 'RAG 架构'}</Text>
+            <Text className='mini-sub'>
+              {isFocusRunning
+                ? `生成中 (${bgQuiz.elapsedSec}s)...`
+                : `掌握 ${Math.round(activeFocusDomain?.mastery_score ?? 74)}% · 一键开刷 ${activeFocusDomain?.recommended_count ?? 4} 题`}
+            </Text>
+          </View>
+        </View>
+      </View>
 
-          {/* 黑曜石全圆角主行动按钮（异步时不锁全屏，按钮内转圈指示） */}
-          <View
-            className={`zx-btn-obsidian ${isGenerating ? 'is-running' : ''}`}
-            onClick={handleGenerate}
-          >
-            {isGenerating ? (
-              <View className='btn-inline-running'>
-                <View className='inline-spinner' />
-                <Text>后台出题中 ({bgQuiz.elapsedSec}s) · 可逛其他页</Text>
-              </View>
-            ) : (
-              <>
-                <Text>开始测验</Text>
-                <Text>→</Text>
-              </>
+      {/* 3. 核心「发起新测验」主卡（保留三源快速导入与极简选项） */}
+      <View className='composer-card'>
+        <View className='composer-head'>
+          <View className='composer-title-wrap'>
+            <Text className='composer-kicker'>发起新测验</Text>
+            {selectedDomainId && activeFocusDomain && (
+              <Text className='composer-domain-tag'>· {activeFocusDomain.name}</Text>
             )}
           </View>
+
+          <View className='composer-tools'>
+            <View
+              className={`tool-chip zx-press ${materialCount > 0 ? 'is-on' : ''}`}
+              onClick={() => setShowMaterialSheet(true)}
+            >
+              <Text>{materialCount > 0 ? `资料 ×${materialCount}` : '+ 资料/文档'}</Text>
+            </View>
+            <View
+              className='tool-chip zx-press'
+              onClick={() => setShowSettingsSheet(true)}
+            >
+              <Text>
+                ⚙ {SELF_LABELS[selfRated]}
+                {generateImages ? '·配图' : ''}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <Textarea
+          className='composer-textarea'
+          placeholder='输入想检验的知识主题，或点右上角导入资料/文档...'
+          placeholderClass='composer-placeholder'
+          value={inputValue}
+          onInput={(e) => setInputValue(e.detail.value)}
+          maxlength={500}
+          autoHeight={false}
+        />
+
+        <View className='quick-row'>
+          {QUICK_TOPICS.map((t) => (
+            <View
+              key={t}
+              className='quick-chip zx-press'
+              onClick={() => setInputValue(`请帮我检验「${t}」的核心机制与易错点`)}
+            >
+              <Text>{t}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View className='controls-row'>
+          <View
+            className={`ds-pill zx-press ${enableWebSearch ? 'is-active' : 'is-muted'}`}
+            onClick={() => setEnableWebSearch((prev) => !prev)}
+          >
+            <View className='ds-globe'>
+              <View className='dsg-meridian' />
+              <View className='dsg-equator' />
+            </View>
+            <Text>智能搜索</Text>
+          </View>
+
+          <View className='seg-bar'>
+            {PRIMARY_COUNT_CHOICES.map((c) => {
+              const isOn =
+                questionChoice === 'adaptive'
+                  ? c.value === 'adaptive'
+                  : questionChoice === 3
+                    ? c.value === 'fast3'
+                    : c.value === primaryCountKey
+              return (
+                <View
+                  key={c.value}
+                  className={`seg-item zx-press ${isOn ? 'is-on' : ''}`}
+                  onClick={() =>
+                    setQuestionChoice(c.value === 'fast3' ? 3 : 'adaptive')
+                  }
+                >
+                  <Text>
+                    {c.value === 'adaptive' && questionChoice !== 3 && questionChoice !== 'adaptive'
+                      ? `已选 ${questionChoice}题`
+                      : c.value === 'adaptive'
+                        ? `智能推荐 ${recommendedNum}题`
+                        : c.label}
+                  </Text>
+                </View>
+              )
+            })}
+          </View>
+        </View>
+
+        <View
+          className={`zx-btn-obsidian ${isCustomRunning ? 'is-running' : ''}`}
+          onClick={handleGenerate}
+        >
+          {isCustomRunning ? (
+            <View className='btn-inline-running'>
+              <View className='inline-spinner' />
+              <Text>后台出题中 ({bgQuiz.elapsedSec}s) · 可逛其他页</Text>
+            </View>
+          ) : (
+            <>
+              <Text>开始测验</Text>
+              <Text>→</Text>
+            </>
+          )}
         </View>
       </View>
 
@@ -463,7 +515,7 @@ export default function IndexPage() {
         </View>
       )}
 
-      {/* 抽屉 2：高级出题设置（专注域 / 熟悉度自评 / 题量 / AI配图） */}
+      {/* 抽屉 2：高级出题设置 */}
       {showSettingsSheet && (
         <View className='sheet-mask' onClick={() => setShowSettingsSheet(false)}>
           <View className='sheet-panel' onClick={(e) => e.stopPropagation()}>
@@ -546,10 +598,8 @@ export default function IndexPage() {
         </View>
       )}
 
-      {/* 跨页不阻塞悬浮异步进度胶囊 */}
       <BackgroundTaskPill visible={dockVisible} />
 
-      {/* 跨端 H5 悬浮黑曜石 Dock（Weapp 由 custom-tab-bar 接管） */}
       {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='index' />}
     </View>
   )

@@ -256,12 +256,13 @@ export default function KnowledgePage() {
       domain_id: doc.domain_id,
       enable_web_search: true,
       displayTopic: doc.file_name.replace(/\.[^.]+$/, ''),
+      originTag: 'knowledge-doc',
       initiatedRoute: 'pages/knowledge/index',
     })
   }
 
   return (
-    <View className='knowledge-page'>
+    <View className={`knowledge-page ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
       <View className='kb-header'>
         <View>
           <Text className='kb-kicker'>PRIVATE LIBRARY</Text>

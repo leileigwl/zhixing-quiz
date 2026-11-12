@@ -6,6 +6,10 @@
   overflow-x: hidden;
 }
 
+.knowledge-page.has-bg-pill {
+  padding-bottom: calc(330px + env(safe-area-inset-bottom));
+}
+
 .kb-header {
   display: flex;
   justify-content: space-between;

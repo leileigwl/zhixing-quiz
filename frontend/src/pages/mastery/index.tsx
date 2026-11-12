@@ -131,7 +131,10 @@ export default function MasteryPage() {
     })
   }
 
-  const handleStartAiPractice = (cards?: DueReviewCardItem[]) => {
+  const handleStartAiPractice = (
+    cards?: DueReviewCardItem[],
+    originTag: string = 'mastery-schedule',
+  ) => {
     const targetCards = cards || dueReviews.items.slice(0, 6)
     const reviewIds = cards ? targetCards.map((c) => c.card_id) : []
     const domainName = activeDomain?.name || nextPlan?.domain_name || '综合知识'
@@ -148,9 +151,11 @@ export default function MasteryPage() {
       question_count: recCount,
       adaptive_mode: reviewIds.length === 0,
       domain_id: activeDomain?.domain_id,
-      enable_web_search: true,
+      enable_web_search: reviewIds.length > 0,
+      allow_prewarm: reviewIds.length === 0 && Boolean(activeDomain?.domain_id),
       review_card_ids: reviewIds.length > 0 ? reviewIds : undefined,
       displayTopic: `${domainName} · ${recCount}题`,
+      originTag,
       initiatedRoute: 'pages/mastery/index',
     })
   }
@@ -178,7 +183,7 @@ export default function MasteryPage() {
   }
 
   return (
-    <View className='mastery-page'>
+    <View className={`mastery-page ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
       <View className='mastery-header'>
         <Text className='mastery-kicker'>MEMORY RETENTION</Text>
         <Text className='mastery-title'>学习记忆曲线与能力图谱</Text>
@@ -257,10 +262,10 @@ export default function MasteryPage() {
           <Text className='schedule-reason'>{nextPlan.reason}</Text>
           <View
             className='schedule-go zx-press'
-            onClick={() => handleStartAiPractice()}
+            onClick={() => handleStartAiPractice(undefined, 'mastery-schedule')}
           >
             <Text>
-              {bgQuiz.status === 'running'
+              {bgQuiz.status === 'running' && bgQuiz.originTag === 'mastery-schedule'
                 ? `正在后台生成中 (${bgQuiz.elapsedSec}s)...`
                 : `按曲线安排出题 (${nextPlan.recommended_count} 题) →`}
             </Text>
@@ -413,7 +418,7 @@ export default function MasteryPage() {
                         </View>
                         <View
                           className='md-btn is-blue zx-press'
-                          onClick={() => handleStartAiPractice([card])}
+                          onClick={() => handleStartAiPractice([card], 'mastery-card')}
                         >
                           <Text>AI 变式</Text>
                         </View>
@@ -434,29 +439,17 @@ export default function MasteryPage() {
       )}
 
       {dueReviews.items.length > 0 ? (
-        <View className='mastery-cta-stack'>
-          <View className='zx-btn-obsidian' onClick={() => handleInstantReview()}>
-            <Text>秒开清零 {dueReviews.total_due || dueReviews.items.length} 道错题</Text>
-            <Text>→</Text>
-          </View>
-          <View
-            className='btn-secondary-ai zx-press'
-            onClick={() => handleStartAiPractice(dueReviews.items.slice(0, 6))}
-          >
-            <Text>
-              {bgQuiz.status === 'running'
-                ? `后台变式组卷中 (${bgQuiz.elapsedSec}s)...`
-                : 'AI 基于错题生成变式拓展测验'}
-            </Text>
-          </View>
+        <View className='zx-btn-obsidian' onClick={() => handleInstantReview()}>
+          <Text>秒开清零 {dueReviews.total_due || dueReviews.items.length} 道错题</Text>
+          <Text>→</Text>
         </View>
       ) : (
         <View
           className='zx-btn-obsidian'
-          onClick={() => handleStartAiPractice()}
+          onClick={() => handleStartAiPractice(undefined, 'mastery-cta')}
         >
           <Text>
-            {bgQuiz.status === 'running'
+            {bgQuiz.status === 'running' && bgQuiz.originTag === 'mastery-cta'
               ? `后台出题中 (${bgQuiz.elapsedSec}s)...`
               : `按当前画像再刷一组「${activeDomain?.name || '精选'}」`}
           </Text>

@@ -70,6 +70,9 @@ class QuizGenerateRequest(BaseModel):
     review_card_ids: Optional[list[int]] = Field(
         default=None, description="可选，针对到期错题卡定向巩固出题"
     )
+    allow_prewarm: bool = Field(
+        default=False, description="是否允许命中当前域后台预出题缓存以实现 0.1s 秒开"
+    )
 
     @model_validator(mode="after")
     def _validate_question_count_with_mode(self):

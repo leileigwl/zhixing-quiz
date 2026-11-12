@@ -271,7 +271,7 @@ export default function ReportPage() {
     await grantSubscribeQuota({ count: 1, preferred_hour: 20 })
     setSubscribed(true)
     Taro.showToast({
-      title: '已启用 ARQ 到期复习提醒',
+      title: '已开启微信到期复习提醒',
       icon: 'success',
     })
   }
@@ -507,7 +507,7 @@ export default function ReportPage() {
           className={`btn-remind zx-press ${subscribed ? 'is-done' : ''}`}
           onClick={handleEnableReminder}
         >
-          <Text>{subscribed ? '✓ 已开启到期复习提醒' : '开启明日 ARQ 到期提醒'}</Text>
+          <Text>{subscribed ? '✓ 已开启微信复习提醒' : '开启微信复习提醒（明晚 20:00）'}</Text>
         </View>
         <View
           className='zx-btn-obsidian'

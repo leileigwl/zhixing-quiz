@@ -6,6 +6,10 @@
   overflow-x: hidden;
 }
 
+.profile-page.has-bg-pill {
+  padding-bottom: calc(330px + env(safe-area-inset-bottom));
+}
+
 .profile-hero {
   padding: 32px;
   border-radius: 46px;

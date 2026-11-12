@@ -108,12 +108,18 @@ async def cron_sweep_due_reviews(ctx: dict) -> int:
     return await review_service.sweep_and_activate_due_reviews()
 
 
+async def job_prewarm_domain_quiz(ctx: dict, user_id: int, domain_id: int) -> bool:
+    """后台静默为活跃/薄弱领域预热下一套自适应题。"""
+    return await quiz_service.generate_and_cache_prewarm_quiz(user_id=user_id, domain_id=domain_id)
+
+
 class WorkerSettings:
     functions = [
         job_generate_quiz,
         job_ingest_document,
         job_generate_report,
         job_activate_review_reminder,
+        job_prewarm_domain_quiz,
     ]
     cron_jobs = [
         cron(cron_sweep_due_reviews, minute=0, second=0, run_at_startup=False),

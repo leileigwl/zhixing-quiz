@@ -26,7 +26,7 @@ from app.models.report import (
     SubmittedAnswerItem,
 )
 from app.repositories import mastery_repository, quiz_repository, user_repository
-from app.services import domain_classifier, mastery_service, review_service
+from app.services import domain_classifier, mastery_service, quiz_service, review_service
 from app.services.scoring_service import (
     calculate_xp_gain,
     compute_score_summary,
@@ -257,6 +257,8 @@ async def _update_v2_learning_state(
         )
 
         await mastery_service.invalidate_mastery_cache(user_id)
+        if domain_id is not None:
+            await quiz_service.schedule_domain_prewarm(user_id, domain_id)
     except Exception as exc:
         logger.warning("update_v2_learning_state_failed", quiz_id=quiz_id, error=str(exc))
         stability_after = None
