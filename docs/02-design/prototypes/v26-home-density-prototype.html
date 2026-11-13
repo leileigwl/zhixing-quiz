@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>知行快刷 V2.6 · 首页冷启动、长屏舒展与档案折叠原型</title>
+  <style>
+    :root {
+      --bg: #F6F5F0;
+      --card: #FFFFFF;
+      --ink: #18181B;
+      --sub: #71717A;
+      --butter: #F7D562;
+      --sky: #CDE6FA;
+      --obsidian: #18181B;
+      --hairline: rgba(24,24,27,0.08);
+      --ds-blue: #2563EB;
+      --ok: #059669;
+      --ok-bg: #ECFDF5;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      background: #EAE8E1;
+      color: var(--ink);
+      padding: 24px 20px 56px;
+    }
+    .head {
+      max-width: 1240px; margin: 0 auto 24px;
+      display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px;
+    }
+    .head h1 { font-size: 22px; font-weight: 800; }
+    .head p { font-size: 13px; color: var(--sub); margin-top: 4px; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ctrl-btn {
+      border: 0; background: #FFF; padding: 8px 14px; border-radius: 999px;
+      font-size: 12px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 2px 6px rgba(24,24,27,0.06);
+    }
+    .ctrl-btn.dark { background: var(--obsidian); color: #FFF; }
+    .grid {
+      max-width: 1240px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 390px));
+      justify-content: center; gap: 26px;
+    }
+    .col-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .col-lbl { font-size: 12px; font-weight: 700; color: var(--sub); }
+    .phone {
+      width: 390px; height: 844px; background: var(--bg);
+      border-radius: 44px; border: 8px solid #1C1C1E;
+      overflow: hidden; position: relative; display: flex; flex-direction: column;
+      box-shadow: 0 24px 60px rgba(24,24,27,0.14);
+    }
+    .notch {
+      height: 44px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between;
+      font-size: 13px; font-weight: 700; flex-shrink: 0; position: relative; z-index: 2;
+    }
+    .cam { width: 92px; height: 22px; background: #18181B; border-radius: 999px; }
+
+    /* Home Top Bar */
+    .topbar {
+      padding: 6px 20px 14px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .greet-left { display: flex; align-items: center; gap: 10px; }
+    .avatar-sm {
+      width: 40px; height: 40px; border-radius: 50%; background: #E4E4E7;
+      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px;
+      overflow: hidden;
+    }
+    .avatar-sm img { width: 100%; height: 100%; object-fit: cover; }
+    .greet-title { font-size: 14px; font-weight: 800; line-height: 1.25; }
+    .greet-sub { font-size: 11px; color: var(--sub); margin-top: 2px; }
+    .top-badge {
+      background: #FFF; border: 1px solid var(--hairline); border-radius: 999px;
+      padding: 6px 12px; font-size: 11px; font-weight: 700; color: #4B5563;
+    }
+
+    /* 2-Tile Bento Grid */
+    .bento-grid {
+      padding: 0 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;
+    }
+    .tile {
+      border-radius: 24px; padding: 14px 14px 16px; display: flex; flex-direction: column;
+      justify-content: space-between; height: 112px; cursor: pointer;
+    }
+    .tile.butter { background: var(--butter); }
+    .tile.sky { background: var(--sky); }
+    .tile.sky-cold { background: #E2E8F0; }
+    .tile-top { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; }
+    .tile-tag {
+      padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,0.06); letter-spacing: 0.02em;
+    }
+    .tile-arrow { font-size: 14px; opacity: 0.7; }
+    .tile-val { font-size: 18px; font-weight: 800; line-height: 1.2; margin-top: 6px; }
+    .tile-sub { font-size: 11px; opacity: 0.85; margin-top: 3px; font-weight: 600; }
+
+    /* Home Composer (Comfortably Stretched for Tall Screens) */
+    .home-body {
+      flex: 1; padding: 0 20px 84px; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .composer {
+      background: #FFF; border-radius: 30px; padding: 22px 20px;
+      box-shadow: 0 4px 20px rgba(24,24,27,0.04); display: flex; flex-direction: column; gap: 16px;
+    }
+    .c-head { display: flex; justify-content: space-between; align-items: center; }
+    .c-title { font-size: 17px; font-weight: 800; }
+    .c-tools { display: flex; gap: 8px; }
+    .tool-chip {
+      background: #F4F4F5; border-radius: 999px; padding: 6px 12px; font-size: 11px; font-weight: 700; color: #4B5563;
+    }
+    .c-textarea {
+      background: #F8F8F6; border-radius: 18px; padding: 14px 16px; font-size: 13px; line-height: 1.6;
+      height: 110px; color: var(--ink); border: 1px solid rgba(24,24,27,0.03);
+    }
+    .c-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .c-chip {
+      background: #F4F4F5; border-radius: 10px; padding: 6px 10px; font-size: 11px; font-weight: 600; color: #52525B;
+    }
+    .c-ctrls { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .c-search {
+      display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px;
+      background: #EFF6FF; border: 1px solid #BFDBFE; color: var(--ds-blue); font-size: 12px; font-weight: 700;
+    }
+    .c-seg {
+      display: flex; background: #F4F4F5; border-radius: 999px; padding: 3px; gap: 2px;
+    }
+    .c-seg-item {
+      padding: 6px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #71717A;
+    }
+    .c-seg-item.on { background: #FFF; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .btn-submit {
+      height: 52px; border-radius: 999px; background: var(--obsidian); color: #FFF;
+      display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 700;
+      cursor: pointer; box-shadow: 0 8px 24px rgba(24,24,27,0.18);
+    }
+
+    /* Tab bar (dock) */
+    .dock {
+      position: absolute; left: 24px; right: 24px; bottom: 18px; height: 58px;
+      background: rgba(24,24,27,0.96); backdrop-filter: blur(16px);
+      border-radius: 999px; display: flex; align-items: center; justify-content: space-around;
+      padding: 0 10px; box-shadow: 0 16px 36px rgba(0,0,0,0.22); z-index: 10;
+    }
+    .dock-btn {
+      width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      color: rgba(255,255,255,0.45); font-size: 18px;
+    }
+    .dock-btn.active {
+      background: #FFF; color: var(--ink); box-shadow: 0 2px 10px rgba(255,255,255,0.2);
+    }
+
+    /* Profile Page Elements */
+    .prof-body {
+      flex: 1; overflow-y: auto; padding: 10px 20px 84px; display: flex; flex-direction: column; gap: 16px;
+    }
+    .prof-card {
+      background: #FFF; border-radius: 28px; padding: 18px 20px;
+      box-shadow: 0 4px 18px rgba(24,24,27,0.04);
+    }
+    .prof-hero-row { display: flex; align-items: center; gap: 14px; }
+    .avatar-wrap { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
+    .avatar-lg {
+      width: 56px; height: 56px; border-radius: 50%; background: #E4E4E7;
+      display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800;
+      overflow: hidden;
+    }
+    .avatar-cam-badge {
+      position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%;
+      background: var(--obsidian); color: #FFF; font-size: 10px; display: flex; align-items: center; justify-content: center;
+      border: 2px solid #FFF;
+    }
+    .prof-meta { flex: 1; }
+    .prof-name-row { display: flex; align-items: center; gap: 8px; }
+    .prof-name { font-size: 17px; font-weight: 800; }
+    .btn-edit-pill {
+      font-size: 11px; font-weight: 700; color: #4B5563; background: #F4F4F5; padding: 3px 8px; border-radius: 999px;
+      cursor: pointer;
+    }
+    .prof-sub { font-size: 12px; color: var(--sub); margin-top: 4px; }
+
+    /* Inline Edit Form in Profile */
+    .edit-form-box {
+      margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hairline);
+      display: flex; gap: 8px; align-items: center;
+    }
+    .edit-input {
+      flex: 1; background: #F4F4F5; border: 1px solid rgba(24,24,27,0.1); border-radius: 12px;
+      padding: 8px 12px; font-size: 13px; font-weight: 700;
+    }
+    .btn-save-sm {
+      background: var(--obsidian); color: #FFF; padding: 8px 14px; border-radius: 12px;
+      font-size: 12px; font-weight: 700; cursor: pointer;
+    }
+
+    /* Stat 3-grid */
+    .stat-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .stat-tile {
+      background: #F9F9F8; border-radius: 18px; padding: 12px 10px; text-align: center;
+    }
+    .st-lbl { font-size: 11px; color: var(--sub); }
+    .st-val { font-size: 17px; font-weight: 800; margin-top: 4px; }
+
+    /* Compact Foldable History Section */
+    .sec-head {
+      display: flex; justify-content: space-between; align-items: center; margin-top: 6px;
+    }
+    .sec-title { font-size: 14px; font-weight: 800; }
+    .sec-count { font-size: 11px; color: var(--sub); }
+    .history-compact-list {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .h-row {
+      background: #FFF; border-radius: 18px; padding: 12px 14px;
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      box-shadow: 0 2px 8px rgba(24,24,27,0.03); cursor: pointer;
+    }
+    .h-main { flex: 1; min-width: 0; }
+    .h-title {
+      font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .h-sub { font-size: 11px; color: var(--sub); margin-top: 3px; }
+    .h-tag {
+      font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+    }
+    .h-tag.pending { background: #FEF3C7; color: #92400E; }
+    .h-tag.done { background: var(--ok-bg); color: var(--ok); }
+    .fold-strip {
+      background: rgba(24,24,27,0.04); border-radius: 999px; padding: 10px;
+      text-align: center; font-size: 12px; font-weight: 700; color: #52525B; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1>知行快刷 V2.6 · 首页冷启动引导、长屏舒展与档案折叠原型</h1>
+      <p>解决 4 大体验问题：① 零答题新用户右卡显示「待解锁攻坚」；② 界面英文全换纯正中文；③ 首页垂直舒展一屏匀称；④ 档案页历史记录折叠压缩。</p>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn dark" onclick="toggleColdStartInput()">↻ 模拟点击冷启动待解锁卡</button>
+      <button class="ctrl-btn" onclick="toggleEditProfile()">✎ 切换昵称修改表单</button>
+      <button class="ctrl-btn" onclick="toggleHistoryFold()">⌄ 切换历史折叠展开</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Screen 1: Cold Start New User (0 records) -->
+    <div class="col-wrap">
+      <div class="col-lbl">1. 首页 · 新用户冷启动态（零做题记录，中文待解锁）</div>
+      <div class="phone">
+        <div class="notch"><span>11:08</span><div class="cam"></div><span>5G</span></div>
+
+        <div class="topbar">
+          <div class="greet-left">
+            <div class="avatar-sm">知</div>
+            <div>
+              <div class="greet-title">欢迎开启，新同学</div>
+              <div class="greet-sub">连续 1 天 · 今日已练 0 题</div>
+            </div>
+          </div>
+          <div class="top-badge">曲线日程 ›</div>
+        </div>
+
+        <div class="bento-grid">
+          <!-- Left: 今日待巩固 (全中文替换 DUE TODAY) -->
+          <div class="tile butter">
+            <div class="tile-top">
+              <span class="tile-tag">今日待巩固</span>
+              <span class="tile-arrow">→</span>
+            </div>
+            <div>
+              <div class="tile-val">00 已清零</div>
+              <div class="tile-sub">暂无到期 · 查看曲线</div>
+            </div>
+          </div>
+
+          <!-- Right: 新用户冷启动引导态 (替换 FOCUS DOMAIN 假数据) -->
+          <div class="tile sky-cold" id="cold-tile" onclick="toggleColdStartInput()">
+            <div class="tile-top">
+              <span class="tile-tag">待解锁攻坚</span>
+              <span class="tile-arrow">💡</span>
+            </div>
+            <div>
+              <div class="tile-val" style="font-size:16px;">待首测定位</div>
+              <div class="tile-sub">完成首测自动定位 · 点此填入</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-body">
+          <div class="composer">
+            <div class="c-head">
+              <span class="c-title">发起新测验</span>
+              <div class="c-tools">
+                <span class="tool-chip">+ 资料/文档</span>
+                <span class="tool-chip">⚙ 略懂</span>
+              </div>
+            </div>
+
+            <div class="c-textarea" id="cold-textarea">
+              输入想检验的知识主题，或点右上角导入资料/文档...
+            </div>
+
+            <div class="c-chips">
+              <span class="c-chip">计算机基础</span>
+              <span class="c-chip">HTTP/3</span>
+              <span class="c-chip">分布式锁</span>
+            </div>
+
+            <div class="c-ctrls">
+              <div class="c-search">🌐 智能搜索</div>
+              <div class="c-seg">
+                <div class="c-seg-item">快速 3题</div>
+                <div class="c-seg-item on">智能推荐</div>
+              </div>
+            </div>
+
+            <div class="btn-submit">
+              <span>开始测验</span>
+              <span>→</span>
+            </div>
+          </div>
+
+          <div style="height: 12px;"></div>
+        </div>
+
+        <div class="dock">
+          <div class="dock-btn active">🏠</div>
+          <div class="dock-btn">📁</div>
+          <div class="dock-btn">📊</div>
+          <div class="dock-btn">👤</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 2: Experienced User (Full Chinese, Balanced Vertical Spacing) -->
+    <div class="col-wrap">
+      <div class="col-lbl">2. 首页 · 已有画像老用户态（纯正中文重点攻坚 + 垂直舒展）</div>
+      <div class="phone">
+        <div class="notch"><span>11:08</span><div class="cam"></div><span>5G</span></div>
+
+        <div class="topbar">
+          <div class="greet-left">
+            <div class="avatar-sm" style="background:#18181B;color:#FFF;">S</div>
+            <div>
+              <div class="greet-title">继续精进，Simple</div>
+              <div class="greet-sub">连续 2 天 · 今日已练 6 题</div>
+            </div>
+          </div>
+          <div class="top-badge">曲线日程 ›</div>
+        </div>
+
+        <div class="bento-grid">
+          <!-- Left: 今日待巩固 (有到期) -->
+          <div class="tile butter">
+            <div class="tile-top">
+              <span class="tile-tag">今日待巩固</span>
+              <span class="tile-arrow">→</span>
+            </div>
+            <div>
+              <div class="tile-val">03 待巩固</div>
+              <div class="tile-sub">秒开错题回忆</div>
+            </div>
+          </div>
+
+          <!-- Right: 重点攻坚 (全中文) -->
+          <div class="tile sky">
+            <div class="tile-top">
+              <span class="tile-tag">重点攻坚</span>
+              <span class="tile-arrow">⚡</span>
+            </div>
+            <div>
+              <div class="tile-val">计算机网络</div>
+              <div class="tile-sub">掌握 40% · 一键开刷 4 题</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-body">
+          <div class="composer">
+            <div class="c-head">
+              <span class="c-title">发起新测验</span>
+              <div class="c-tools">
+                <span class="tool-chip">+ 资料/文档</span>
+                <span class="tool-chip">⚙ 熟练</span>
+              </div>
+            </div>
+
+            <div class="c-textarea">
+              请帮我检验「分布式锁」的核心机制与常见陷阱
+            </div>
+
+            <div class="c-chips">
+              <span class="c-chip">RAG 检索</span>
+              <span class="c-chip">HTTP/3</span>
+              <span class="c-chip">Redis 锁</span>
+            </div>
+
+            <div class="c-ctrls">
+              <div class="c-search">🌐 智能搜索</div>
+              <div class="c-seg">
+                <div class="c-seg-item on">快速 3题</div>
+                <div class="c-seg-item">智能推荐 4题</div>
+              </div>
+            </div>
+
+            <div class="btn-submit">
+              <span>开始测验</span>
+              <span>→</span>
+            </div>
+          </div>
+
+          <div style="height: 12px;"></div>
+        </div>
+
+        <div class="dock">
+          <div class="dock-btn active">🏠</div>
+          <div class="dock-btn">📁</div>
+          <div class="dock-btn">📊</div>
+          <div class="dock-btn">👤</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Screen 3: Profile Page (Folded Records & Form-like Profile Edit) -->
+    <div class="col-wrap">
+      <div class="col-lbl">3. 我的档案 · 表单式个人资料修改 + 历史练习折叠压缩</div>
+      <div class="phone">
+        <div class="notch"><span>11:08</span><div class="cam"></div><span>5G</span></div>
+
+        <div class="prof-body">
+          <!-- Profile Hero with Camera Badge & Name Edit -->
+          <div class="prof-card">
+            <div class="prof-hero-row">
+              <div class="avatar-wrap">
+                <div class="avatar-lg" style="background:#18181B;color:#FFF;">S</div>
+                <div class="avatar-cam-badge">📷</div>
+              </div>
+              <div class="prof-meta">
+                <div class="prof-name-row">
+                  <span class="prof-name">Simple</span>
+                  <span class="btn-edit-pill" onclick="toggleEditProfile()">修改昵称 ✎</span>
+                </div>
+                <div class="prof-sub">自适应刷题 · 长期抗遗忘闭环</div>
+              </div>
+            </div>
+
+            <!-- Inline Edit Form (Switchable) -->
+            <div class="edit-form-box" id="edit-form" style="display:none;">
+              <input class="edit-input" id="nickname-input" value="Simple" />
+              <div class="btn-save-sm" onclick="saveNickname()">保存</div>
+            </div>
+          </div>
+
+          <!-- 3 Stats -->
+          <div class="stat-3">
+            <div class="stat-tile">
+              <div class="st-lbl">连续打卡</div>
+              <div class="st-val">2 天</div>
+            </div>
+            <div class="stat-tile">
+              <div class="st-lbl">累计答对</div>
+              <div class="st-val">18 题</div>
+            </div>
+            <div class="stat-tile">
+              <div class="st-lbl">重点攻坚</div>
+              <div class="st-val" style="font-size:14px;margin-top:6px;">计算机网络</div>
+            </div>
+          </div>
+
+          <!-- Folded History Records List -->
+          <div class="sec-head">
+            <span class="sec-title">历史练习档案</span>
+            <span class="sec-count" id="history-count-text">显示 3 / 共 12 条</span>
+          </div>
+
+          <div class="history-compact-list" id="history-list">
+            <div class="h-row">
+              <div class="h-main">
+                <div class="h-title">计算机网络核心重难点与常见误区</div>
+                <div class="h-sub">今天 22:32 · 4 题 · 计算机网络</div>
+              </div>
+              <span class="h-tag pending">待完成 · 继续 ›</span>
+            </div>
+
+            <div class="h-row">
+              <div class="h-main">
+                <div class="h-title">RAG（检索增强生成）架构与优化</div>
+                <div class="h-sub">今天 22:26 · 3 题 · RAG 架构</div>
+              </div>
+              <span class="h-tag pending">待完成 · 继续 ›</span>
+            </div>
+
+            <div class="h-row">
+              <div class="h-main">
+                <div class="h-title">计算机网络与 RAG 系统核心概念巩固</div>
+                <div class="h-sub">昨天 16:26 · 3 题 · 计算机网络</div>
+              </div>
+              <span class="h-tag done">80%</span>
+            </div>
+
+            <!-- Extra rows shown when expanded -->
+            <div class="h-row extra-row" style="display:none;">
+              <div class="h-main">
+                <div class="h-title">Redisson 看门狗与锁续期底层原理</div>
+                <div class="h-sub">前天 14:10 · 5 题 · 分布式系统</div>
+              </div>
+              <span class="h-tag done">100%</span>
+            </div>
+            <div class="h-row extra-row" style="display:none;">
+              <div class="h-main">
+                <div class="h-title">HTTP/3 QUIC 协议多路复用实战</div>
+                <div class="h-sub">11-10 09:12 · 4 题 · 计算机网络</div>
+              </div>
+              <span class="h-tag done">75%</span>
+            </div>
+          </div>
+
+          <div class="fold-strip" id="fold-btn" onclick="toggleHistoryFold()">
+            展开全部 12 条历史记录 ⌄
+          </div>
+        </div>
+
+        <div class="dock">
+          <div class="dock-btn">🏠</div>
+          <div class="dock-btn">📁</div>
+          <div class="dock-btn">📊</div>
+          <div class="dock-btn active">👤</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isColdInputFilled = false;
+    function toggleColdStartInput() {
+      const area = document.getElementById('cold-textarea');
+      isColdInputFilled = !isColdInputFilled;
+      area.textContent = isColdInputFilled
+        ? '请基于「计算机核心高频考点」为我生成一套新手摸底测验'
+        : '输入想检验的知识主题，或点右上角导入资料/文档...';
+      area.style.color = isColdInputFilled ? '#18181B' : '#71717A';
+      area.style.fontWeight = isColdInputFilled ? '700' : '400';
+    }
+
+    function toggleEditProfile() {
+      const f = document.getElementById('edit-form');
+      f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    function saveNickname() {
+      const val = document.getElementById('nickname-input').value.trim();
+      if (val) {
+        document.querySelector('.prof-name').textContent = val;
+      }
+      document.getElementById('edit-form').style.display = 'none';
+    }
+
+    let isHistoryExpanded = false;
+    function toggleHistoryFold() {
+      isHistoryExpanded = !isHistoryExpanded;
+      const extras = document.querySelectorAll('.extra-row');
+      extras.forEach(el => el.style.display = isHistoryExpanded ? 'flex' : 'none');
+      document.getElementById('fold-btn').textContent = isHistoryExpanded ? '收起历史记录 ‹' : '展开全部 12 条历史记录 ⌄';
+      document.getElementById('history-count-text').textContent = isHistoryExpanded ? '已展开全部 12 条' : '显示 3 / 共 12 条';
+    }
+  </script>
+</body>
+</html>
