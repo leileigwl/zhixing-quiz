@@ -189,6 +189,26 @@ export default function QuizPage() {
     [answerRecords, currentQuestion?.id],
   )
 
+  const isAnswerWrong = useMemo(() => {
+    if (!submitted || !currentQuestion) return false
+    if (currentRecord) return !currentRecord.is_correct
+    return !(
+      currentQuestion.answer.length === selectedAnswers.length &&
+      currentQuestion.answer.every((a) => selectedAnswers.includes(a))
+    )
+  }, [submitted, currentQuestion, currentRecord, selectedAnswers])
+
+  const getOptionState = (key: string) => {
+    if (!submitted || !currentQuestion) {
+      return selectedAnswers.includes(key) ? 'is-selected' : ''
+    }
+    const isCorrectAnswer = currentQuestion.answer.includes(key)
+    const isSelected = selectedAnswers.includes(key)
+    if (isCorrectAnswer) return 'is-ok'
+    if (isSelected && !isCorrectAnswer) return 'is-wrong'
+    return ''
+  }
+
   const navigateToQuestion = (targetIdx: number) => {
     if (targetIdx < 0 || targetIdx >= totalQuestions) return
     if (revealTimerRef.current) {
@@ -416,26 +436,6 @@ export default function QuizPage() {
       </View>
     )
   }
-
-  const getOptionState = (key: string) => {
-    if (!submitted) {
-      return selectedAnswers.includes(key) ? 'is-selected' : ''
-    }
-    const isCorrectAnswer = currentQuestion.answer.includes(key)
-    const isSelected = selectedAnswers.includes(key)
-    if (isCorrectAnswer) return 'is-ok'
-    if (isSelected && !isCorrectAnswer) return 'is-wrong'
-    return ''
-  }
-
-  const isAnswerWrong = useMemo(() => {
-    if (!submitted || !currentQuestion) return false
-    if (currentRecord) return !currentRecord.is_correct
-    return !(
-      currentQuestion.answer.length === selectedAnswers.length &&
-      currentQuestion.answer.every((a) => selectedAnswers.includes(a))
-    )
-  }, [submitted, currentQuestion, currentRecord, selectedAnswers])
 
   const diffText = DIFF_LABEL[currentQuestion.difficulty] || '自适应题'
   const sourceText = quizData.source_type
