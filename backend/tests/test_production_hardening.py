@@ -58,6 +58,21 @@ class TestExtractJsonObject:
         assert extract_json_object('{"a": 1}') == {"a": 1}
         assert extract_json_object('```json\n{"a": 2}\n```') == {"a": 2}
 
+    def test_strips_reasoning_think_tags_and_prose(self):
+        raw = '<think>let me analyze\n{"bad": true}</think>\nHere is result:\n{"questions": [1, 2]}\nDone.'
+        assert extract_json_object(raw) == {"questions": [1, 2]}
+
+
+class TestJsonObjectModeDetection:
+    def test_skips_json_mode_for_reasoning_models(self):
+        from app.llm.langchain_factory import _supports_json_object_mode
+
+        assert _supports_json_object_mode("deepseek-chat", True) is True
+        assert _supports_json_object_mode("deepseek-reasoner", True) is False
+        assert _supports_json_object_mode("deepseek-ai/DeepSeek-R1", True) is False
+        assert _supports_json_object_mode("Qwen/QwQ-32B", True) is False
+        assert _supports_json_object_mode("gpt-4o", False) is False
+
 
 @pytest.mark.asyncio
 class TestDevLoginGate:
