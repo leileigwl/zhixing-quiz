@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { View, Text } from '@tarojs/components'
 import Taro, { useDidHide, useDidShow } from '@tarojs/taro'
 import {
@@ -75,11 +75,14 @@ export default function MasteryPage() {
     if (docsRes) setDocs(docsRes.items)
   }, [selectedDomainId])
 
+  useEffect(() => {
+    return subscribeBackgroundQuiz(setBgQuiz)
+  }, [])
+
   useDidShow(() => {
     setDockVisible(true)
     Taro.eventCenter.trigger('zx:tab-change', 'mastery')
     void loadData()
-    return subscribeBackgroundQuiz(setBgQuiz)
   })
 
   useDidHide(() => {

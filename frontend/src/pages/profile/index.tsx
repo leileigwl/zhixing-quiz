@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { View, Text, Image, Button, Input } from '@tarojs/components'
 import Taro, { useDidHide, useDidShow } from '@tarojs/taro'
 import {
@@ -109,12 +109,15 @@ export default function ProfilePage() {
     }
   }, [])
 
+  useEffect(() => {
+    return subscribeBackgroundQuiz(setBgQuiz)
+  }, [])
+
   useDidShow(() => {
     setDockVisible(true)
     Taro.eventCenter.trigger('zx:tab-change', 'profile')
     void loadProfile()
     void loadHistory(1, true)
-    return subscribeBackgroundQuiz(setBgQuiz)
   })
 
   useDidHide(() => {

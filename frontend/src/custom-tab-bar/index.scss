@@ -1,9 +1,18 @@
+:host {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  pointer-events: none;
+}
+
 .wx-dock-wrap {
   position: fixed;
   left: 32px;
   right: 32px;
   bottom: calc(20px + env(safe-area-inset-bottom));
-  z-index: 950;
+  z-index: 999;
   display: flex;
   justify-content: center;
   pointer-events: none;
@@ -21,7 +30,7 @@
   align-items: center;
   justify-content: space-around;
   box-shadow: 0 18px 40px -10px rgba(24, 25, 30, 0.42);
-  pointer-events: auto;
+  pointer-events: auto !important;
   box-sizing: border-box;
 }
 
@@ -33,6 +42,14 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  pointer-events: auto !important;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+
+  &:active {
+    opacity: 0.82;
+    transform: scale(0.92);
+  }
 }
 
 .wx-dock-tab.is-active {
@@ -53,6 +70,20 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  pointer-events: none !important;
+}
+
+.wx-dock-glyph,
+.wx-dock-glyph view,
+.wx-gh-roof,
+.wx-gh-body,
+.wx-gh-door,
+.wx-gp-flap,
+.wx-gp-box,
+.wx-gb-bar,
+.wx-gu-head,
+.wx-gu-shoulder {
+  pointer-events: none !important;
 }
 
 /* 1. 今日 */

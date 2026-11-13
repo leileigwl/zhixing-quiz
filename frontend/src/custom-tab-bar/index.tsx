@@ -80,8 +80,26 @@ export default function CustomTabBar() {
   }, [])
 
   const handleSwitch = (tab: (typeof TABS)[number]) => {
+    console.log('[CustomTabBar] handleSwitch tap:', tab.key, tab.url)
     setActiveKey(tab.key)
-    Taro.switchTab({ url: tab.url })
+    const targetUrl = tab.url.startsWith('/') ? tab.url : `/${tab.url}`
+    Taro.switchTab({
+      url: targetUrl,
+      success: () => {
+        console.log('[CustomTabBar] switchTab success:', targetUrl)
+      },
+      fail: (err) => {
+        console.warn('[CustomTabBar] switchTab failed with leading slash, trying without:', err)
+        const altUrl = targetUrl.replace(/^\//, '')
+        Taro.switchTab({
+          url: altUrl,
+          success: () => console.log('[CustomTabBar] switchTab fallback success:', altUrl),
+          fail: (err2) => console.error('[CustomTabBar] switchTab fallback failed:', err2),
+        }).catch((e) => console.error('[CustomTabBar] fallback catch:', e))
+      },
+    }).catch((err) => {
+      console.error('[CustomTabBar] switchTab catch:', err)
+    })
   }
 
   return (
@@ -91,8 +109,6 @@ export default function CustomTabBar() {
           <View
             key={tab.key}
             className={`wx-dock-tab ${activeKey === tab.key ? 'is-active' : ''}`}
-            hoverClass='wx-dock-tab-hover'
-            hoverStayTime={60}
             onClick={() => handleSwitch(tab)}
           >
             <WeappDockGlyph kind={tab.key} />
