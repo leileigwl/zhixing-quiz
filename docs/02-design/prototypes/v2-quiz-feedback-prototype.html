@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>zhixing-quiz V2.5 原型 · 答题正误差异化交互体验</title>
+  <title>知行快刷 V2.5 · 答题正误纯净知性反馈原型</title>
   <style>
     :root {
       --bg: #F6F5F0;
@@ -57,57 +57,41 @@
     }
     .cam { width: 92px; height: 22px; background: #18181B; border-radius: 999px; }
 
-    /* Top Bouncy Non-Blocking Feedback Banner (below progress header, 0 text overlap) */
-    .fb-banner {
-      border-radius: 18px; padding: 11px 14px;
+    /* Top Non-Blocking Avoidance Banner (Only on Wrong, 0 text overlap) */
+    .wrong-banner {
+      border-radius: 16px; padding: 10px 14px;
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      box-shadow: 0 8px 22px rgba(24,24,27,0.08);
-      animation: zx-banner-drop 340ms cubic-bezier(0.22, 1.28, 0.36, 1) forwards;
-    }
-    .fb-banner.is-wrong {
       background: #FFF1F2; border: 1.5px solid #FDA4AF; color: #9F1239;
-      animation: zx-banner-wrong 420ms cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
+      box-shadow: 0 6px 18px rgba(225,29,72,0.06);
+      animation: zx-banner-wrong 380ms cubic-bezier(0.22, 1.2, 0.36, 1) forwards;
     }
-    .fb-banner.is-ok-mint { background: #ECFDF5; border: 1.5px solid #6EE7B7; color: #065F46; }
-    .fb-banner.is-ok-combo { background: #FFF7ED; border: 1.5px solid #FDBA74; color: #9A3412; }
-    .fb-banner.is-ok-fast { background: #EFF6FF; border: 1.5px solid #93C5FD; color: #1E40AF; }
-    .fb-banner.is-ok-hard { background: #F5F3FF; border: 1.5px solid #C4B5FD; color: #5B21B6; }
-
-    .fb-left { display: flex; align-items: center; gap: 10px; }
-    .fb-emoji {
-      width: 34px; height: 34px; border-radius: 12px;
-      background: rgba(255,255,255,0.8); display: flex; align-items: center; justify-content: center;
-      font-size: 18px; flex-shrink: 0;
-    }
-    .fb-title { font-size: 14px; font-weight: 800; }
-    .fb-sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
-    .fb-tag {
-      font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 999px;
-      background: rgba(255,255,255,0.85); white-space: nowrap;
+    .wrong-banner-left { display: flex; align-items: center; gap: 8px; }
+    .wrong-banner-icon { font-size: 16px; }
+    .wrong-banner-title { font-size: 13px; font-weight: 800; color: #9F1239; }
+    .wrong-banner-sub { font-size: 11px; opacity: 0.85; margin-top: 1px; color: #BE123C; }
+    .wrong-banner-tag {
+      font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.9); color: #BE123C; white-space: nowrap;
     }
 
-    @keyframes zx-banner-drop {
-      0% { opacity: 0; transform: translateY(-20px) scale(0.94); }
-      100% { opacity: 1; transform: translateY(0) scale(1); }
-    }
     @keyframes zx-banner-wrong {
-      0% { opacity: 0; transform: translateY(-18px) scale(0.95); }
-      45% { opacity: 1; transform: translateY(2px) translateX(-4px); }
-      70% { transform: translateX(4px); }
-      85% { transform: translateX(-2px); }
+      0% { opacity: 0; transform: translateY(-12px) scale(0.96); }
+      45% { opacity: 1; transform: translateY(2px) translateX(-3px); }
+      70% { transform: translateX(3px); }
+      85% { transform: translateX(-1px); }
       100% { opacity: 1; transform: translateX(0); }
     }
     @keyframes zx-wrong-shake {
       0%, 100% { transform: translateX(0); }
-      18% { transform: translateX(-8px); }
-      36% { transform: translateX(7px); }
-      54% { transform: translateX(-5px); }
-      72% { transform: translateX(4px); }
-      90% { transform: translateX(-2px); }
+      18% { transform: translateX(-7px); }
+      36% { transform: translateX(6px); }
+      54% { transform: translateX(-4px); }
+      72% { transform: translateX(3px); }
+      90% { transform: translateX(-1px); }
     }
     @keyframes zx-ok-pop {
       0% { transform: scale(1); }
-      42% { transform: scale(1.03); }
+      45% { transform: scale(1.025); }
       100% { transform: scale(1); }
     }
 
@@ -119,30 +103,43 @@
     .dot.cur { background: var(--obsidian); }
 
     .body {
-      flex: 1; overflow-y: auto; padding: 20px 18px 96px;
+      flex: 1; overflow-y: auto; padding: 14px 18px 96px;
       display: flex; flex-direction: column; gap: 14px;
     }
     .kp { font-size: 12px; font-weight: 700; color: #2563EB; }
-    .stem { font-size: 17px; font-weight: 700; line-height: 1.5; }
+    .stem { font-size: 17px; font-weight: 700; line-height: 1.5; color: var(--ink); }
     .opts { display: flex; flex-direction: column; gap: 10px; }
     .opt {
       background: #FFF; border: 1.5px solid rgba(24,24,27,0.08); border-radius: 18px;
       padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
       cursor: pointer; font-size: 14px; line-height: 1.45;
     }
-    .opt.sel { border-color: var(--obsidian); background: #FAFAF7; }
     .opt.wrong {
       background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn); font-weight: 600;
-      animation: zx-wrong-shake 360ms ease-in-out;
+      animation: zx-wrong-shake 340ms ease-in-out;
     }
     .opt.ok {
       background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok); font-weight: 600;
-      animation: zx-ok-pop 320ms cubic-bezier(0.22, 1.35, 0.36, 1);
+      animation: zx-ok-pop 280ms cubic-bezier(0.22, 1.35, 0.36, 1);
     }
 
-    /* Explain boxes: Collapsed pill on Right vs Pitfall card on Wrong */
+    /* Avoidance Notes (Wrong) vs Collapsed Review (Right) */
+    .explain-pitfall {
+      background: #FFF5F5; border: 1px solid rgba(225,29,72,0.18);
+      border-radius: 20px; padding: 15px 16px;
+      animation: zx-pitfall-in 240ms ease-out forwards;
+    }
+    @keyframes zx-pitfall-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .ep-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .ep-title { font-size: 13px; font-weight: 800; color: #9F1239; }
+    .ep-tag { font-size: 11px; color: #E11D48; background: #FFE4E6; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
+    .ep-body { font-size: 13px; line-height: 1.6; color: #3F3F46; }
+
     .explain-collapsed {
-      background: #EEF6F2; border: 1px dashed rgba(5,150,105,0.28);
+      background: #F0FDF4; border: 1px dashed rgba(5,150,105,0.32);
       border-radius: 16px; padding: 12px 14px;
       display: flex; justify-content: space-between; align-items: center;
       font-size: 13px; font-weight: 700; color: #065F46; cursor: pointer; gap: 10px;
@@ -151,16 +148,8 @@
     .explain-expanded-ok {
       background: #F0FDF4; border: 1px solid rgba(5,150,105,0.18);
       border-radius: 20px; padding: 14px 16px; font-size: 13px; line-height: 1.6; color: #14532D;
+      animation: zx-pitfall-in 200ms ease-out forwards;
     }
-    .explain-pitfall {
-      background: #FFF5F5; border: 1px solid rgba(225,29,72,0.18);
-      border-radius: 20px; padding: 15px 16px;
-      animation: zx-banner-drop 240ms ease-out forwards;
-    }
-    .ep-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .ep-title { font-size: 13px; font-weight: 800; color: #9F1239; }
-    .ep-tag { font-size: 11px; color: #E11D48; background: #FFE4E6; padding: 2px 8px; border-radius: 999px; font-weight: 700; }
-    .ep-body { font-size: 13px; line-height: 1.6; color: #3F3F46; }
 
     .footer {
       position: absolute; left: 0; right: 0; bottom: 0;
@@ -183,22 +172,20 @@
 <body>
   <div class="head">
     <div>
-      <h1>知行快刷 V2.5 · 答题正误情绪反馈交互原型</h1>
-      <p>左侧固定展示「答错：抖动 + 顶部防踩坑弹窗条 + 自动展开避坑解析」；右侧可切换体验 4 套「答对：轻快弹跳 + 多变正反馈 + 解析轻量收起」</p>
+      <h1>知行快刷 V2.5 · 答题正误纯净知性反馈原型</h1>
+      <p>创作与深度学习定位：摒弃游戏化连击/秒杀浮躁弹窗。答错聚焦「非阻塞避坑」，答对保持「极简专注心流」。</p>
     </div>
     <div class="controls">
       <button class="ctrl-btn dark" onclick="replayWrong()">↻ 重播答错抖动</button>
-      <button class="ctrl-btn" onclick="switchRightStyle('mint')">✨ 首次答对</button>
-      <button class="ctrl-btn" onclick="switchRightStyle('combo')">🔥 3连击</button>
-      <button class="ctrl-btn" onclick="switchRightStyle('fast')">⚡ 4.2s秒杀</button>
-      <button class="ctrl-btn" onclick="switchRightStyle('hard')">🧠 硬核难题</button>
+      <button class="ctrl-btn" onclick="replayRight()">↻ 重播答对 Q 弹</button>
+      <button class="ctrl-btn" onclick="toggleRightExplain()">🌿 切换思路复盘展开/折叠</button>
     </div>
   </div>
 
   <div class="grid">
     <!-- Wrong State -->
     <div class="col-wrap">
-      <div class="col-lbl">1. 答错态：选项抖动 + 顶部滑入纠错条 + 避坑拆解展开</div>
+      <div class="col-lbl">1. 答错态：选项微抖 + 非阻塞纠错条 + 自动展开避坑笔记</div>
       <div class="phone">
         <div class="notch"><span>22:37</span><div class="cam"></div><span>5G</span></div>
 
@@ -212,17 +199,19 @@
           </div>
         </div>
 
-        <div class="body" style="padding-top: 8px;">
-          <div class="fb-banner is-wrong" id="wrong-banner">
-            <div class="fb-left">
-              <div class="fb-emoji">😵‍💫</div>
+        <div class="body">
+          <!-- 非阻塞纠错条（直接在文档流中，不遮挡题目与选项，无需点关闭直接下一题） -->
+          <div class="wrong-banner" id="wrong-banner">
+            <div class="wrong-banner-left">
+              <span class="wrong-banner-icon">💡</span>
               <div>
-                <div class="fb-title">差点就对了！掉进常见陷阱啦</div>
-                <div class="fb-sub">正解是 B · 已顺手记入待巩固清单</div>
+                <div class="wrong-banner-title">正解是 B · 掉进常见陷阱啦</div>
+                <div class="wrong-banner-sub">已记入待巩固清单 · 可直接下一题</div>
               </div>
             </div>
-            <span class="fb-tag">重震提醒</span>
+            <span class="wrong-banner-tag">中震提示</span>
           </div>
+
           <div class="kp">考点 · Redisson 看门狗机制</div>
           <div class="stem">使用 Redisson 分布式锁时，若显式指定了 leaseTime=10s，Watchdog 还会自动续期吗？</div>
           <div class="opts">
@@ -240,10 +229,10 @@
           <div class="explain-pitfall">
             <div class="ep-head">
               <span class="ep-title">💡 避坑笔记 · 为什么不选 A</span>
-              <span class="ep-tag">常见误区</span>
+              <span class="ep-tag">核心误区</span>
             </div>
             <div class="ep-body">
-              一旦手动传入了 <code>leaseTime</code>，Redisson 就认为你明确知道锁何时过期，不会启用 Watchdog（默认 30s 超时、每 10s 续期）。
+              一旦手动传入了 <code>leaseTime</code>，Redisson 认为开发者明确知道锁何时过期，因此不会启动 Watchdog（默认 30s 超时、每 10s 自动续期）。
             </div>
           </div>
         </div>
@@ -255,9 +244,9 @@
       </div>
     </div>
 
-    <!-- Right State (Switchable) -->
+    <!-- Right State -->
     <div class="col-wrap">
-      <div class="col-lbl">2. 答对态：Q弹放大 + 多变俏皮提示条 + 解析轻量收起</div>
+      <div class="col-lbl">2. 答对态：选项轻柔 Q 弹 + 零弹窗打扰 + 极简思路复盘折叠条</div>
       <div class="phone">
         <div class="notch"><span>22:37</span><div class="cam"></div><span>5G</span></div>
 
@@ -271,17 +260,8 @@
           </div>
         </div>
 
-        <div class="body" style="padding-top: 8px;">
-          <div class="fb-banner is-ok-combo" id="right-banner">
-            <div class="fb-left">
-              <div class="fb-emoji" id="right-emoji">🔥</div>
-              <div>
-                <div class="fb-title" id="right-title">3 连击！手感滚烫</div>
-                <div class="fb-sub" id="right-sub">连续拿下 3 题，思路完全打通了</div>
-              </div>
-            </div>
-            <span class="fb-tag" id="right-tag">轻震 ✓</span>
-          </div>
+        <div class="body">
+          <!-- 答对态：无任何游戏打击感横幅，题干区域清爽知性 -->
           <div class="kp">考点 · 检索重排 Reranker</div>
           <div class="stem">在 RAG 混合检索中，为什么常把 Cross-Encoder 放在召回之后做精排，而不是全库直接打分？</div>
           <div class="opts">
@@ -293,13 +273,14 @@
             <div class="opt"><span><strong>C.</strong> 双塔向量检索无法支持余弦相似度</span><span></span></div>
           </div>
 
+          <!-- 解析默认收起为轻盈小条，点击可展开，不打扰直接答下一题 -->
           <div class="explain-collapsed" id="right-explain-toggle" onclick="toggleRightExplain()">
-            <span>🌿 思路复盘 · 这道已稳稳拿捏</span>
-            <span id="right-arrow">展开思路 ›</span>
+            <span>🌿 思路复盘（点此展开对照）</span>
+            <span id="right-arrow">展开 ›</span>
           </div>
           <div class="explain-expanded-ok" id="right-explain-detail" style="display:none;">
-            Bi-Encoder 可预先离线编码文档向量（毫秒级 ANN 召回），Cross-Encoder 需逐对拼接交叉注意力，所以先粗召 Top-K 再精排最划算。
-            <div style="margin-top:8px;color:#047857;font-weight:700;font-size:12px;">+ 觉得只是蒙对？点此加入待复习清单</div>
+            Bi-Encoder 可离线编码文档向量（毫秒级 ANN 召回），Cross-Encoder 需逐对拼接交叉注意力，复杂度高，因此先粗召 Top-K 再精排性价比最高。
+            <div style="margin-top:8px;color:#047857;font-weight:700;font-size:12px;">+ 觉得只是蒙对？点此加入待巩固清单</div>
           </div>
         </div>
 
@@ -312,12 +293,6 @@
   </div>
 
   <script>
-    const RIGHT_MODES = {
-      mint: { cls: 'is-ok-mint', emoji: '✨', title: '稳稳拿捏！', sub: '思路干脆利落，这题过关', tag: '+1 掌握' },
-      combo: { cls: 'is-ok-combo', emoji: '🔥', title: '3 连击！手感滚烫', sub: '连续拿下 3 题，思路完全打通了', tag: 'COMBO ×3' },
-      fast: { cls: 'is-ok-fast', emoji: '⚡', title: '4.2s 闪电秒杀！', sub: '条件反射级反应，稳得离谱', tag: '极速命中' },
-      hard: { cls: 'is-ok-hard', emoji: '🧠', title: '硬核破局！', sub: '高难边界题也被你看穿了', tag: 'HARD ✓' },
-    };
     function replayWrong() {
       const b = document.getElementById('wrong-banner');
       const o = document.getElementById('wrong-opt');
@@ -325,18 +300,11 @@
       void b.offsetWidth;
       b.style.animation = ''; o.style.animation = '';
     }
-    function switchRightStyle(key) {
-      const m = RIGHT_MODES[key];
-      const b = document.getElementById('right-banner');
+    function replayRight() {
       const o = document.getElementById('right-opt');
-      b.className = 'fb-banner ' + m.cls;
-      document.getElementById('right-emoji').textContent = m.emoji;
-      document.getElementById('right-title').textContent = m.title;
-      document.getElementById('right-sub').textContent = m.sub;
-      document.getElementById('right-tag').textContent = m.tag;
-      b.style.animation = 'none'; o.style.animation = 'none';
-      void b.offsetWidth;
-      b.style.animation = ''; o.style.animation = '';
+      o.style.animation = 'none';
+      void o.offsetWidth;
+      o.style.animation = '';
     }
     function toggleRightExplain() {
       const d = document.getElementById('right-explain-detail');

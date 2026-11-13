@@ -202,7 +202,8 @@ export default function QuizPage() {
     if (existing) {
       setSelectedAnswers(existing.selected_answers)
       setSubmitted(true)
-      setExplainVisible(true)
+      // 答错自动展开避坑笔记；答对保持折叠为轻胶囊，可随时点开对照
+      setExplainVisible(!existing.is_correct)
       setIsReviewReadonly(true)
     } else {
       setSelectedAnswers([])
@@ -252,16 +253,23 @@ export default function QuizPage() {
     setAnswerRecords(updated)
     setActiveAnswerRecords(updated)
     setSubmitted(true)
-    setExplainVisible(false)
 
-    if (process.env.TARO_ENV === 'weapp') {
-      Taro.vibrateShort({ type: 'light' }).catch(() => {})
+    if (isCorrect) {
+      // 答对：轻微短震，零弹窗打扰，解析折叠收起，保持纯净专注心流
+      setExplainVisible(false)
+      if (process.env.TARO_ENV === 'weapp') {
+        Taro.vibrateShort({ type: 'light' }).catch(() => {})
+      }
+    } else {
+      // 答错：中等震动，220ms 缓冲后平滑展开暖色避坑笔记卡片
+      setExplainVisible(false)
+      if (process.env.TARO_ENV === 'weapp') {
+        Taro.vibrateShort({ type: 'medium' }).catch(() => {})
+      }
+      revealTimerRef.current = setTimeout(() => {
+        setExplainVisible(true)
+      }, 220)
     }
-
-    // 220ms 缓冲后平滑展开解析卡片
-    revealTimerRef.current = setTimeout(() => {
-      setExplainVisible(true)
-    }, 220)
   }
 
   const handleToggleMarkReview = () => {
@@ -420,6 +428,15 @@ export default function QuizPage() {
     return ''
   }
 
+  const isAnswerWrong = useMemo(() => {
+    if (!submitted || !currentQuestion) return false
+    if (currentRecord) return !currentRecord.is_correct
+    return !(
+      currentQuestion.answer.length === selectedAnswers.length &&
+      currentQuestion.answer.every((a) => selectedAnswers.includes(a))
+    )
+  }, [submitted, currentQuestion, currentRecord, selectedAnswers])
+
   const diffText = DIFF_LABEL[currentQuestion.difficulty] || '自适应题'
   const sourceText = quizData.source_type
     ? SOURCE_LABEL[quizData.source_type] || '知识库生成'
@@ -466,6 +483,21 @@ export default function QuizPage() {
 
       {/* 纯净题干区 */}
       <View className='quiz-body'>
+        {/* 答错时滑入非阻塞纠错条（零遮挡题干与选项，口吻轻松包容，可直接下一题） */}
+        {submitted && isAnswerWrong && (
+          <View className='quiz-wrong-banner'>
+            <View className='wrong-banner-left'>
+              <Text className='wrong-banner-icon'>💡</Text>
+              <View className='wrong-banner-texts'>
+                <Text className='wrong-banner-title'>
+                  正解是 {currentQuestion.answer.join('、')} · 掉进常见陷阱啦
+                </Text>
+                <Text className='wrong-banner-sub'>已记入待巩固清单 · 可直接下一题</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         <Text className='quiz-kp'>考点 · {currentQuestion.knowledge_point}</Text>
         <Text className='quiz-stem'>{currentQuestion.stem}</Text>
 
@@ -515,13 +547,34 @@ export default function QuizPage() {
           })}
         </View>
 
-        {/* 220ms 缓冲后平滑展开的解析卡片 */}
+        {/* 答对时的轻量思路复盘折叠条（保持极简纯净，不打扰连贯作答） */}
+        {submitted && !isAnswerWrong && (
+          <View
+            className='explain-collapsed-strip zx-press'
+            onClick={() => setExplainVisible((v) => !v)}
+          >
+            <View className='explain-collapsed-left'>
+              <Text className='explain-collapsed-icon'>🌿</Text>
+              <Text className='explain-collapsed-title'>思路复盘（点此展开对照）</Text>
+            </View>
+            <Text className='explain-collapsed-arrow'>{explainVisible ? '收起 ‹' : '展开 ›'}</Text>
+          </View>
+        )}
+
+        {/* 展开的避坑笔记 (答错) 或思路复盘 (答对展开) */}
         {submitted && explainVisible && (
-          <View className='explain-box'>
+          <View className={`explain-box ${isAnswerWrong ? 'is-pitfall' : 'is-ok'}`}>
             <View className='explain-head'>
-              <Text className='explain-title'>
-                {isReviewReadonly ? '解析（已作答只读锁定）' : '详细解析'}
-              </Text>
+              {isAnswerWrong ? (
+                <View className='explain-pitfall-tag-wrap'>
+                  <Text className='explain-title'>💡 避坑笔记 · 为什么选错了</Text>
+                  <Text className='explain-pitfall-tag'>核心误区剖析</Text>
+                </View>
+              ) : (
+                <Text className='explain-title'>
+                  {isReviewReadonly ? '思路复盘（只读回看）' : '思路复盘与关键推导'}
+                </Text>
+              )}
               <Text className='explain-source'>{sourceText}</Text>
             </View>
             <Text className='explain-body'>{currentQuestion.explanation}</Text>
@@ -536,10 +589,17 @@ export default function QuizPage() {
                   </Text>
                 </View>
               )}
-              {currentRecord?.is_correct && (
+              {isAnswerWrong ? (
+                <View
+                  className='mark-review-pill is-active-pitfall zx-press'
+                  onClick={handleToggleMarkReview}
+                >
+                  <Text>{currentRecord?.mark_review ? '✓ 已记入待巩固' : '+ 加入待复习'}</Text>
+                </View>
+              ) : (
                 <View className='mark-review-pill zx-press' onClick={handleToggleMarkReview}>
                   <Text>
-                    {currentRecord.mark_review ? '✓ 已标记待巩固（再练）' : '+ 蒙对？加入错题复习'}
+                    {currentRecord?.mark_review ? '✓ 已标记待巩固（再练）' : '+ 蒙对？加入错题复习'}
                   </Text>
                 </View>
               )}
