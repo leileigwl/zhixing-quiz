@@ -86,6 +86,10 @@ export default function IndexPage() {
   const [dueReviews, setDueReviews] = useState<DueReviewsResponse>(
     () => readSwrCache<DueReviewsResponse>('home_due_all') || buildEmptyDueReviews(),
   )
+  const [quizCount, setQuizCount] = useState<number>(() => {
+    const cached = getCachedUser() as any
+    return typeof cached?.quiz_count === 'number' ? cached.quiz_count : (readSwrCache<MasteryOverviewResponse>('home_overview_all')?.focus_domain ? 1 : 0)
+  })
 
   useEffect(() => subscribeBackgroundQuiz(setBgQuiz), [])
 
@@ -118,6 +122,7 @@ export default function IndexPage() {
       }
       setUser(brief)
       setCachedUser(brief)
+      setQuizCount(profileRes.quiz_count ?? 0)
     }
     if (docsRes) {
       setDocs(docsRes.items)
@@ -161,13 +166,21 @@ export default function IndexPage() {
   }, [selectedDomainId, domains, effectiveOverview.focus_domain])
 
   const dueCount = selectedDomainId
-    ? dueReviews.total_due
-    : dueReviews.total_due || effectiveOverview.due_review_total
-  const streakDays = user?.streak_days ?? effectiveOverview.streak_days
+    ? (dueReviews.total_due ?? 0)
+    : (dueReviews.total_due ?? effectiveOverview.due_review_total ?? 0)
+  const streakDays = user?.streak_days ?? effectiveOverview.streak_days ?? 1
   const todayCompleted = useMemo(() => {
     const todayBar = effectiveOverview.weekly_rhythm?.find((d) => d.is_today)
     return todayBar?.completed_count || 0
   }, [effectiveOverview.weekly_rhythm])
+
+  const isColdStart = useMemo(() => {
+    if (quizCount === 0 && dueCount === 0) return true
+    if (!overview?.focus_domain && (!effectiveOverview.domains || effectiveOverview.domains.length === 0)) {
+      return true
+    }
+    return false
+  }, [quizCount, dueCount, overview?.focus_domain, effectiveOverview.domains])
 
   const recommendedNum = useMemo(
     () =>
@@ -233,8 +246,13 @@ export default function IndexPage() {
     })
   }
 
-  /** 右侧薄弱主攻快捷卡：优先 0.1s 命中该域预热题库，未预热则后台异步出题 */
+  /** 右侧薄弱主攻快捷卡：新用户自动填入新手摸底考点；老用户优先 0.1s 命中预热题库或后台组卷 */
   const handleFocusTileTap = () => {
+    if (isColdStart) {
+      setInputValue('请基于「计算机核心高频考点」为我生成一套新手自适应摸底测验')
+      Taro.showToast({ title: '已填入推荐新手考点，点击开始测验即可开刷', icon: 'none' })
+      return
+    }
     const dom = activeFocusDomain
     if (!dom) {
       Taro.switchTab({ url: '/pages/mastery/index' })
@@ -294,7 +312,11 @@ export default function IndexPage() {
             </View>
           )}
           <View className='greet-texts'>
-            <Text className='greet-title'>继续精进，{user?.nickname || '同学'}</Text>
+            <Text className='greet-title'>
+              {isColdStart && (!user?.nickname || user.nickname === '学习者' || user.nickname === '同学')
+                ? '欢迎开启，新同学'
+                : `继续精进，${user?.nickname || '同学'}`}
+            </Text>
             <Text className='greet-sub'>
               连续 {streakDays} 天 · 今日已练 {todayCompleted} 题
             </Text>
@@ -309,34 +331,41 @@ export default function IndexPage() {
         </View>
       </View>
 
-      {/* 2. 紧致双快捷区（填补空白、秒开复习与薄弱域一键开刷，仍保持整页一屏零滚动） */}
+      {/* 2. 紧致双快捷区（纯正中文、冷启动引导与薄弱攻坚一键开刷） */}
       <View className='mini-bento-grid'>
         <View className='mini-tile is-butter zx-press' onClick={handleDueCardTap}>
           <View className='mini-top'>
-            <Text className='mini-tag'>DUE TODAY</Text>
+            <Text className='mini-tag'>今日待巩固</Text>
             <Text className='mini-arrow'>→</Text>
           </View>
           <View className='mini-bottom'>
             <Text className='mini-val'>
-              {String(dueCount).padStart(2, '0')} {dueCount > 0 ? '待巩固' : '清零'}
+              {String(dueCount).padStart(2, '0')} {dueCount > 0 ? '待巩固' : '已清零'}
             </Text>
             <Text className='mini-sub'>
-              {dueCount > 0 ? '0.1s 秒开错题回忆' : '暂无到期 · 查看曲线'}
+              {dueCount > 0 ? '秒开错题回忆' : '暂无到期 · 查看曲线'}
             </Text>
           </View>
         </View>
 
-        <View className='mini-tile is-sky zx-press' onClick={handleFocusTileTap}>
+        <View
+          className={`mini-tile ${isColdStart ? 'is-sky-cold' : 'is-sky'} zx-press`}
+          onClick={handleFocusTileTap}
+        >
           <View className='mini-top'>
-            <Text className='mini-tag'>FOCUS DOMAIN</Text>
-            <Text className='mini-arrow'>{isFocusRunning ? '···' : '⚡'}</Text>
+            <Text className='mini-tag'>{isColdStart ? '待解锁攻坚' : '重点攻坚'}</Text>
+            <Text className='mini-arrow'>{isFocusRunning ? '···' : '›'}</Text>
           </View>
           <View className='mini-bottom'>
-            <Text className='mini-val is-domain'>{activeFocusDomain?.name || 'RAG 架构'}</Text>
+            <Text className='mini-val is-domain'>
+              {isColdStart ? '待首测定位' : (activeFocusDomain?.name || '综合知识域')}
+            </Text>
             <Text className='mini-sub'>
-              {isFocusRunning
-                ? `生成中 (${bgQuiz.elapsedSec}s)...`
-                : `掌握 ${Math.round(activeFocusDomain?.mastery_score ?? 74)}% · 一键开刷 ${activeFocusDomain?.recommended_count ?? 4} 题`}
+              {isColdStart
+                ? '完成首测自动定位 · 点此填入'
+                : isFocusRunning
+                  ? `生成中 (${bgQuiz.elapsedSec}s)...`
+                  : `掌握 ${Math.round(activeFocusDomain?.mastery_score ?? 60)}% · 一键开刷 ${activeFocusDomain?.recommended_count ?? 4} 题`}
             </Text>
           </View>
         </View>

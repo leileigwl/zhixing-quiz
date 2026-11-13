@@ -51,6 +51,8 @@ export default function ProfilePage() {
   const [expandedCardId, setExpandedCardId] = useState<number | null>(null)
   const [selectedStampIdx, setSelectedStampIdx] = useState<number | null>(null)
   const [totalHistory, setTotalHistory] = useState(0)
+  const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [dueExpanded, setDueExpanded] = useState(false)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -139,6 +141,20 @@ export default function ProfilePage() {
   }, [selectedStampIdx, stampWeek])
   const activeStampDay = stampWeek[resolvedStampIdx]
 
+  const visibleDueCards = useMemo(() => {
+    if (dueExpanded || dueReviews.items.length <= 3) {
+      return dueReviews.items
+    }
+    return dueReviews.items.slice(0, 3)
+  }, [dueReviews.items, dueExpanded])
+
+  const visibleHistory = useMemo(() => {
+    if (historyExpanded || historyItems.length <= 3) {
+      return historyItems
+    }
+    return historyItems.slice(0, 3)
+  }, [historyItems, historyExpanded])
+
   const handleLoadMore = () => {
     if (!hasMore || loadingMore) return
     void loadHistory(page + 1, false)
@@ -168,6 +184,11 @@ export default function ProfilePage() {
   const handleOpenEdit = () => {
     setDraftName(profile?.nickname || '学习者')
     setEditing(true)
+  }
+
+  const handleCancelEdit = () => {
+    setDraftName(profile?.nickname || '学习者')
+    setEditing(false)
   }
 
   const handleSaveNickname = (e?: any) => {
@@ -244,23 +265,47 @@ export default function ProfilePage() {
     <View className={`profile-page ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
       {/* 个人档案头部卡 */}
       <View className='zx-card profile-hero'>
-        {process.env.TARO_ENV === 'weapp' ? (
-          <Button className='avatar-btn' openType='chooseAvatar' onChooseAvatar={handleChooseAvatar}>
-            {profile?.avatar_url ? (
-              <Image className='avatar-lg-img' src={profile.avatar_url} mode='aspectFill' />
-            ) : (
-              <View className='avatar-lg-fallback'>
-                <Text>{avatarInitial}</Text>
+        <View className='avatar-wrap'>
+          {process.env.TARO_ENV === 'weapp' ? (
+            <Button
+              className='avatar-btn'
+              openType='chooseAvatar'
+              onChooseAvatar={handleChooseAvatar}
+            >
+              {profile?.avatar_url ? (
+                <Image className='avatar-lg-img' src={profile.avatar_url} mode='aspectFill' />
+              ) : (
+                <View className='avatar-lg-fallback'>
+                  <Text>{avatarInitial}</Text>
+                </View>
+              )}
+              <View className='avatar-cam-badge'>
+                <View className='cam-icon' />
               </View>
-            )}
-          </Button>
-        ) : profile?.avatar_url ? (
-          <Image className='avatar-lg-img' src={profile.avatar_url} mode='aspectFill' />
-        ) : (
-          <View className='avatar-lg-fallback'>
-            <Text>{avatarInitial}</Text>
-          </View>
-        )}
+            </Button>
+          ) : (
+            <View
+              className='avatar-btn'
+              onClick={() =>
+                Taro.showToast({
+                  title: '微信小程序端可点击更换微信头像',
+                  icon: 'none',
+                })
+              }
+            >
+              {profile?.avatar_url ? (
+                <Image className='avatar-lg-img' src={profile.avatar_url} mode='aspectFill' />
+              ) : (
+                <View className='avatar-lg-fallback'>
+                  <Text>{avatarInitial}</Text>
+                </View>
+              )}
+              <View className='avatar-cam-badge'>
+                <View className='cam-icon' />
+              </View>
+            </View>
+          )}
+        </View>
 
         <View className='profile-info'>
           {editing ? (
@@ -274,14 +319,19 @@ export default function ProfilePage() {
                 onInput={(e) => setDraftName(e.detail.value)}
                 onConfirm={handleSaveNickname}
               />
-              <View className='btn-save-name' onClick={handleSaveNickname}>
+              <View className='btn-cancel-name zx-press' onClick={handleCancelEdit}>
+                <Text>取消</Text>
+              </View>
+              <View className='btn-save-name zx-press' onClick={handleSaveNickname}>
                 <Text>保存</Text>
               </View>
             </View>
           ) : (
-            <View key='view-name' className='profile-name-row' onClick={handleOpenEdit}>
+            <View key='view-name' className='profile-name-row'>
               <Text className='profile-name'>{profile?.nickname || '学习者'}</Text>
-              <Text className='edit-icon'>✎</Text>
+              <View className='btn-edit-name-pill zx-press' onClick={handleOpenEdit}>
+                <Text className='btn-edit-name-txt'>修改昵称 ✎</Text>
+              </View>
             </View>
           )}
           <Text className='profile-motto'>自适应刷题 · 长期抗遗忘闭环</Text>
@@ -409,7 +459,7 @@ export default function ProfilePage() {
           <Text className='due-empty'>目前没有未掌握的错题卡片，去首页发起新测验吧</Text>
         ) : (
           <View className='due-list'>
-            {dueReviews.items.map((card) => {
+            {visibleDueCards.map((card) => {
               const isOpen = expandedCardId === card.card_id
               const userSel = card.user_selected || []
               const rightAns = card.answer || []
@@ -482,6 +532,16 @@ export default function ProfilePage() {
                 </View>
               )
             })}
+            {dueReviews.items.length > 3 && (
+              <View
+                className='fold-toggle-pill zx-press'
+                onClick={() => setDueExpanded((prev) => !prev)}
+              >
+                <Text className='fold-toggle-text'>
+                  {dueExpanded ? '收起错题 ‹' : `展开全部 ${dueReviews.items.length} 条错题 ⌄`}
+                </Text>
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -498,7 +558,7 @@ export default function ProfilePage() {
         </View>
       ) : (
         <View className='history-list'>
-          {historyItems.map((item) => {
+          {visibleHistory.map((item) => {
             const acc = Math.round(item.accuracy)
             const pending = item.is_submitted === false
             return (
@@ -520,7 +580,19 @@ export default function ProfilePage() {
               </View>
             )
           })}
-          {hasMore && (
+          {historyItems.length > 3 && (
+            <View
+              className='fold-toggle-pill zx-press'
+              onClick={() => setHistoryExpanded((prev) => !prev)}
+            >
+              <Text className='fold-toggle-text'>
+                {historyExpanded
+                  ? '收起历史记录 ‹'
+                  : `展开全部 ${totalHistory || historyItems.length} 条历史记录 ⌄`}
+              </Text>
+            </View>
+          )}
+          {hasMore && historyExpanded && (
             <View className='load-more zx-press' onClick={handleLoadMore}>
               <Text className='load-more-text'>{loadingMore ? '加载中...' : '加载更多'}</Text>
             </View>

@@ -19,11 +19,28 @@
   margin-bottom: 22px;
 }
 
+.avatar-wrap {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  flex-shrink: 0;
+}
+
 .avatar-btn {
+  position: relative;
   width: 112px;
   height: 112px;
   border-radius: 50%;
-  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  line-height: normal;
+  border: none;
+  display: block;
+
+  &::after {
+    border: none;
+  }
 }
 
 .avatar-lg-img,
@@ -32,6 +49,7 @@
   height: 112px;
   border-radius: 50%;
   flex-shrink: 0;
+  display: block;
 }
 
 .avatar-lg-fallback {
@@ -42,6 +60,54 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.avatar-cam-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ink-900);
+  border: 4px solid var(--surface-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  z-index: 2;
+}
+
+.cam-icon {
+  width: 18px;
+  height: 13px;
+  border: 2px solid #ffffff;
+  border-radius: 3px;
+  position: relative;
+  box-sizing: border-box;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 3px;
+    width: 6px;
+    height: 3px;
+    background: #ffffff;
+    border-radius: 1px 1px 0 0;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 5px;
+    height: 5px;
+    border: 1.5px solid #ffffff;
+    border-radius: 50%;
+  }
 }
 
 .profile-info {
@@ -62,15 +128,24 @@
   color: var(--ink-900);
 }
 
-.edit-icon {
-  font-size: 24px;
-  color: var(--ink-400);
+.btn-edit-name-pill {
+  background: var(--surface-soft);
+  padding: 6px 16px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-edit-name-txt {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink-500);
 }
 
 .edit-name-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 8px;
 }
 
@@ -81,6 +156,17 @@
   border-radius: 999px;
   padding: 0 22px;
   font-size: 26px;
+  color: var(--ink-900);
+}
+
+.btn-cancel-name {
+  background: var(--surface-soft);
+  color: var(--ink-600);
+  font-size: 22px;
+  font-weight: 600;
+  padding: 12px 22px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 .btn-save-name {
@@ -508,19 +594,38 @@
   color: var(--ink-500);
 }
 
+.fold-toggle-pill {
+  margin: 16px auto 4px;
+  padding: 12px 28px;
+  background: #faf8f5;
+  border-radius: 999px;
+  border: 1.5px solid rgba(20, 21, 26, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+}
+
+.fold-toggle-text {
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--ink-600);
+}
+
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
 }
 
 .history-card {
-  padding: 26px 30px;
-  border-radius: 36px;
+  padding: 18px 24px;
+  border-radius: 28px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
+  box-shadow: 0 4px 16px rgba(20, 21, 26, 0.03);
 }
 
 .history-left {
@@ -531,7 +636,7 @@
 }
 
 .history-title {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--ink-900);
   overflow: hidden;
@@ -540,16 +645,16 @@
 }
 
 .history-meta {
-  font-size: 21px;
+  font-size: 19px;
   color: var(--ink-400);
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .acc-tag {
-  padding: 10px 22px;
+  padding: 8px 18px;
   border-radius: 999px;
   background: var(--surface-soft);
-  font-size: 23px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--ink-900);
   white-space: nowrap;
@@ -558,7 +663,7 @@
 .acc-tag.is-pending {
   background: #fff6db;
   color: #a16207;
-  font-size: 21px;
+  font-size: 19px;
 }
 
 .load-more {
