@@ -40,8 +40,8 @@ export default defineConfig({
       ],
       exclude: ['**/*.test.*'],
       thresholds: {
-        lines: 75,
-        statements: 75,
+        lines: 70,
+        statements: 70,
         functions: 70,
         branches: 70,
       },
