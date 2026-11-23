@@ -136,17 +136,26 @@ uv run chroma run --host 127.0.0.1 --port 8001 --path ./data/chroma
 uv run arq app.workers.arq_worker.WorkerSettings
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# 3. 运行后端质量检查与单元测试（193 passed）
+# 3. 运行后端质量检查与单元测试（199 passed）
 uv run ruff check app tests
 uv run pytest -q
 
 # 4. 启动前端 H5 或微信小程序编译
 cd ../frontend
 pnpm install
-pnpm typecheck
+pnpm check:all          # ESLint + tsc + Vitest（含覆盖率阈值）
 pnpm dev:h5             # 浏览器调试 H5（http://127.0.0.1:10086）
 pnpm build:weapp:local  # 编译本地微信小程序包至 frontend/dist/
-# 生产发布构建：TARO_APP_API_BASE_URL=https://your-api.example.com pnpm build:weapp
+# 生产发布构建（缺失 / 非 https / 占位域名会直接中止构建）：
+# TARO_APP_API_BASE_URL=https://your-api.example.com pnpm build:h5   # 或 build:weapp
+```
+
+### 质量闸门与 Git Hooks
+
+CI（`.github/workflows/ci.yml`）在每个 PR 与 push 到 `main` 时运行后端 `ruff + pytest`、前端 `lint + typecheck + test:coverage + build:h5 + build:weapp`，命令清单见 [AGENTS.md「质量闸门」](./AGENTS.md)。克隆后执行一次即可启用本地钩子（`pre-commit` 检查暂存改动，`pre-push` 跑完整闸门）：
+
+```bash
+bash scripts/setup-git-hooks.sh   # 等价于 git config core.hooksPath .githooks
 ```
 
 ---
