@@ -1,6 +1,6 @@
 # AGENTS.md：工作规则入口
 
-本文件是 AI 编程助手与开发者在本仓库内工作的总入口与地图，负责说明先读什么、需求或技术变更写到哪里、何时必须暂停问用户，以及每轮结束时如何交接。  
+本文件是 AI 编程助手与开发者在本仓库内工作的总入口与地图（**唯一事实来源**：`CLAUDE.md` 等各工具配置只做 `@AGENTS.md` 引用，不另写规则），负责说明先读什么、需求或技术变更写到哪里、何时必须暂停问用户，以及每轮结束时如何交接。  
 产品边界以 [`docs/PRODUCT.md`](docs/PRODUCT.md) 为准，技术与安全约束以 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) 为准。
 
 ## 每轮开始前（必须先读）
@@ -15,6 +15,33 @@
 - **技术栈、数据模型、JWT/安全边界、部署或存储约束变化**：同步更新 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) 与 [`docs/02-design/system-architecture.md`](docs/02-design/system-architecture.md)。
 - **前端样式与页面改动（强制原型门控）**：用户提出前端样式或界面修改需求时，必须先在 [`docs/02-design/prototypes/`](docs/02-design/prototypes/README.md) 制作或更新可交互 HTML 原型图并经用户确认，**确认通过后再编写或修改 `frontend/` 页面代码**；V2 样式与按钮排版严格对照 [`docs/02-design/v2-ui-design-system.md`](docs/02-design/v2-ui-design-system.md)（方案 B `MOVEPOP` 暖石膏风格）。
 - **过时文档处理**：淘汰或被替代的设计文档归档至 `docs/99-archive/`，不要在多个文档里重复抄录同一份完整规范（入口文档只写核心边界与跳转链接）。
+
+## 质量闸门（本地与 CI 一致）
+
+CI（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)，`pull_request` 与 push 到 `main` 触发）逐条执行下列命令，任何一步失败即视为不可合并；本地提交前应先跑通同样的命令：
+
+```bash
+# 后端（Python 3.12 + uv）
+cd backend
+uv sync
+uv run ruff check app tests
+uv run pytest -q
+
+# 前端（Node 22 + pnpm，版本见 frontend/package.json#packageManager）
+cd frontend
+pnpm install --frozen-lockfile
+pnpm lint            # ESLint 9（TS + react-hooks/rules-of-hooks=error，防 React #310 类问题）
+pnpm typecheck       # tsc --noEmit
+pnpm test:coverage   # Vitest + 覆盖率阈值（见 frontend/vitest.config.ts）
+TARO_APP_API_BASE_URL=https://api.example.com TARO_APP_ALLOW_PLACEHOLDER_API=1 pnpm build:h5
+TARO_APP_API_BASE_URL=https://api.example.com TARO_APP_ALLOW_PLACEHOLDER_API=1 pnpm build:weapp
+```
+
+- 一键本地前端闸门：`pnpm check:all`（lint + typecheck + test:coverage）。
+- Git hooks：首次克隆后执行 `bash scripts/setup-git-hooks.sh`（即 `git config core.hooksPath .githooks`）。`pre-commit` 对暂存的前端文件跑 ESLint + tsc、对后端改动跑 ruff，并拦截 `.env` / `backend/data/`；`pre-push` 跑 `pnpm check:all` + `ruff` + `pytest`。
+- 生产构建 fail-fast：`TARO_APP_API_BASE_URL` 缺失、非 `https://` 或为占位域名时 `taro build` 直接报错（[`frontend/config/apiBaseUrl.ts`](frontend/config/apiBaseUrl.ts)）；`TARO_APP_ALLOW_PLACEHOLDER_API=1` 仅供 CI 冒烟构建使用。
+- 修 bug 先写能复现的失败用例再修（前端 `*.test.ts(x)` 与源码同目录，后端放 `backend/tests/`）；新增前端纯逻辑优先抽成无 Taro 依赖的纯函数以便单测。
+- 不允许为了让闸门变绿而降低覆盖率阈值、关闭 lint 规则或跳过测试；确需调整时在 PR 描述里写明原因。
 
 ## 开发阶段 Skill 与上线前安全审计门控
 
