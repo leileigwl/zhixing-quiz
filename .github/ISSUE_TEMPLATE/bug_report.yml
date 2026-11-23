@@ -1,0 +1,72 @@
+name: 🐞 缺陷反馈
+description: 功能不符合预期、报错、数据不对或体验明显异常
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: 感谢反馈！请尽量提供能稳定复现的步骤，便于先写失败测试再修复。
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 出现端
+      multiple: true
+      options:
+        - H5（手机浏览器）
+        - H5（桌面浏览器）
+        - 微信小程序（开发者工具）
+        - 微信小程序（真机）
+        - 后端 / 接口
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 所在页面 / 模块
+      options:
+        - 首页（出题工作台）
+        - 知识口袋
+        - 学习记忆曲线
+        - 学习档案
+        - 答题页
+        - 成绩报告
+        - 底部导航 / 后台出题胶囊
+        - 后端（出题 / RAG / 复习 / 掌握度）
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 …
+        2. 点击 …
+        3. 看到 …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果（截图 / 录屏 / 控制台报错 / 接口返回）
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 环境信息
+      placeholder: 例如 iPhone 15 / iOS 18 Safari；微信 8.0.x；分支或提交号
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 出现频率
+      options:
+        - 必现
+        - 偶现
+        - 只出现过一次
