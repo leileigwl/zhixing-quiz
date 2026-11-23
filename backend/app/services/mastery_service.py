@@ -193,7 +193,11 @@ def build_retention_curve(
     # 领域图谱总览态：若该域存在真实历次测验记录，左侧直接渲染真实表现节点，让每域波形独一无二
     now_ret = round(max(18.0, min(98.0, float(current_retention or 82.0))), 1)
     m_score = float(mastery_score if mastery_score is not None else now_ret)
-    boosted_val = round(min(98.0, max(now_ret + 8.0, m_score * 0.55 + 44.0)), 1)
+    # 「若今日巩固」锚定在**今日实时保持率**上：今天越接近遗忘，巩固增益越大，投影随天数真实变化。
+    # 旧实现 max(now_ret + 8, m_score * 0.55 + 44) 在 now_ret 低于约 m_score*0.55+36 时整段投影只取决于
+    # 静态掌握分，导致右半段（若巩固 / +3 / +7 / +14 天）每天完全一样。
+    gain = 0.35 + 0.4 * (max(0.0, min(100.0, m_score)) / 100.0)
+    boosted_val = round(min(98.0, now_ret + (100.0 - now_ret) * gain), 1)
     s_boosted = max(s_new * 1.35, 3.8)
 
     points: list[RetentionCurvePoint] = []
@@ -275,7 +279,6 @@ async def get_mastery_overview(
     raw_rows = await mastery_repository.list_user_mastery_rows(user_id)
     daily_counts = await mastery_repository.get_user_daily_counts(user_id, days=7)
     daily_sessions = await mastery_repository.get_user_weekly_sessions(user_id, days=7)
-    history_points = await mastery_repository.get_domain_recent_history(user_id, domain_id=domain_id, limit=4)
     forecast = await mastery_repository.get_seven_day_forecast(user_id)
     total_due, _ = await mastery_repository.list_due_review_cards(user_id, limit=1, domain_id=domain_id)
 
@@ -347,6 +350,13 @@ async def get_mastery_overview(
         round(sum(d.retention_rate for d in domain_summaries) / len(domain_summaries), 1)
         if domain_summaries
         else 85.0
+    )
+    # 曲线左段的真实测验节点必须与右段（focus 域的今日保持率 / 稳定性）属于同一个领域；
+    # 全部域视图下此前取的是全局最近测验，与 focus 域的保持率混在一条线上。
+    history_points = await mastery_repository.get_domain_recent_history(
+        user_id,
+        domain_id=focus.domain_id if focus else domain_id,
+        limit=4,
     )
     target_stability = focus.stability_days if focus else 5.0
     target_retention = focus.retention_rate if focus else overall_retention
