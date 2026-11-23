@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>zhixing-quiz V2.7 原型 · 点按手感与「学习记忆曲线」重设计（待用户确认）</title>
+  <style>
+    /* 方案 B · MOVEPOP 暖石膏 Token（docs/02-design/v2-ui-design-system.md §2） */
+    :root {
+      --bg-canvas: #F6F5F1;
+      --surface-card: #FFFFFF;
+      --surface-soft: #F1EFEA;
+      --ink-primary: #18191E;
+      --ink-muted: #6E7280;
+      --ink-faint: #969AA6;
+      --accent-butter: #F4D06F;
+      --accent-sky: #CBE5F5;
+      --ds-blue: #2563EB;
+      --ds-bg: #EEF4FF;
+      --ok: #165E35;
+      --ok-bg: #F0F9F3;
+      --warn-red: #D8685A;
+      --warn-bg: #FDF0EE;
+      --track: #EFEFF3;
+      --shadow: 0 8px 24px rgba(20, 21, 26, 0.035);
+      --press-ms: 90ms;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      background: #EAE8E1;
+      color: var(--ink-primary);
+      padding: 28px 20px 60px;
+    }
+    .header { max-width: 1240px; margin: 0 auto 20px; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+    .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .header p { font-size: 13px; color: var(--ink-muted); margin-top: 4px; max-width: 680px; line-height: 1.55; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .mode-switch { display: inline-flex; background: #E0DDD4; padding: 4px; border-radius: 999px; gap: 4px; }
+    .mode-btn { border: 0; background: transparent; padding: 9px 14px; min-height: 36px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--ink-muted); cursor: pointer; }
+    .mode-btn.active { background: var(--ink-primary); color: #FFF; }
+    .toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--ink-muted); background: #E0DDD4; padding: 9px 14px; border-radius: 999px; cursor: pointer; user-select: none; }
+    .toggle input { accent-color: var(--ink-primary); }
+
+    .stage-grid { max-width: 1240px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 390px)); justify-content: center; gap: 28px; }
+    .phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .phone-label { font-size: 12px; font-weight: 700; color: var(--ink-muted); letter-spacing: 0.04em; }
+    .phone { width: 390px; height: 844px; background: var(--bg-canvas); border-radius: 44px; border: 10px solid #14151A; overflow: hidden; position: relative; box-shadow: 0 30px 60px -20px rgba(20, 21, 26, 0.35); }
+    .screen { height: 100%; overflow-y: auto; padding: 54px 18px 120px; scrollbar-width: none; }
+    .screen::-webkit-scrollbar { display: none; }
+    .kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: var(--ink-faint); }
+    .title { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; margin: 4px 0 14px; }
+    .card { background: var(--surface-card); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
+    .card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .card .hint { font-size: 11.5px; color: var(--ink-muted); line-height: 1.5; margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    /* ---------- 通用点按反馈（改进版） ---------- */
+    /* 1) 视觉不变、热区扩到 ≥44px：用 ::after 负 inset 扩张，不改变排版 */
+    .tap { position: relative; cursor: pointer; user-select: none; touch-action: manipulation; transition: transform 140ms cubic-bezier(.2,.8,.2,1), background-color 140ms ease-out, box-shadow 140ms ease-out, opacity 140ms ease-out; }
+    .tap::after { content: ""; position: absolute; inset: var(--hit-y, 0px) var(--hit-x, 0px); border-radius: inherit; }
+    /* 2) 按下态由 JS 加 .is-pressed，并至少保持 --press-ms，快速轻点也看得见 */
+    .mode-new .tap.is-pressed { transform: scale(0.965); transition-duration: 60ms; }
+    .mode-new .tap.pill.is-pressed { background: #E6E4DE; }
+    .mode-new .tap.pill.on.is-pressed { background: #2B2D34; }
+    .mode-new .tap.obsidian.is-pressed { background: #2B2D34; transform: scale(0.985); }
+    .mode-new .tap.opt.is-pressed { background: #F4F3EF; border-color: rgba(24, 25, 30, 0.28); transform: scale(0.985); }
+    .mode-new .tap.ghost.is-pressed { background: var(--surface-soft); }
+    /* 旧版：只有 CSS :active（快速轻点时常常还没画出来就松手了） */
+    .mode-old .tap:active { transform: scale(0.96); opacity: 0.88; transition: transform 120ms ease-out, opacity 120ms ease-out; }
+    .mode-old .tap.opt:active { transform: none; opacity: 1; } /* 现状：选项卡没有任何按压态 */
+
+    /* 热区可视化 */
+    .show-hit .tap::after { outline: 1.5px dashed rgba(22, 94, 53, 0.75); background: rgba(22, 94, 53, 0.06); }
+    .show-hit .tap.too-small::after { outline-color: rgba(216, 104, 90, 0.95); background: rgba(216, 104, 90, 0.10); }
+    .hit-badge { display: none; position: absolute; top: -9px; right: -6px; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 999px; background: var(--ok); color: #fff; z-index: 3; pointer-events: none; white-space: nowrap; }
+    .show-hit .hit-badge { display: block; }
+    .show-hit .too-small .hit-badge { background: var(--warn-red); }
+
+    .pill { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; border-radius: 999px; background: var(--surface-soft); color: var(--ink-muted); font-weight: 600; }
+    .pill.on { background: var(--ink-primary); color: #fff; }
+    .mode-old .pill.sz-domain { font-size: 11.5px; padding: 5px 12px; }
+    .mode-old .pill.sz-chip { font-size: 10px; padding: 4px 8px; }
+    .mode-old .pill.sz-action { font-size: 10.5px; padding: 5px 10px; }
+    .mode-new .pill.sz-domain { font-size: 12.5px; padding: 0 14px; height: 34px; --hit-y: -5px; }
+    .mode-new .pill.sz-chip { font-size: 12px; padding: 0 12px; height: 32px; --hit-y: -6px; }
+    .mode-new .pill.sz-action { font-size: 12px; padding: 0 14px; height: 34px; --hit-y: -5px; }
+    .pill.blue { background: var(--ds-bg); color: var(--ds-blue); }
+
+    .seg { display: inline-flex; background: var(--surface-soft); border-radius: 999px; padding: 3px; gap: 2px; }
+    .seg .pill { background: transparent; }
+    .seg .pill.on { background: #fff; color: var(--ink-primary); box-shadow: 0 2px 6px rgba(20,21,26,.08); }
+    .mode-new .seg .pill.on.is-pressed { background: #fff; }
+
+    .obsidian { width: 100%; height: 48px; border-radius: 999px; background: var(--ink-primary); color: #fff; font-size: 14px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; padding: 0 20px 0 23px; border: 0; }
+    .opt { display: flex; gap: 10px; align-items: center; padding: 13px 15px; border-radius: 16px; background: #fff; border: 1.5px solid rgba(24,25,30,.08); font-size: 13.5px; margin-bottom: 8px; }
+    .opt .k { width: 24px; height: 24px; border-radius: 50%; background: var(--surface-soft); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .opt.sel { border-color: var(--ink-primary); background: #FAFAF8; }
+    .opt.sel .k { background: var(--ink-primary); color: #fff; }
+    .dots { display: flex; gap: 5px; margin-bottom: 4px; }
+    .dot { flex: 1; height: 5px; border-radius: 999px; background: rgba(20,21,26,.1); }
+    .dot.done { background: var(--ink-primary); }
+    .dot.curr { background: var(--ds-blue); }
+    .mode-new .dot { --hit-y: -19.5px; }
+    .mode-new .dots { margin: 8px 0 14px; }
+    .ghost { width: 24px; height: 24px; border-radius: 50%; background: var(--surface-soft); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--ink-muted); }
+    .mode-new .ghost { --hit-x: -10px; --hit-y: -10px; }
+
+    .log { margin-top: 8px; font-size: 11px; color: var(--ink-faint); min-height: 16px; }
+    .legend-list { list-style: none; font-size: 11.5px; color: var(--ink-muted); line-height: 1.6; }
+    .legend-list b { color: var(--ink-primary); }
+
+    /* ---------- 学习记忆曲线（重设计） ---------- */
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .kpi { background: var(--bg-canvas); border-radius: 14px; padding: 10px; }
+    .kpi .l { font-size: 10.5px; color: var(--ink-muted); }
+    .kpi .v { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin-top: 2px; }
+    .kpi .v.warn { color: var(--warn-red); }
+    .kpi .v small { font-size: 11px; font-weight: 600; color: var(--ink-faint); }
+    .curve-svg { width: 100%; height: 210px; display: block; touch-action: pan-y; }
+    .curve-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 10.5px; color: var(--ink-muted); margin-top: 6px; }
+    .lg { display: inline-flex; align-items: center; gap: 5px; }
+    .lg i { width: 14px; height: 0; border-top: 2.4px solid var(--ink-primary); display: inline-block; }
+    .lg i.dash { border-top: 2px dashed rgba(20,21,26,.35); }
+    .lg i.blue { border-top-color: var(--ds-blue); }
+    .lg i.dot { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--ink-primary); background: #fff; }
+    .tip { margin-top: 10px; background: var(--bg-canvas); border-radius: 14px; padding: 10px 12px; font-size: 12px; line-height: 1.5; min-height: 54px; }
+    .tip b { font-weight: 700; }
+    .insight { display: flex; gap: 10px; align-items: flex-start; background: var(--accent-butter); border-radius: 18px; padding: 12px 14px; margin-bottom: 12px; }
+    .insight .ic { width: 28px; height: 28px; border-radius: 9px; background: rgba(255,255,255,.72); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
+    .insight .t { font-size: 13px; font-weight: 700; }
+    .insight .s { font-size: 11.5px; color: rgba(24,25,30,.72); margin-top: 2px; line-height: 1.45; }
+    .sim { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--ink-muted); }
+    .sim input[type=range] { flex: 1; accent-color: var(--ink-primary); height: 32px; }
+    .range-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .note { font-size: 11px; color: var(--ink-faint); line-height: 1.5; }
+    .compare-old { opacity: .9; }
+    .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn-red); margin-left: 6px; vertical-align: 2px; }
+    .tag.ok { background: var(--ok-bg); color: var(--ok); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>V2.7 原型 · 点按手感 + 「学习记忆曲线」重设计 <span class="tag">待用户确认</span></h1>
+      <p>左：真实页面里最常点的几类控件，在「现状 / 改进」两种手感下的对比，可打开「显示热区」查看 44px 点按区域（红 = 小于 44px）。右：曲线页改为<strong>按真实日期排布</strong>的时间轴，并用滑杆模拟「第 N 天打开」，确认曲线会随天数真实变化。确认前不改 <code>frontend/</code> 代码。</p>
+    </div>
+    <div class="controls">
+      <div class="mode-switch" role="tablist" aria-label="手感模式">
+        <button class="mode-btn" data-mode="old" type="button">现状手感</button>
+        <button class="mode-btn active" data-mode="new" type="button">改进手感</button>
+      </div>
+      <label class="toggle"><input type="checkbox" id="hitToggle" /> 显示热区</label>
+    </div>
+  </div>
+
+  <div class="stage-grid">
+    <!-- ================= 手机 1：点按手感 ================= -->
+    <div class="phone-wrap">
+      <div class="phone-label">01 · 点按反馈与热区（首页 / 答题 / 曲线页控件）</div>
+      <div class="phone"><div class="screen mode-new" id="tapScreen">
+        <div class="kicker">TAP FEEL</div>
+        <div class="title">按下去，要立刻有回应</div>
+
+        <div class="card">
+          <h3>领域筛选胶囊（曲线页）</h3>
+          <div class="hint" data-old="现状：约 26px 高，仅 CSS :active 120ms 缩放。" data-new="改进：视觉高 34px，热区上下各扩 5px → 44px；按下 60ms 内变深并至少保持 90ms。"></div>
+          <div class="row" data-group="domain">
+            <span class="tap pill sz-domain on" data-h-old="26" data-h-new="44">全部域<span class="hit-badge"></span></span>
+            <span class="tap pill sz-domain" data-h-old="26" data-h-new="44">计算机网络<span class="hit-badge"></span></span>
+            <span class="tap pill sz-domain" data-h-old="26" data-h-new="44">RAG 架构<span class="hit-badge"></span></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>出题舱：工具胶囊 + 题量分段</h3>
+          <div class="hint" data-old="现状：工具胶囊约 22px、分段项约 22px，手指很难点准。" data-new="改进：胶囊 32px + 热区扩到 44px；分段条整体 38px，选中项白底浮起。"></div>
+          <div class="row" style="margin-bottom:10px" data-group="toggle">
+            <span class="tap pill sz-chip blue" data-h-old="22" data-h-new="44">🌐 智能搜索<span class="hit-badge"></span></span>
+            <span class="tap pill sz-chip" data-h-old="22" data-h-new="44">🎨 配图<span class="hit-badge"></span></span>
+            <span class="tap pill sz-chip" data-h-old="23" data-h-new="44">HTTP/3<span class="hit-badge"></span></span>
+          </div>
+          <div class="seg" data-group="seg">
+            <span class="tap pill sz-chip" data-h-old="22" data-h-new="44">3 题<span class="hit-badge"></span></span>
+            <span class="tap pill sz-chip on" data-h-old="22" data-h-new="44">自适应<span class="hit-badge"></span></span>
+            <span class="tap pill sz-chip" data-h-old="22" data-h-new="44">10 题<span class="hit-badge"></span></span>
+          </div>
+          <div style="height:12px"></div>
+          <button class="tap obsidian" type="button" data-h-old="48" data-h-new="48"><span>开始出题</span><span>→</span><span class="hit-badge"></span></button>
+        </div>
+
+        <div class="card">
+          <h3>答题：进度点 + 选项卡</h3>
+          <div class="hint" data-old="现状：进度点只有 5px 高却可点击；选项卡没有任何按压态，只有选中后才变化。" data-new="改进：进度点视觉不变、热区扩到 44px；选项卡按下即刻浅灰 + 轻微下沉，松手才判定选中（并保留微信轻震）。"></div>
+          <div class="dots" data-group="dots">
+            <span class="tap dot done" data-h-old="5" data-h-new="44"><span class="hit-badge"></span></span>
+            <span class="tap dot done" data-h-old="5" data-h-new="44"><span class="hit-badge"></span></span>
+            <span class="tap dot curr" data-h-old="5" data-h-new="44"><span class="hit-badge"></span></span>
+            <span class="dot"></span><span class="dot"></span>
+          </div>
+          <div style="font-size:11px;color:var(--ink-faint);margin:10px 0 8px">计算机网络 · 第 3 / 5 题</div>
+          <div style="font-size:14.5px;font-weight:700;line-height:1.5;margin-bottom:10px">QUIC 把握手合并到哪一层完成？</div>
+          <div data-group="opt">
+            <div class="tap opt" data-h-old="50" data-h-new="50"><span class="k">A</span>应用层（HTTP/3 帧）<span class="hit-badge"></span></div>
+            <div class="tap opt" data-h-old="50" data-h-new="50"><span class="k">B</span>传输层（与 TLS 1.3 合并）<span class="hit-badge"></span></div>
+            <div class="tap opt" data-h-old="50" data-h-new="50"><span class="k">C</span>网络层（IP 选项）<span class="hit-badge"></span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>小操作按钮（错题卡 / 档案 / 口袋）</h3>
+          <div class="hint" data-old="现状：「移出 / 变式 / 去刷」约 25px，删除圆钮 24px，关闭 ✕ 20px。" data-new="改进：操作胶囊 34px + 热区 44px；纯图标按钮视觉不变、热区扩到 44px；异步操作按下即进入「处理中」态，不再等接口返回才有反应。"></div>
+          <div class="row" data-group="actions">
+            <span class="tap pill sz-action on" data-h-old="25" data-h-new="44" data-async="1">重练 3 题 ›<span class="hit-badge"></span></span>
+            <span class="tap pill sz-action blue" data-h-old="25" data-h-new="44" data-async="1">AI 变式<span class="hit-badge"></span></span>
+            <span class="tap pill sz-action" data-h-old="25" data-h-new="44" data-async="1">移出错题<span class="hit-badge"></span></span>
+            <span class="tap ghost" data-h-old="24" data-h-new="44">✕<span class="hit-badge"></span></span>
+          </div>
+          <div class="log" id="tapLog">轻点任意控件试试；快速轻点时对比两种模式的反馈是否看得见。</div>
+        </div>
+
+        <div class="card">
+          <h3>改进规则（确认后落地）</h3>
+          <ul class="legend-list">
+            <li>• <b>热区 ≥ 44px</b>：视觉尺寸基本不变，用 <code>::after</code> 负 inset 扩热区。</li>
+            <li>• <b>按下即反馈</b>：H5 用 <code>usePressable</code> 在 touchstart 加 <code>is-pressed</code>，至少保持 90ms；weapp 用 <code>hoverClass</code> + <code>hoverStartTime=20</code> / <code>hoverStayTime=90</code>（底部 tab 栏除外，见审计 F2）。</li>
+            <li>• <b>反馈形式</b>：缩放 0.965（大按钮 0.985）+ 底色加深一级，不用透明度闪烁。</li>
+            <li>• <b>异步操作</b>：点下立刻进入「处理中」并禁用，避免重复点击。</li>
+          </ul>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ================= 手机 2：学习记忆曲线 ================= -->
+    <div class="phone-wrap">
+      <div class="phone-label">02 · 学习记忆曲线（按真实日期 + 每天会变）</div>
+      <div class="phone"><div class="screen mode-new" id="curveScreen">
+        <div class="kicker">MEMORY RETENTION</div>
+        <div class="title">学习记忆曲线</div>
+
+        <div class="row range-tabs" data-group="domain2">
+          <span class="tap pill sz-domain on" data-domain="net">计算机网络</span>
+          <span class="tap pill sz-domain" data-domain="rag">RAG 架构</span>
+        </div>
+
+        <div class="insight">
+          <div class="ic">!</div>
+          <div><div class="t" id="insT">—</div><div class="s" id="insS">—</div></div>
+        </div>
+
+        <div class="card">
+          <div class="kpis">
+            <div class="kpi"><div class="l">今日保持率</div><div class="v" id="kNow">—</div></div>
+            <div class="kpi"><div class="l">距上次练习</div><div class="v" id="kGap">—</div></div>
+            <div class="kpi"><div class="l">跌破 50%</div><div class="v" id="kCross">—</div></div>
+          </div>
+          <svg class="curve-svg" id="curve" viewBox="0 0 330 210" role="img" aria-label="学习记忆曲线"></svg>
+          <div class="curve-legend">
+            <span class="lg"><i class="dot"></i>实测正确率</span>
+            <span class="lg"><i></i>遗忘衰减（已发生）</span>
+            <span class="lg"><i class="blue"></i>若今天巩固</span>
+            <span class="lg"><i class="dash"></i>不巩固</span>
+          </div>
+          <div class="tip" id="tip">轻点曲线上的点查看详情（每个点热区 44px）。</div>
+        </div>
+
+        <div class="card">
+          <h3>模拟：第 N 天打开曲线页</h3>
+          <div class="hint">修复后今日点、衰减段与投影都会随天数变化；旧实现从第 3 天起右半段每天一模一样。</div>
+          <div class="sim"><span>距最近一次练习</span><input type="range" id="daySlider" min="0" max="10" step="1" value="3" aria-label="距上次练习天数" /><b id="dayVal">3 天</b></div>
+        </div>
+
+        <div class="card compare-old">
+          <h3>对照：旧实现在同一天数下的投影 <span class="tag" id="oldTag">与昨天相同</span></h3>
+          <div class="hint" id="oldDesc">—</div>
+          <div class="note">旧公式：若巩固 = max(今日+8, 掌握分×0.55+44)；X 轴按点序号等距，看不出隔了几天。</div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <script>
+    /* ---------------- 手感：模式切换 / 热区 / 按下保持 ---------------- */
+    const tapScreen = document.getElementById('tapScreen');
+    const curveScreen = document.getElementById('curveScreen');
+    let mode = 'new';
+
+    function applyMode() {
+      [tapScreen, curveScreen].forEach((s) => { s.classList.toggle('mode-new', mode === 'new'); s.classList.toggle('mode-old', mode === 'old'); });
+      document.querySelectorAll('.mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+      document.querySelectorAll('[data-old]').forEach((el) => { el.textContent = el.dataset[mode]; });
+      document.querySelectorAll('.tap[data-h-old]').forEach((el) => {
+        const h = Number(el.dataset[mode === 'new' ? 'hNew' : 'hOld']);
+        el.classList.toggle('too-small', h < 44);
+        const badge = el.querySelector('.hit-badge');
+        if (badge) badge.textContent = `${h}px`;
+      });
+    }
+    document.querySelectorAll('.mode-btn').forEach((b) => b.addEventListener('click', () => { mode = b.dataset.mode; applyMode(); }));
+    document.getElementById('hitToggle').addEventListener('change', (e) => {
+      [tapScreen, curveScreen].forEach((s) => s.classList.toggle('show-hit', e.target.checked));
+    });
+
+    // 改进版的按下逻辑：touchstart/pointerdown 立即加 is-pressed，松手后至少保持 --press-ms
+    const PRESS_MIN_MS = 90;
+    function bindPress(el) {
+      let downAt = 0; let timer = null;
+      const down = () => { if (mode !== 'new') return; clearTimeout(timer); downAt = performance.now(); el.classList.add('is-pressed'); };
+      const up = () => { const left = Math.max(0, PRESS_MIN_MS - (performance.now() - downAt)); timer = setTimeout(() => el.classList.remove('is-pressed'), left); };
+      el.addEventListener('pointerdown', down);
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => el.addEventListener(t, up));
+    }
+    document.querySelectorAll('.tap').forEach(bindPress);
+
+    const log = document.getElementById('tapLog');
+    function selectInGroup(group, el, multi) {
+      if (multi) { el.classList.toggle('on'); return; }
+      group.querySelectorAll('.tap').forEach((x) => x.classList.remove('on', 'sel'));
+      el.classList.add(group.dataset.group === 'opt' ? 'sel' : 'on');
+    }
+    document.querySelectorAll('[data-group]').forEach((group) => {
+      group.querySelectorAll('.tap').forEach((el) => el.addEventListener('click', () => {
+        const g = group.dataset.group;
+        if (g === 'domain' || g === 'seg' || g === 'opt') selectInGroup(group, el);
+        if (g === 'toggle') selectInGroup(group, el, true);
+        if (g === 'actions' && el.dataset.async && mode === 'new') {
+          const label = el.firstChild.textContent;
+          el.firstChild.textContent = '处理中…'; el.style.pointerEvents = 'none'; el.style.opacity = '.6';
+          setTimeout(() => { el.firstChild.textContent = label; el.style.pointerEvents = ''; el.style.opacity = ''; }, 900);
+        }
+        if (g === 'opt' && navigator.vibrate) navigator.vibrate(8);
+        log.textContent = `${mode === 'new' ? '改进' : '现状'}：点中「${el.textContent.replace(/\d+px$/, '').trim() || '进度点'}」`;
+      }));
+    });
+    applyMode();
+
+    /* ---------------- 学习记忆曲线：与 fix(mastery) 同一套公式 ---------------- */
+    const DOMAINS = {
+      net: { name: '计算机网络', S: 4.2, mastery: 66, hist: [{ d: -9, acc: 58, t: 'TCP 拥塞控制' }, { d: -6, acc: 72, t: 'HTTP/2 多路复用' }] },
+      rag: { name: 'RAG 架构', S: 9.5, mastery: 84, hist: [{ d: -11, acc: 80, t: 'BM25 基础' }, { d: -7, acc: 88, t: 'RRF 融合' }] },
+    };
+    let domainKey = 'net';
+    let gapDays = 3;
+    const R = (t, S) => Math.max(18, Math.min(100, 100 * Math.exp(-Math.max(0, t) / Math.max(1, S))));
+    const fmt = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return `${d.getMonth() + 1}/${d.getDate()}`; };
+
+    function model() {
+      const dm = DOMAINS[domainKey];
+      // 最近一次练习发生在「今天 - gapDays」，再往前是历史测验
+      const lastAcc = dm.hist[dm.hist.length - 1].acc;
+      // 平移历史，让最近一次练习恰好落在「今天 - gapDays」
+      const shift = -gapDays - dm.hist[dm.hist.length - 1].d;
+      const actual = dm.hist.map((h) => ({ day: h.d + shift, acc: h.acc, t: h.t }));
+      const nowRet = Math.max(18, Math.min(98, lastAcc * R(gapDays, dm.S) / 100));
+      const gain = 0.35 + 0.4 * (dm.mastery / 100);
+      const boosted = Math.min(98, nowRet + (100 - nowRet) * gain);
+      const sBoost = Math.max(dm.S * 1.35, 3.8);
+      const sBase = Math.max(1, dm.S * 0.45);
+      const decay = []; for (let t = 0; t <= gapDays; t += 0.25) decay.push({ day: -gapDays + t, v: Math.max(18, lastAcc * R(t, dm.S) / 100) });
+      const proj = []; const base = [];
+      for (let t = 0; t <= 14; t += 0.5) { proj.push({ day: t, v: Math.max(15, boosted * R(t, sBoost) / 100) }); base.push({ day: t, v: Math.max(15, nowRet * R(t, dm.S) / 100) }); }
+      // 不巩固时何时跌破 50%
+      let cross = 60; if (nowRet <= 50) cross = 0; else { for (let t = 0; t <= 60; t += 0.1) { if (nowRet * R(t, dm.S) / 100 < 50) { cross = t; break; } } }
+      const oldBoost = Math.min(98, Math.max(nowRet + 8, dm.mastery * 0.55 + 44));
+      const prevNow = Math.max(18, Math.min(98, lastAcc * R(Math.max(0, gapDays - 1), dm.S) / 100));
+      const oldBoostPrev = Math.min(98, Math.max(prevNow + 8, dm.mastery * 0.55 + 44));
+      return { dm, actual, nowRet, boosted, decay, proj, base, cross, oldBoost, oldBoostPrev };
+    }
+
+    const svg = document.getElementById('curve');
+    const W = 330, H = 210, padL = 30, padR = 10, padT = 16, padB = 30;
+    function draw() {
+      const m = model();
+      const minDay = Math.min(...m.actual.map((a) => a.day)) - 1, maxDay = 14;
+      const x = (d) => padL + ((d - minDay) / (maxDay - minDay)) * (W - padL - padR);
+      const y = (v) => padT + ((100 - Math.max(10, Math.min(100, v))) / 90) * (H - padT - padB);
+      const path = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.day).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ');
+      let s = '';
+      // 网格与刻度
+      [100, 75, 50, 25].forEach((v) => { s += `<line x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}" stroke="${v === 50 ? '#D8685A' : 'rgba(20,21,26,.06)'}" stroke-dasharray="${v === 50 ? '4 4' : ''}" stroke-width="${v === 50 ? 1.2 : 1}"/>`; s += `<text x="${padL - 6}" y="${y(v) + 3}" font-size="9" text-anchor="end" fill="${v === 50 ? '#C94C3D' : '#969AA6'}">${v}%</text>`; });
+      // 过去 / 未来分区底色
+      s += `<rect x="${x(0)}" y="${padT}" width="${W - padR - x(0)}" height="${H - padT - padB}" fill="rgba(203,229,245,.22)"/>`;
+      // 今日竖线
+      s += `<line x1="${x(0)}" x2="${x(0)}" y1="${padT}" y2="${H - padB}" stroke="#18191E" stroke-width="1" stroke-dasharray="2 3"/>`;
+      // 实测连线 + 已发生衰减
+      const actualLine = m.actual.map((a) => ({ day: a.day, v: a.acc }));
+      s += `<path d="${path(actualLine)}" fill="none" stroke="#18191E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+      s += `<path d="${path(m.decay)}" fill="none" stroke="#18191E" stroke-width="2.4" stroke-linecap="round"/>`;
+      // 未来：不巩固 vs 若巩固
+      s += `<path d="${path(m.base)}" fill="none" stroke="rgba(20,21,26,.32)" stroke-width="1.8" stroke-dasharray="3 3"/>`;
+      const projArea = path(m.proj) + ` L${x(14)},${H - padB} L${x(0)},${H - padB} Z`;
+      s += `<path d="${projArea}" fill="rgba(37,99,235,.10)"/>`;
+      s += `<path d="M${x(0)},${y(m.nowRet)} L${x(0)},${y(m.boosted)}" stroke="#2563EB" stroke-width="1.6" stroke-dasharray="2 2"/>`;
+      s += `<path d="${path(m.proj)}" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round"/>`;
+      // 跌破 50% 标记
+      if (m.cross > 0 && m.cross <= 14) { s += `<circle cx="${x(m.cross)}" cy="${y(50)}" r="3.5" fill="#D8685A"/>`; }
+      // X 轴：真实日期
+      const ticks = [...m.actual.map((a) => a.day), 0, 7, 14];
+      [...new Set(ticks)].forEach((d) => { s += `<text x="${x(d)}" y="${H - 12}" font-size="9" text-anchor="middle" fill="${d === 0 ? '#18191E' : '#969AA6'}" font-weight="${d === 0 ? 700 : 500}">${d === 0 ? '今天' : fmt(d)}</text>`; });
+      // 可点的锚点（视觉小、热区 44px）
+      const anchors = [
+        ...m.actual.map((a) => ({ day: a.day, v: a.acc, kind: 'actual', text: `<b>${fmt(a.day)} · ${a.t}</b><br/>实测正确率 ${a.acc}%` })),
+        { day: 0, v: m.nowRet, kind: 'today', text: `<b>今天 · 保持率约 ${Math.round(m.nowRet)}%</b><br/>距上次练习 ${gapDays} 天，按稳定性 S=${m.dm.S} 天自然遗忘。` },
+        { day: 0, v: m.boosted, kind: 'boost', text: `<b>若今天巩固 → 约 ${Math.round(m.boosted)}%</b><br/>+${Math.round(m.boosted - m.nowRet)}%，14 天后仍约 ${Math.round(m.proj[m.proj.length - 1].v)}%（不巩固约 ${Math.round(m.base[m.base.length - 1].v)}%）。` },
+      ];
+      anchors.forEach((a, i) => {
+        const cx = x(a.day), cy = y(a.v);
+        const fill = a.kind === 'actual' ? '#fff' : a.kind === 'today' ? '#D8685A' : '#2563EB';
+        const stroke = a.kind === 'actual' ? '#18191E' : '#fff';
+        s += `<g class="anchor" data-i="${i}" style="cursor:pointer"><circle cx="${cx}" cy="${cy}" r="22" fill="transparent"/><circle cx="${cx}" cy="${cy}" r="${a.kind === 'actual' ? 4 : 4.6}" fill="${fill}" stroke="${stroke}" stroke-width="2"/></g>`;
+        if (a.kind === 'actual') s += `<text x="${cx}" y="${cy - 9}" font-size="9" text-anchor="middle" fill="#525866" font-weight="600">${a.v}%</text>`;
+      });
+      s += `<text x="${Math.min(x(0) + 6, W - 96)}" y="${y(m.boosted) - 8}" font-size="10" font-weight="700" fill="#2563EB">巩固 ${Math.round(m.boosted)}% (+${Math.round(m.boosted - m.nowRet)}%)</text>`;
+      svg.innerHTML = s;
+      svg.querySelectorAll('.anchor').forEach((g) => g.addEventListener('click', () => { document.getElementById('tip').innerHTML = anchors[Number(g.dataset.i)].text; }));
+
+      // KPI 与洞察
+      document.getElementById('kNow').innerHTML = `${Math.round(m.nowRet)}<small>%</small>`;
+      document.getElementById('kNow').classList.toggle('warn', m.nowRet < 50);
+      document.getElementById('kGap').innerHTML = `${gapDays}<small> 天</small>`;
+      const kc = document.getElementById('kCross');
+      if (m.cross === 0) { kc.innerHTML = '已跌破'; kc.classList.add('warn'); }
+      else { kc.innerHTML = `${m.cross.toFixed(1)}<small> 天后</small>`; kc.classList.toggle('warn', m.cross < 1.5); }
+      document.getElementById('insT').textContent = m.cross === 0 ? `${m.dm.name}已跌破 50% 警戒线` : m.cross < 1.5 ? `${m.dm.name}明天就会跌破 50%` : `${m.dm.name}状态稳定`;
+      document.getElementById('insS').textContent = m.cross !== null && m.cross < 1.5
+        ? `今天刷 ${m.dm.mastery < 80 ? 6 : 3} 题可把保持率拉回约 ${Math.round(m.boosted)}%，14 天后仍有 ${Math.round(m.proj[m.proj.length - 1].v)}%。`
+        : `约 ${m.cross.toFixed(1)} 天后临界，届时再巩固即可。`;
+      document.getElementById('dayVal').textContent = `${gapDays} 天`;
+      const same = Math.abs(m.oldBoost - m.oldBoostPrev) < 0.05;
+      document.getElementById('oldTag').textContent = same ? '与前一天完全相同' : '与前一天不同';
+      document.getElementById('oldTag').classList.toggle('ok', !same);
+      document.getElementById('oldDesc').textContent = `旧实现「若巩固」= ${m.oldBoost.toFixed(1)}%（前一天 ${m.oldBoostPrev.toFixed(1)}%）；新实现 = ${m.boosted.toFixed(1)}%，随今日保持率变化。`;
+    }
+    document.getElementById('daySlider').addEventListener('input', (e) => { gapDays = Number(e.target.value); draw(); });
+    document.querySelectorAll('[data-group="domain2"] .tap').forEach((el) => el.addEventListener('click', () => {
+      document.querySelectorAll('[data-group="domain2"] .tap').forEach((x) => x.classList.remove('on'));
+      el.classList.add('on'); domainKey = el.dataset.domain; draw();
+    }));
+    draw();
+  </script>
+</body>
+</html>
