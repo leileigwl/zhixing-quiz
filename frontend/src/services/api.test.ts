@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Taro from '@tarojs/taro'
+import { __setCurrentPages } from '../../test/mocks/taro'
 
 type ApiModule = typeof import('./api')
 
@@ -74,23 +75,36 @@ describe('api.request', () => {
     expect(api.getToken()).toBe('tok-2')
   })
 
-  it('4010 且重登失败时清 token 并抛出过期错误，不会无限重试', async () => {
+  it('4010 且重登失败时清 token、H5 跳转邮箱登录页并抛出过期错误，不会无限重试', async () => {
     process.env.NODE_ENV = 'production'
     const api = await loadApi()
     requestMock().mockResolvedValue({ statusCode: 200, data: { code: 4010, message: 'expired', data: null } } as any)
 
-    await expect(api.request('/user/profile')).rejects.toThrow('登录状态已过期')
+    await expect(api.request('/user/profile')).rejects.toThrow('登录已过期，请重新登录')
     expect(requestMock()).toHaveBeenCalledTimes(1)
     expect(api.getToken()).toBe('')
+    expect(Taro.reLaunch).toHaveBeenCalledWith({ url: '/pages/login/index' })
   })
 
-  it('无 token 且无法登录（生产 H5 无登录通道）时直接抛错，不发业务请求', async () => {
+  it('无 token 且无法静默登录（生产 H5）时跳转邮箱登录页并抛错，不发业务请求', async () => {
     Taro.removeStorageSync('zx_token')
     process.env.NODE_ENV = 'production'
     const api = await loadApi()
 
-    await expect(api.request('/mastery/overview')).rejects.toThrow('登录未完成')
+    await expect(api.request('/mastery/overview')).rejects.toThrow('请先登录')
     expect(requestMock()).not.toHaveBeenCalled()
+    expect(Taro.reLaunch).toHaveBeenCalledTimes(1)
+    expect(Taro.reLaunch).toHaveBeenCalledWith({ url: '/pages/login/index' })
+  })
+
+  it('已在登录页时不重复跳转，返回原「登录未完成」错误', async () => {
+    Taro.removeStorageSync('zx_token')
+    process.env.NODE_ENV = 'production'
+    __setCurrentPages([{ route: 'pages/login/index' }])
+    const api = await loadApi()
+
+    await expect(api.request('/mastery/overview')).rejects.toThrow('登录未完成')
+    expect(Taro.reLaunch).not.toHaveBeenCalled()
   })
 })
 
