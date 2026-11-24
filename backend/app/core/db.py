@@ -20,6 +20,7 @@ SCHEMA_STATEMENTS: Final[list[str]] = [
     CREATE TABLE IF NOT EXISTS users (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         openid VARCHAR(64) NOT NULL,
+        email VARCHAR(254) NULL,
         nickname VARCHAR(100) NOT NULL DEFAULT '学习者',
         avatar_url VARCHAR(500) NOT NULL DEFAULT '',
         total_xp INT NOT NULL DEFAULT 0,
@@ -28,7 +29,8 @@ SCHEMA_STATEMENTS: Final[list[str]] = [
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
-        UNIQUE KEY uk_users_openid (openid)
+        UNIQUE KEY uk_users_openid (openid),
+        UNIQUE KEY uk_users_email (email)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     """,
     """
@@ -307,6 +309,12 @@ COLUMN_MIGRATIONS: Final[list[tuple[str, str, str]]] = [
     ("quiz_tasks", "doc_id", "VARCHAR(64) NULL"),
     ("quiz_tasks", "domain_id", "BIGINT UNSIGNED NULL"),
     ("quiz_sessions", "source_review_card_ids_json", "JSON NULL"),
+    ("users", "email", "VARCHAR(254) NULL"),
+]
+
+# 幂等补充存量表索引：(表, 索引名, 索引定义)；须排在 COLUMN_MIGRATIONS 之后执行
+INDEX_MIGRATIONS: Final[list[tuple[str, str, str]]] = [
+    ("users", "uk_users_email", "UNIQUE KEY `uk_users_email` (`email`)"),
 ]
 
 
@@ -328,6 +336,20 @@ async def _ensure_column_migrations(cursor, db_name: str) -> None:
                 table=table_name,
                 column=column_name,
             )
+
+
+async def _ensure_index_migrations(cursor, db_name: str) -> None:
+    """幂等补充存量表新增索引（INFORMATION_SCHEMA.STATISTICS 检查后再 ALTER）。"""
+    for table_name, index_name, index_def in INDEX_MIGRATIONS:
+        await cursor.execute(
+            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS "
+            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = %s",
+            (db_name, table_name, index_name),
+        )
+        row = await cursor.fetchone()
+        if not row or row[0] == 0:
+            await cursor.execute(f"ALTER TABLE `{table_name}` ADD {index_def}")
+            logger.info("mysql_index_migrated", table=table_name, index=index_name)
 
 
 async def _get_or_create_domain_in_cursor(
@@ -476,6 +498,7 @@ async def init_mysql() -> None:
                 for statement in SCHEMA_STATEMENTS:
                     await cursor.execute(statement)
                 await _ensure_column_migrations(cursor, settings.mysql_database)
+                await _ensure_index_migrations(cursor, settings.mysql_database)
                 await backfill_v1_data(cursor)
             finally:
                 await cursor.execute("SELECT RELEASE_LOCK('zhixing_quiz_schema_init')")
