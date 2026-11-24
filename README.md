@@ -87,6 +87,7 @@
 | **推理模型兼容** | 自动识别 | 自动剥离 `<think>` 块，针对 `-r1` / `reasoner` / `qwq` 自动关闭 `json_object` 避免 400 报错 |
 | **向量模型** | DashScope `text-embedding-v4` | 支持通过 `EMBEDDING_*` 独立切换至硅基流动 `BAAI/bge-m3` 等兼容向量服务 |
 | **生产安全护栏** | `APP_ENV=production` 强校验 | 强制禁用 `dev-login`、校验 32+ 位 `JWT_SECRET`、Redis 限流与微信 `code2session` 登录 |
+| **登录通道** | 小程序 `wx.login` 静默登录 · H5 邮箱验证码 | 邮箱验证码走通用 SMTP（163 / QQ 授权码），换阿里云 DirectMail 等只改 `SMTP_*` 环境变量 |
 
 ---
 
@@ -136,7 +137,7 @@ uv run chroma run --host 127.0.0.1 --port 8001 --path ./data/chroma
 uv run arq app.workers.arq_worker.WorkerSettings
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# 3. 运行后端质量检查与单元测试（199 passed）
+# 3. 运行后端质量检查与单元测试
 uv run ruff check app tests
 uv run pytest -q
 
@@ -149,6 +150,25 @@ pnpm build:weapp:local  # 编译本地微信小程序包至 frontend/dist/
 # 生产发布构建（缺失 / 非 https / 占位域名会直接中止构建）：
 # TARO_APP_API_BASE_URL=https://your-api.example.com pnpm build:h5   # 或 build:weapp
 ```
+
+### H5 邮箱验证码登录：配置 SMTP（163 / QQ 授权码）
+
+H5 生产环境的唯一登录方式是「邮箱 + 6 位验证码」（小程序仍是 `wx.login` 静默登录）。验证码通过普通个人邮箱的 SMTP 发出，**只需在 `backend/.env` 填写以下变量，无需改代码**：
+
+| 变量 | 163 邮箱 | QQ 邮箱 | 说明 |
+| :--- | :--- | :--- | :--- |
+| `SMTP_HOST` | `smtp.163.com` | `smtp.qq.com` | 留空 = 不发信（开发/测试仅把验证码打印到后端日志；`APP_ENV=production` 时接口返回 503） |
+| `SMTP_PORT` | `465` | `465` | SSL 端口；如用 587 请把 `SMTP_USE_SSL=false`（自动 STARTTLS） |
+| `SMTP_USER` | `你的账号@163.com` | `你的QQ号@qq.com` | 发信邮箱账号 |
+| `SMTP_PASSWORD` | 客户端**授权码** | **授权码** | 不是邮箱登录密码 |
+| `SMTP_FROM` | 同 `SMTP_USER` | 同 `SMTP_USER` | 发件地址，必须与登录账号一致，否则会被服务商拒信 |
+| `SMTP_USE_SSL` | `true` | `true` | |
+
+获取授权码：
+- **163**：网页版登录 → 设置 → POP3/SMTP/IMAP → 开启「SMTP 服务」→ 按提示短信验证后得到授权码。
+- **QQ**：网页版登录 → 设置 → 账号 → 「POP3/IMAP/SMTP/Exchange/CardDAV/CalDAV 服务」开启 SMTP → 短信验证后生成授权码。
+
+注意：个人邮箱每日发信量有限（通常数百封）且可能进入收件人垃圾箱，适合起步阶段；用户量上来后可改用阿里云邮件推送 DirectMail（`SMTP_HOST=smtpdm.aliyun.com`，`SMTP_PORT=465`，账号/密码为控制台设置的发信地址与 SMTP 密码），同样只改环境变量。生产环境需 Redis 在线（验证码与限流状态存于 Redis），反向代理后请设置 `CLIENT_IP_HEADER=X-Real-IP` 让按 IP 限流取到真实客户端地址。已上线的旧库需先执行 [`docs/02-design/system-architecture.md`](./docs/02-design/system-architecture.md) 中的 `users.email` 迁移 SQL（后端启动时也会自动幂等补齐）。
 
 ### 质量闸门与 Git Hooks
 

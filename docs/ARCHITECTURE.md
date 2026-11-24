@@ -45,7 +45,7 @@ backend/app/
 
 ## 数据模型与核心流程保障
 
-- **MySQL 8.0（12 张表）**：在 V1 7 张表（`users`、`quiz_sessions`、`answer_records`、`reports`、`quiz_tasks`、`kb_documents`、`image_generation_logs`）基础上，新增 V2 5 张表：`domains`、`questions`、`user_knowledge_mastery`、`review_cards`、`subscribe_quotas`。
+- **MySQL 8.0（12 张表）**：`users` 新增可空唯一列 `email`（邮箱验证码登录，见迁移 SQL）；在 V1 7 张表（`users`、`quiz_sessions`、`answer_records`、`reports`、`quiz_tasks`、`kb_documents`、`image_generation_logs`）基础上，新增 V2 5 张表：`domains`、`questions`、`user_knowledge_mastery`、`review_cards`、`subscribe_quotas`。
 - **并发安全的 DDL 迁移与回填**：`init_mysql()` 使用 MySQL `GET_LOCK('zhixing_quiz_schema_init', 30)` 串行化建表、`INFORMATION_SCHEMA.COLUMNS` 17 项幂等列迁移与 `backfill_v1_data()` 存量数据回填；`recover_stale_jobs()` 在启用 ARQ 时不误杀队列中待消费任务。
 - **异步出题与倒 U 自适应推荐**：`/quiz/generate/async` 经 ARQ 入队后推送阶段状态；`adaptive_service` 依据三维 E/M/H 掌握度或冷启动自评决定倒 U 推荐题量（`3~15` 题），`search_service` / `rag_service` 使用 LCEL 确定性路由，结果持久化并同步写入规范化 `questions` 表与失效 Redis 画像缓存。
 - **秒返判分、并发事务锁与 SM-2 召回**：`POST /api/v1/report/submit` 单事务 `INSERT IGNORE` 幂等落库并发放 XP；`mastery_repository.upsert_mastery_after_submission` 通过 `conn.begin() + SELECT ... FOR UPDATE` 防止同域并发覆盖丢失更新；交卷后自动创建/推进 `review_cards`（`1→3→7→15→30` 天，3 次连续答对毕业 `mastered`）并向 ARQ 投递 `_defer_by` 延迟激活任务，配额充足时调用微信订阅消息模板发送提醒。
@@ -54,6 +54,7 @@ backend/app/
 ## JWT 与安全边界（上线强约束）
 
 - **全站 AI 接口强制鉴权**：`/api/v1/knowledge/*`、`/api/v1/quiz/*`、`/api/v1/report/*`、`/api/v1/user/profile`、`/api/v1/user/quizzes*`、`/api/v1/mastery/*`、`/api/v1/reviews/*` 均强制通过 `get_current_user` 校验 HS256 JWT 并核验 `user_id` 归属（越权返回 `403` / `code=4003`）。
+- **登录通道（2026-11-24 起）**：微信小程序 `POST /api/v1/user/login`（`wx.login`）；**H5 邮箱验证码** `POST /api/v1/auth/email/send-code` + `/auth/email/verify`（签发同一种 JWT，数据隔离仍按 `user_id`）；`dev-login` 仅非生产。验证码只以 HMAC 摘要存 Redis、10 分钟有效、每码 5 次、单次使用，邮箱 60s 冷却 / 每日 10 次 / 按 IP 限流；`APP_ENV=production` 下缺 SMTP 或 Redis 时该接口返回 503。SMTP 完全由 `SMTP_*` 环境变量配置（163/QQ 授权码 → 阿里云 DirectMail 只改配置）。细节见 [`system-architecture.md` §3 / §4.1](02-design/system-architecture.md)。
 - **生产密钥门禁**：`APP_ENV=production` 时校验 `JWT_SECRET` 非默认且 `>= 32` 字符，且强制关闭 `/api/v1/user/dev-login`（返回 `403`）。
 - **分布式 Redis Lua 限流**：`/quiz/generate` 与 `/quiz/generate/async` 通过 Redis Lua 原子滑动窗口脚本在多 Worker 间精确限流（默认每分钟 5 次）。
 

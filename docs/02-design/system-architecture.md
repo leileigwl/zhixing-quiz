@@ -42,6 +42,7 @@
 │       ├── api/v1/routes/
 │       │   ├── health.py               # GET /api/v1/health
 │       │   ├── user.py                 # login / dev-login / profile / quizzes
+│       │   ├── auth.py                 # email/send-code · email/verify（H5 邮箱验证码登录）
 │       │   ├── knowledge.py            # documents CRUD + status
 │       │   ├── quiz.py                 # generate / generate/async / task/{task_id} / {quiz_id}/images
 │       │   ├── report.py               # submit / {quiz_id} / generate
@@ -94,6 +95,12 @@
 2. **环境隔离门禁 (`app/core/config.py`)**：
    - 启动阶段自动调用 `validate_runtime_security()`：当 `APP_ENV=production` 时，若 `jwt_secret` 为默认值或 `< 32` 字符，直接阻断启动。
    - `POST /api/v1/user/dev-login` 仅当 `app_env != "production"` 且 `allow_dev_login=True` 时可用。
+   - **邮箱验证码登录（2026-11-24 用户批准的鉴权范围变更，H5 主通道）**：`POST /api/v1/auth/email/send-code` 与 `/auth/email/verify` 为公开接口，签发与 `/user/login` 完全相同的 JWT（`openid` 字段为邮箱用户的伪 openid `em_ + sha256(email)[:40]`），用户数据隔离规则不变（仍以 `user_id` 归属）。
+     - 验证码：`secrets` 生成 6 位数字，仅以 `HMAC-SHA256(JWT_SECRET, email:code)` 存 Redis（`zx:otp:code:{sha256(email)[:32]}`，TTL 10 分钟），每码最多 5 次尝试（Lua 原子 `HINCRBY` 计数）、`hmac.compare_digest` 常量时间比较、成功即 `DEL`（以 `DEL` 返回值保证并发下单次使用）；重新获取会覆盖旧码。
+     - 防刷：同邮箱 60s 冷却（`SET NX EX`）、同邮箱每日 ≤10 次、同 IP 每小时 ≤20 次发码、同 IP 每 10 分钟 ≤30 次校验（复用 Redis Lua 滑动窗口）；发码响应与账号是否存在无关。
+     - 错误码：`4011` 邮箱格式错误、`4012` 验证码错误或过期、`4013` 尝试次数超限（均为 HTTP 400，刻意避开 `4010` 以免触发前端静默重登）、`4290` 限流、`5030` 依赖不可用（HTTP 503）。
+     - 生产门禁：`APP_ENV=production` 时缺 SMTP 配置或 Redis 未连接，接口返回 503（启动日志告警 `email_login_disabled`，不阻断其他功能启动）；开发/测试环境未配 SMTP 时使用控制台后端，仅把验证码写日志。
+     - 邮件：通用 SMTP（`smtplib` 在线程池中执行，SSL 465 或 STARTTLS），全部由 `SMTP_HOST/PORT/USER/PASSWORD/FROM/USE_SSL` 环境变量驱动，切换阿里云 DirectMail 无需改代码。
 3. **接口归属与防刷保护**：
    - `GET /api/v1/quiz/task/{task_id}` 强制要求 `row["user_id"] == current_user_id`，防止他人猜测 `task_id` 越权窃取题库。
    - `POST /api/v1/quiz/generate` 与 `/quiz/generate/async` 绑定用户级滑动窗口限流（默认每分钟 `5` 次）。
@@ -104,7 +111,7 @@
 
 | 表名 | 核心用途 | 主键 / 唯一键 / 外键 |
 | --- | --- | --- |
-| `users` | 用户、累计 XP 与连续打卡 (`streak_days/last_practice_date`) | `id`, `UNIQUE(openid)` |
+| `users` | 用户、累计 XP 与连续打卡 (`streak_days/last_practice_date`)、邮箱登录账号 `email`（可空） | `id`, `UNIQUE(openid)`, `UNIQUE(email)`（`uk_users_email`，可空列允许多个 NULL） |
 | `domains` | 用户知识域归类、色标与文档计数 | `id`, `UNIQUE(user_id, name)`, `FK(user_id -> users.id)` |
 | `kb_documents` | 私有文档状态、所属领域与分块数量 | `id`, `UNIQUE(doc_id)`, `FK(user_id -> users.id)` |
 | `quiz_sessions` | 生成的题库快照、`domain_id/domain_name/source_type`、`source_review_card_ids_json` 与配图状态 | `id`, `UNIQUE(quiz_id)`, `FK(user_id -> users.id)` |
@@ -119,6 +126,25 @@
 
 ---
 
+### 4.1 `users.email` 手工迁移 SQL（2026-11-24 · 邮箱验证码登录）
+
+仓库不使用 Alembic：`init_mysql()` 启动时会通过 `COLUMN_MIGRATIONS` + `INDEX_MIGRATIONS` 幂等补齐（`INFORMATION_SCHEMA` 检查后再 `ALTER`）。若生产库关闭了 `MYSQL_AUTO_INIT` 或希望上线前手工执行，等价 SQL 如下（重复执行前先确认列/索引不存在）：
+
+```sql
+-- 1) 新增可空邮箱列（存量用户均为 NULL，不影响微信 openid 登录）
+ALTER TABLE `users` ADD COLUMN `email` VARCHAR(254) NULL;
+-- 2) 唯一索引（MySQL 唯一索引允许多个 NULL）
+ALTER TABLE `users` ADD UNIQUE KEY `uk_users_email` (`email`);
+
+-- 回滚（会丢失邮箱与账号的绑定关系，邮箱用户将无法再登录到原账号）：
+-- ALTER TABLE `users` DROP INDEX `uk_users_email`;
+-- ALTER TABLE `users` DROP COLUMN `email`;
+```
+
+邮箱用户写入时 `openid = 'em_' + sha256(小写邮箱)[:40]`（满足 `openid NOT NULL UNIQUE`），`email` 存小写去空格后的地址。
+
+---
+
 ## 5. REST API 契约表（前缀 `/api/v1`）
 
 | 路由 | 方法 | 鉴权 | 限流 / 归属校验 | 作用 |
@@ -126,6 +152,8 @@
 | `/health` | `GET` | 公开 | 无 | 探活与容器健康检查 |
 | `/user/login` | `POST` | 公开 | 调微信 `jscode2session` | 微信小程序静默登录签发 JWT |
 | `/user/dev-login` | `POST` | 公开（仅非生产 + 开关） | 生产环境 403 禁用 | H5/本地开发模拟登录 |
+| `/auth/email/send-code` | `POST` | 公开 | 邮箱 60s 冷却 + 每日 10 次 + IP 每小时 20 次；生产缺 SMTP/Redis 返回 503 | 发送 6 位邮箱登录验证码（响应不泄露账号是否存在） |
+| `/auth/email/verify` | `POST` | 公开 | 每码 5 次 + IP 每 10 分钟 30 次；单次使用 | 校验验证码，按邮箱查/建用户并签发 JWT（H5 主登录通道） |
 | `/user/profile` | `GET` / `PUT` | 必选 JWT | 仅本人 | 获取统计档案（含 `streak_days`）/ 更新昵称头像 |
 | `/user/quizzes` | `GET` | 必选 JWT | 仅本人 | 分页获取历史闯关记录（含 `is_submitted` 未交卷草稿区分与领域标签） |
 | `/user/quizzes/{quiz_id}` | `GET` | 必选 JWT | 校验 `user_id` | 回看单次题库、答卷与报告 |
