@@ -1,8 +1,39 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-24（分支 `chore/phase0-ci-and-frontend-tests`，仅本地提交，未 push）
+> 最后更新：2026-11-24（分支 `feat/email-otp-login`，基于 `chore/phase0-ci-and-frontend-tests`，仅本地提交，未 push）
 
-## 本轮（2026-11-24）· Phase 0：工程化闸门 + 记忆曲线修复 + 点按手感审计
+## 本轮（2026-11-24 · 下午）· H5 邮箱验证码登录
+
+**当前阶段**：用户决定小程序（个人主体）上线暂缓，**H5 为主目标**；短信 / 微信手机号组件不可用，改为「邮箱 + 6 位验证码」登录，经个人邮箱（163/QQ 授权码）通用 SMTP 发送。**用户已于 2026-11-24 明确批准该鉴权范围变更**，并要求同步做原型与实现、出 PR 描述。
+
+### 本轮做了什么
+1. 后端：`POST /api/v1/auth/email/send-code`、`/auth/email/verify`（HMAC 存码、10 分钟 TTL、每码 5 次、常量时间比较、单次使用；邮箱 60s 冷却 / 每日 10 次 / IP 限流；不泄露账号存在性；签发与微信登录同一 JWT）；通用 SMTP 发信（仅 `SMTP_*` 配置），dev/test 无 SMTP 时控制台打印验证码，production 缺 SMTP 或 Redis 返回 503；`users.email` 可空唯一列 + 启动幂等列/索引迁移。
+2. 原型：[`v28-email-login.html`](02-design/prototypes/v28-email-login.html)（**待用户视觉确认**）。
+3. 前端：H5 登录页 `pages/login/index`、`api.ts` 发码/校验/401→登录页、纯逻辑 `emailLogin.ts` + `useCountdown.ts`；weapp 仍 `wx.login`，开发态 H5 仍 dev-login。
+4. 文档：README（SMTP 授权码配置）、PRODUCT / PRD / ARCHITECTURE / system-architecture（含 §4.1 迁移 SQL）、PR 描述 [`docs/pr/feat-email-otp-login.md`](pr/feat-email-otp-login.md)。
+
+### 实际执行的命令与结果
+- `cd backend && uv run ruff check app tests` → `All checks passed!`
+- `cd backend && uv run pytest -q` → **`242 passed`**（原 199 + 新增 43）
+- `cd frontend && pnpm lint` → `0 errors, 4 warnings`（既有）；`pnpm typecheck` → 通过
+- `pnpm test:coverage` → **`11 files / 124 passed`**，lines 85.36 / branches 84.52 / functions 84.07
+- `TARO_APP_API_BASE_URL=https://api.example.com TARO_APP_ALLOW_PLACEHOLDER_API=1 pnpm build:h5` / `pnpm build:weapp` → 均退出码 0（沙箱 `frontend/dist/` 现为占位地址生产包）
+- 冒烟：本地 uvicorn（无 MySQL/Redis）+ `aiosmtpd` 假 SMTP，`send-code` 实际经 smtplib 投递成功、邮件主题/发件人/正文正确，429/4011/4012/5030 符合预期；Playwright 打开 H5 构建产物（拦截 API），无 token 自动进登录页 → 发码倒计时 → 错码提示 → 登录后回首页并写入 token，无页面 JS 错误。
+- **未实机验证**：未用真实 163/QQ 邮箱发信（授权码、日发信上限、垃圾箱概率未验证）；未连真实 MySQL/Redis 跑完整 verify 建号；未在 iOS Safari / Android / 微信内置浏览器真机测试；GitHub CI 未实际运行（未 push）。
+
+### 未决事项 / 下一步
+1. **请用户对照 V2.8 原型确认登录页视觉**，有调整先改原型再改页面。
+2. 用户配置 163/QQ 授权码后做一次真实发信 + 登录冒烟（含垃圾箱检查）；生产反代设置 `CLIENT_IP_HEADER=X-Real-IP` 并确认代理覆盖该头。
+3. 补《用户协议》《隐私政策》正文（当前为占位弹窗）；「我的」页补「退出登录」。
+4. 后续：小程序扫码绑定同一邮箱账号（需设计 `em_` 伪 openid 与微信 openid 的绑定 / 合并策略）。
+5. 上线前按 AGENTS.md 执行安全审计门控（本 PR 新增公开接口）。
+6. 之前遗留的 V2.7 原型确认等事项仍有效（见下文）。
+
+---
+
+## 本轮（2026-11-24 · 上午）· Phase 0（分支 `chore/phase0-ci-and-frontend-tests`）
+
+### Phase 0：工程化闸门 + 记忆曲线修复 + 点按手感审计
 
 **当前阶段**：在 V2.4 基础上进入「vmark 式工程流程」Phase 0——H5 为主目标、weapp 次之。本轮只做工程化、逻辑修复与原型，**未改任何前端视觉样式**（样式提案见 V2.7 原型，待用户确认）。
 
@@ -35,7 +66,7 @@
 
 ### 未决事项 / 下一步
 1. **请用户确认 V2.7 原型**（点按手感 + 记忆曲线时间轴重设计），确认后按审计「三、修复提案」落地 `usePressable` / 热区 / 曲线新布局，并补 Playwright 热区 ≥44px 断言。
-2. **H5 生产登录方案（需用户决策）**：生产 H5 没有任何登录通道（只有 weapp `wx.login` 与 dev-login），H5 作为主目标上线前必须定方案；涉及鉴权范围，按规则先问用户。
+2. ~~**H5 生产登录方案（需用户决策）**~~（2026-11-24 已决：邮箱验证码登录，见本文件顶部）：生产 H5 没有任何登录通道（只有 weapp `wx.login` 与 dev-login），H5 作为主目标上线前必须定方案；涉及鉴权范围，按规则先问用户。
 3. `SevenDayRhythmBar` 周均虚线内联 px 与柱子设计稿 px 单位不一致（位置约偏高 1 倍），随 V2.7 原型一起确认后修。
 4. 后端 `live_retention = 100·e^(-t/S)` 不考虑交卷时的 `retention_rate`（刚交卷恒为 100%），是否改为 `retention_rate·e^(-t/S)` 属模型口径，待确认。
 5. `inferDomainFromText` 关键词 `词` 过宽（「唐诗宋词」会被归到「核心英语」），待产品确认关键词表。
