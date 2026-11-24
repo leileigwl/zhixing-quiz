@@ -16,7 +16,9 @@ logger = structlog.get_logger()
 _REQUEST_WINDOWS: dict[str, deque[float]] = defaultdict(deque)
 
 
-def check_rate_limit(key: str, max_requests: int, window_seconds: int = 60) -> None:
+def check_rate_limit(
+    key: str, max_requests: int, window_seconds: int = 60, message: str | None = None
+) -> None:
     """进程内滑动窗口限流（兼容单测与 Redis 不可用时兜底）。"""
     if max_requests <= 0:
         return
@@ -29,9 +31,13 @@ def check_rate_limit(key: str, max_requests: int, window_seconds: int = 60) -> N
         bucket.popleft()
 
     if len(bucket) >= max_requests:
-        raise RateLimitError(f"请求过于频繁，每分钟最多发起 {max_requests} 次出题请求，请稍后再试")
+        raise RateLimitError(message or _default_message(max_requests))
 
     bucket.append(now)
+
+
+def _default_message(max_requests: int) -> str:
+    return f"请求过于频繁，每分钟最多发起 {max_requests} 次出题请求，请稍后再试"
 
 
 _SLIDING_WINDOW_LUA = """
@@ -46,14 +52,18 @@ return 1
 """
 
 
-async def check_rate_limit_async(key: str, max_requests: int, window_seconds: int = 60) -> None:
+async def check_rate_limit_async(
+    key: str, max_requests: int, window_seconds: int = 60, message: str | None = None
+) -> None:
     """跨 Worker 原子滑动窗口限流（Redis Lua 原子脚本优先，Redis 不可用时降级本地窗口）。"""
     if max_requests <= 0:
         return
 
     redis_client = get_redis()
     if redis_client is None:
-        check_rate_limit(key, max_requests=max_requests, window_seconds=window_seconds)
+        check_rate_limit(
+            key, max_requests=max_requests, window_seconds=window_seconds, message=message
+        )
         return
 
     now_ms = int(time.time() * 1000)
@@ -73,14 +83,14 @@ async def check_rate_limit_async(key: str, max_requests: int, window_seconds: in
             window_seconds + 5,
         )
         if int(allowed) == 0:
-            raise RateLimitError(
-                f"请求过于频繁，每分钟最多发起 {max_requests} 次出题请求，请稍后再试"
-            )
+            raise RateLimitError(message or _default_message(max_requests))
     except RateLimitError:
         raise
     except Exception as exc:
         logger.warning("redis_rate_limit_fallback_local", key=key, error=str(exc))
-        check_rate_limit(key, max_requests=max_requests, window_seconds=window_seconds)
+        check_rate_limit(
+            key, max_requests=max_requests, window_seconds=window_seconds, message=message
+        )
 
 
 def reset_rate_limiter() -> None:

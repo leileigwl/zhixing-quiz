@@ -53,7 +53,8 @@ async def wx_code_to_openid(code: str) -> str:
     return data["openid"]
 
 
-async def _issue_login_response(user: dict) -> LoginResponse:
+async def issue_login_response(user: dict) -> LoginResponse:
+    """签发与微信登录完全一致的访问 JWT（邮箱登录复用）。"""
     token = create_token(user_id=user["id"], openid=user["openid"])
     return LoginResponse(
         token=token,
@@ -75,7 +76,7 @@ async def handle_login(code: str) -> LoginResponse:
     if user is None:
         user = await user_repository.create_user(openid)
 
-    return await _issue_login_response(user)
+    return await issue_login_response(user)
 
 
 async def handle_dev_login(dev_id: str, nickname: str) -> LoginResponse:
@@ -92,7 +93,7 @@ async def handle_dev_login(dev_id: str, nickname: str) -> LoginResponse:
             await user_repository.update_user_profile(user["id"], nickname, None)
             user["nickname"] = nickname
 
-    return await _issue_login_response(user)
+    return await issue_login_response(user)
 
 
 async def get_profile(user_id: int) -> UserProfile:

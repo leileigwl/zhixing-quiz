@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1.routes import health, knowledge, mastery, quiz, report, reviews, user
+from app.api.v1.routes import auth, health, knowledge, mastery, quiz, report, reviews, user
 from app.core.config import get_settings
 from app.core.db import close_mysql_pool, init_mysql, recover_stale_jobs
 from app.core.exceptions import (
@@ -21,6 +21,8 @@ from app.core.exceptions import (
     RateLimitError,
     ReportGenerationError,
     ResourceNotFoundError,
+    ServiceUnavailableError,
+    VerificationCodeError,
 )
 from app.core.redis_client import close_redis_and_arq, init_arq_pool, init_redis_client
 from app.models.common import ApiResponse
@@ -32,6 +34,11 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     settings = get_settings()
     settings.validate_runtime_security()
+    if settings.app_env == "production" and not settings.smtp_configured:
+        logger.warning(
+            "email_login_disabled",
+            reason="SMTP 未配置，生产环境 /api/v1/auth/email/* 将返回 503",
+        )
     logger.info(
         "app_starting",
         env=settings.app_env,
@@ -80,6 +87,7 @@ app.include_router(health.router, prefix="/api/v1")
 app.include_router(quiz.router, prefix="/api/v1")
 app.include_router(report.router, prefix="/api/v1")
 app.include_router(user.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(knowledge.router, prefix="/api/v1")
 app.include_router(mastery.router, prefix="/api/v1")
 app.include_router(reviews.router, prefix="/api/v1")
@@ -107,6 +115,23 @@ async def rate_limit_handler(request: Request, exc: RateLimitError):
     return JSONResponse(
         status_code=429,
         content=ApiResponse.error(code=4290, message=str(exc)).model_dump(),
+    )
+
+
+@app.exception_handler(VerificationCodeError)
+async def verification_code_handler(request: Request, exc: VerificationCodeError):
+    # 注意：使用 400 + 4011~4013，避免前端把验证码错误当作 4010 触发静默重登
+    return JSONResponse(
+        status_code=400,
+        content=ApiResponse.error(code=exc.code, message=str(exc)).model_dump(),
+    )
+
+
+@app.exception_handler(ServiceUnavailableError)
+async def service_unavailable_handler(request: Request, exc: ServiceUnavailableError):
+    return JSONResponse(
+        status_code=503,
+        content=ApiResponse.error(code=5030, message=str(exc)).model_dump(),
     )
 
 
