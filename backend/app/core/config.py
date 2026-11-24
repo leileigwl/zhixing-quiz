@@ -36,6 +36,23 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 43200  # 30 天
     allow_dev_login: bool = True
 
+    # 邮箱验证码登录（H5 主登录通道）：通用 SMTP，切换阿里云 DirectMail 等服务商只需改环境变量
+    smtp_host: str = ""
+    smtp_port: int = 465
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_ssl: bool = True
+    smtp_timeout_seconds: int = 10
+    email_code_ttl_seconds: int = 600
+    email_code_cooldown_seconds: int = 60
+    email_code_daily_limit: int = 10
+    email_code_max_attempts: int = 5
+    email_code_ip_hourly_limit: int = 20
+    email_verify_ip_limit_per_10min: int = 30
+    # 反向代理传递真实客户端 IP 的请求头（如 1Panel/Nginx 的 X-Real-IP）；留空则取 TCP 对端地址
+    client_ip_header: str = ""
+
     # 通用对话大模型配置（优先读取 LLM_*，未填写时兼容 DEEPSEEK_*）
     llm_api_key: str = ""
     llm_base_url: str = ""
@@ -118,6 +135,11 @@ class Settings(BaseSettings):
     def get_cors_origins_list(self) -> list[str]:
         origins = [item.strip() for item in self.cors_origins.split(",") if item.strip()]
         return origins or ["*"]
+
+    @property
+    def smtp_configured(self) -> bool:
+        """SMTP 是否已配置到可发信的最小集合（主机 + 发件地址）。"""
+        return bool(self.smtp_host.strip() and (self.smtp_from.strip() or self.smtp_user.strip()))
 
     def validate_runtime_security(self) -> None:
         """生产环境启动前强校验关键安全配置，防止弱密钥上线裸奔。"""
