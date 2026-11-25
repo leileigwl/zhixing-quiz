@@ -53,8 +53,11 @@ describe('LoginPage（H5 邮箱验证码登录）', () => {
     fireEvent.click(ui.codeBtn())
     await flush()
     expect(Taro.showModal).toHaveBeenCalledWith(
-      expect.objectContaining({ title: '请先同意协议', confirmText: '同意并继续' }),
+      expect.objectContaining({ title: '请先同意协议', confirmText: '同意' }),
     )
+    // Taro / 微信 showModal 的按钮文字最多 4 个汉字，超长会直接失败（2026-11-25 线上截图验证时踩到）
+    const opts = vi.mocked(Taro.showModal).mock.calls[0][0] as any
+    for (const t of [opts.confirmText, opts.cancelText]) expect(t.replace(/[\u0391-\uFFE5]/g, 'aa').length).toBeLessThanOrEqual(8)
     expect(requestMock()).not.toHaveBeenCalled()
     expect(ui.container.querySelector('.agree-check')?.className).not.toContain('is-on')
     expect(screen.getByText('请先阅读并同意用户协议与隐私政策')).toBeTruthy()

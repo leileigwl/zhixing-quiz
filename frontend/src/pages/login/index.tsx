@@ -98,7 +98,8 @@ export default function LoginPage() {
       Taro.showModal({
         title: '请先同意协议',
         content: AGREE_PROMPT,
-        confirmText: '同意并继续',
+        confirmText: '同意',
+        confirmColor: '#18191e',
         cancelText: '暂不',
       }),
     ).catch(() => null)
