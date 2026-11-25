@@ -1,6 +1,22 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-25 21:10 CST（V2.9 响应式改版已合并并上线；**线上 H5 对应 main `7c19fcb`**）
+> 最后更新：2026-11-25 21:50 CST（依赖漏洞升级 + MySQL 定时备份：分支 `chore/deps-security-backup`，**进行中**）
+
+## 当前进度（依赖安全升级 + MySQL 备份 · 2026-11-25 · 进行中）
+
+> 用户 2026-11-25 授权：升级有漏洞的 Python 依赖、加 MySQL 每日备份，CI 全绿后自行合并并上线。另一个任务（zhixing-basic-fixes）同时在改前端/后端，本分支用独立 worktree，只动依赖 / 文档加载器 / deploy。
+
+- [x] **Python 依赖**（`backend/pyproject.toml` + `uv.lock`）：pypdf 5.9.0 → **6.21.4**；cryptography 49.0.0 → **50.0.2**；langchain-core 0.3.86 → **1.8.4**、langchain-openai 0.3.35 → **1.8.5**、langchain-text-splitters 0.3.11 → **1.2.0**、langchain-chroma 0.2.6 → **1.2.0**、langchain-tavily 0.2.17 → 0.2.18（传递：langchain 0.3.30 → 1.5.2、langgraph 0.6.11 → 1.2.24、langgraph-checkpoint 3.0.1 → 4.3.2、langgraph-sdk 0.2.15 → 0.4.14）。删除未使用的 `langgraph` 直接依赖和 `langchain-community`（只用到 PyPDFLoader / Docx2txtLoader，改为直接调 pypdf / docx2txt，连带去掉 langchain 0.3、sqlalchemy、marshmallow）。
+  - 为什么敢跨 langchain 1.x：漏洞修复版本全部在 1.x（0.3 线无修复）；代码只用 `ChatPromptTemplate`、`RunnableBranch/Lambda`、`Document`、`Embeddings`、`ChatOpenAI/OpenAIEmbeddings`、`Chroma`、`TavilySearch/Extract`、两个 splitter，这些在 1.x 无破坏性变化；ruff + 全量 pytest 通过，`ChatOpenAI(... max_tokens, request_timeout, max_retries, model_kwargs=response_format)` 构造与 `import app.main` 实测正常。**未用真实 LLM key 跑出题**（线上 key 仍为空）。
+  - pypdf 6.x API：直接用 `PdfReader(path).pages[i].extract_text()`；加密 PDF 先试空密码，页数上限 `MAX_PDF_PAGES=500`，坏页跳过，损坏文件报友好错误；新增真实 PDF 单测（多页、空白页、损坏、超页数）。
+- [x] **pip-audit 复查**：升级前 10 个包 128 条 → 升级后只剩 **chromadb 1.5.9（5 条，上游无修复版）**：CVE-2026-45829（未鉴权代码注入）、CVE-2026-45833、CVE-2026-45831、CVE-2026-45830。缓解：Chroma 服务只在 compose 内部网络（不映射宿主机端口），只有 api/worker 容器能访问；**风险仍在**——若 api 容器被攻破可横向利用。待 chromadb 发布修复版后升级（重建会同时更新 chroma 服务端镜像）。
+- [x] **前端 pnpm audit**：`package.json#pnpm.overrides` 把 lodash-es 4.17.21 → 4.18.1、swiper 11.1.15 → 12.2.0（均为 Taro 传递依赖）。实测 H5 产物在 override 前后**逐字节一致**（项目未用 Swiper 组件，lodash-es 只在构建期），lint / typecheck / test:coverage（177 passed）/ build:h5 / build:weapp 通过。剩余 50 条（4 critical / 15 high）全部是构建与测试工具链：@tarojs/cli（download-git-repo→decompress/got/git-clone、adm-zip）、webpack 5.91 / webpack-dev-server / html-minifier / serialize-javascript / postcss(miniprogram-simulate) / esbuild / glob、vitest 3 / tinypool；不进入线上产物，修复需要 Taro 或 vitest 大版本升级，**本轮不硬升**，仅本地开发与 CI 有风险（不要用 dev server 打开不可信网页、不要 `taro init` 不可信模板）。
+- [x] **MySQL 备份**：`deploy/backup-mysql.sh` + `bash deploy/deploy.sh backup-cron`（`/etc/cron.d/zhixing-quiz-backup`，每天 03:30，宿主机时区 Asia/Shanghai）；恢复步骤见 [`deploy.md` §4.1](deploy.md)。2026-11-25 21:35 已在服务器手动跑一次（脚本临时放 /tmp，ENV_FILE 指向线上 .env）：`/var/backups/zhixing-quiz/zhixing_quiz-20261125-213513.sql.gz`，gzip -t 通过、12 张表、`-- Dump completed`；导入临时库 `zq_restore_check` 演练恢复成功（12 表，users 行数与线上一致）后已删除。**cron 尚未安装**（待代码上线后执行 `deploy.sh backup-cron`）。
+- [ ] 开 PR → CI → 合并 → 服务器更新到 main、重建 api/worker → 安装 cron → 冒烟。
+
+**闸门（本分支）**：`uv run ruff check app tests` 通过；`uv run pytest -q` **246 passed**；`pnpm lint` 0 errors（4 条既有警告）；`typecheck` 通过；`test:coverage` 18 files / 177 passed（lines 87.5 / branches 87.57 / functions 86.01）；`build:h5` / `build:weapp`（占位 env）退出码 0。
+
+---
 
 ## 当前进度（V2.9 响应式改版 · 2026-11-25 · 已上线）
 
