@@ -67,9 +67,29 @@ export function invalidateSwrCache(prefix?: string): void {
 }
 
 const WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六']
+const DAY_MS = 86_400_000
+
+/** 本地时区 YYYY-MM-DD（不能用 toISOString：它是 UTC，北京时间 0~8 点会错成前一天） */
+export function formatLocalDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+/** 解析后端时间串（兼容 `2026-11-20 10:00:00` 这种 iOS Safari 不认的格式）；无法解析返回 null */
+export function parseServerDate(raw?: string | null): Date | null {
+  if (!raw) return null
+  const normalized = /^\d{4}-\d{2}-\d{2} \d/.test(raw) ? raw.replace(' ', 'T') : raw
+  const d = new Date(normalized)
+  return Number.isNaN(d.getTime()) ? null : d
+}
 
 /** 计算真实 7 日节律条：优先直接映射后端 WeeklyRhythmDay[]，保留完整日期、局数与明细 */
-export function buildRealCalendarStrip(input: number[] | WeeklyRhythmDay[] = []): WeeklyRhythmDay[] {
+export function buildRealCalendarStrip(
+  input: number[] | WeeklyRhythmDay[] = [],
+  now: Date = new Date(),
+): WeeklyRhythmDay[] {
   if (Array.isArray(input) && input.length > 0 && typeof input[0] === 'object') {
     return (input as WeeklyRhythmDay[]).slice(-7).map((item) => ({
       day_label: item.day_label || '',
@@ -85,7 +105,6 @@ export function buildRealCalendarStrip(input: number[] | WeeklyRhythmDay[] = [])
   }
 
   const activeCounts = (Array.isArray(input) ? input : []) as number[]
-  const now = new Date()
   const result: WeeklyRhythmDay[] = []
   for (let offset = -4; offset <= 2; offset++) {
     const d = new Date(now)
@@ -96,7 +115,7 @@ export function buildRealCalendarStrip(input: number[] | WeeklyRhythmDay[] = [])
     result.push({
       day_label: WEEK_LABELS[dayIdx],
       date_num: dd,
-      date_str: d.toISOString().slice(0, 10),
+      date_str: formatLocalDate(d),
       completed_count: count,
       quiz_count: 0,
       avg_accuracy: null,
@@ -262,10 +281,108 @@ export function groupDocumentsToPockets(
   return buckets
 }
 
-/** 从 V1 历史记录组装兼容展示曲线（仅当后端 V2 尚未返回真实数据时兜底） */
+/** 与后端 adaptive_service.compute_retention_rate 一致：R(t) = 100·e^(-t/S)，夹在 [18, 100] */
+export function computeRetentionRate(daysElapsed: number, stabilityDays: number): number {
+  const s = Math.max(1, stabilityDays || 5)
+  const t = Math.max(0, daysElapsed || 0)
+  return Math.max(18, Math.min(100, 100 * Math.exp(-t / s)))
+}
+
+const round1 = (v: number) => Math.round(v * 10) / 10
+
+/**
+ * 「若今日巩固」后的投影段（与后端 mastery_service.build_retention_curve 总览态同一公式）：
+ * 巩固后保持率随**今日**保持率与掌握分共同变化，而不是锚定在静态掌握分上。
+ */
+export function projectRetentionAfterReview(
+  nowRet: number,
+  masteryScore: number,
+  stabilityDays = 5,
+): RetentionCurvePoint[] {
+  const sNew = Math.max(1.5, stabilityDays)
+  const sBase = Math.max(1, sNew * 0.45)
+  const sBoosted = Math.max(sNew * 1.35, 3.8)
+  const gain = 0.35 + 0.4 * (Math.max(0, Math.min(100, masteryScore)) / 100)
+  const boosted = round1(Math.min(98, nowRet + (100 - nowRet) * gain))
+  const points: RetentionCurvePoint[] = [
+    {
+      day_label: '若巩固',
+      retention_pct: boosted,
+      baseline_pct: round1(Math.max(15, computeRetentionRate(1, sBase) * (nowRet / 100))),
+      is_recovery: true,
+    },
+  ]
+  for (const d of [3, 7, 14]) {
+    points.push({
+      day_label: `+${d}天`,
+      retention_pct: round1(Math.max(15, computeRetentionRate(d, sBoosted) * (boosted / 100))),
+      baseline_pct: round1(Math.max(15, computeRetentionRate(d, sBase) * (nowRet / 100))),
+    })
+  }
+  return points
+}
+
+/**
+ * 后端 /mastery/overview 不可用时，用**真实**历史练习记录推算记忆曲线：
+ * 左段 = 最近 3 次已交卷正确率（按日期），今日点 = 最近一次正确率按 e^(-t/S) 衰减到今天，右段 = 若今日巩固的投影。
+ * 没有任何可用历史时返回空数组（画布显示占位示意），不再伪造固定数值。
+ */
+export function buildRetentionCurveFromHistory(
+  historyItems: QuizHistoryItem[],
+  now: Date = new Date(),
+  stabilityDays = 5,
+): RetentionCurvePoint[] {
+  const dated = historyItems
+    .filter((h) => h.is_submitted !== false && typeof h.accuracy === 'number')
+    .map((h) => ({ item: h, at: parseServerDate(h.created_at) }))
+    .filter((x): x is { item: QuizHistoryItem; at: Date } => x.at !== null && x.at.getTime() <= now.getTime())
+    .sort((a, b) => a.at.getTime() - b.at.getTime())
+  if (dated.length === 0) return []
+
+  const recent = dated.slice(-3)
+  const points: RetentionCurvePoint[] = recent.map(({ item, at }) => {
+    const acc = round1(Math.max(15, Math.min(99, item.accuracy)))
+    return {
+      day_label: `${String(at.getMonth() + 1).padStart(2, '0')}/${String(at.getDate()).padStart(2, '0')}`,
+      retention_pct: acc,
+      baseline_pct: acc,
+      is_actual: true,
+      quiz_title: (item.title || '').slice(0, 16),
+    }
+  })
+
+  const last = recent[recent.length - 1]
+  const daysElapsed = (now.getTime() - last.at.getTime()) / DAY_MS
+  const nowRet = round1(
+    Math.max(18, Math.min(98, last.item.accuracy * (computeRetentionRate(daysElapsed, stabilityDays) / 100))),
+  )
+  const masteryScore = recent.reduce((sum, r) => sum + r.item.accuracy, 0) / recent.length
+
+  points.push({ day_label: '今日保持', retention_pct: nowRet, baseline_pct: nowRet, is_today: true })
+  return points.concat(projectRetentionAfterReview(nowRet, masteryScore, stabilityDays))
+}
+
+/** 按本地日期把历史练习题量聚合到「今天 -4 ~ +2」7 日节律条（与后端 build_weekly_rhythm 的窗口一致） */
+export function buildWeeklyCountsFromHistory(historyItems: QuizHistoryItem[], now: Date = new Date()): number[] {
+  const counts = [0, 0, 0, 0, 0, 0, 0]
+  const todayKey = formatLocalDate(now)
+  const todayMidnight = parseServerDate(`${todayKey}T00:00:00`)!.getTime()
+  for (const h of historyItems) {
+    if (h.is_submitted === false) continue
+    const at = parseServerDate(h.created_at)
+    if (!at) continue
+    const dayMidnight = parseServerDate(`${formatLocalDate(at)}T00:00:00`)!.getTime()
+    const offset = Math.round((dayMidnight - todayMidnight) / DAY_MS)
+    if (offset >= -4 && offset <= 2) counts[offset + 4] += Number(h.question_count || 0)
+  }
+  return counts
+}
+
+/** 从 V1 历史记录组装兼容展示总览（仅当后端 V2 /mastery/overview 不可用时兜底；曲线与节律均来自真实历史） */
 export function buildFallbackMasteryOverview(
   historyItems: QuizHistoryItem[],
   docs: KnowledgeDocumentItem[],
+  now: Date = new Date(),
 ): MasteryOverviewResponse {
   const latestAcc =
     historyItems.length > 0
@@ -276,23 +393,8 @@ export function buildFallbackMasteryOverview(
     historyItems[0]?.domain_name ||
     (historyItems[0]?.title ? inferDomainFromText(historyItems[0].title).name : 'RAG 架构')
 
-  const retentionCurve: RetentionCurvePoint[] = [
-    { day_label: 'D1', retention_pct: 92, baseline_pct: 88 },
-    { day_label: 'D3', retention_pct: 74, baseline_pct: 66 },
-    { day_label: 'D5', retention_pct: 58, baseline_pct: 48 },
-    { day_label: '重测前', retention_pct: 46, baseline_pct: 38, is_today: true },
-    {
-      day_label: '今日巩固',
-      retention_pct: Math.min(96, Math.max(76, latestAcc)),
-      baseline_pct: 30,
-      is_recovery: true,
-    },
-    { day_label: '+7天', retention_pct: 72, baseline_pct: 22 },
-    { day_label: '+14天', retention_pct: 60, baseline_pct: 16 },
-  ]
-
-  const weekHeights = [48, 64, 35, 78, 56, 42, Math.max(66, Math.min(94, latestAcc))]
-  const calendar = buildRealCalendarStrip(weekHeights)
+  const retentionCurve = buildRetentionCurveFromHistory(historyItems, now)
+  const calendar = buildRealCalendarStrip(buildWeeklyCountsFromHistory(historyItems, now), now)
 
   return {
     streak_days: Math.max(1, historyItems.length),

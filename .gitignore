@@ -30,3 +30,4 @@ pnpm-debug.log*
 /project.config.json
 project.private.config.json
 **/project.private.config.json
+frontend/coverage/

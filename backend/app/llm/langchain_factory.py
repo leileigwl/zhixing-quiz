@@ -6,7 +6,6 @@ from langchain_openai import ChatOpenAI
 
 from app.core.config import get_settings, resolve_llm_config
 
-
 _REASONING_MODEL_MARKERS = ("reasoner", "-r1", "qwq", "o1-", "o3-", "/o1", "/o3")
 
 

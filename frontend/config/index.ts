@@ -1,6 +1,7 @@
 import { defineConfig, type UserConfigExport } from '@tarojs/cli'
 import devConfig from './dev'
 import prodConfig from './prod'
+import { resolveProdApiBaseUrl } from './apiBaseUrl'
 
 export default defineConfig<'webpack5'>(async (merge) => {
   const baseConfig: UserConfigExport<'webpack5'> = {
@@ -76,12 +77,7 @@ export default defineConfig<'webpack5'>(async (merge) => {
     return merge({}, baseConfig, devConfig)
   }
 
-  const prodUrl = (process.env.TARO_APP_API_BASE_URL || '').trim()
-  if (!prodUrl || prodUrl.includes('api.example.com')) {
-    throw new Error(
-      '[zhixing-quiz] 生产构建缺少真实后端地址：请传入 TARO_APP_API_BASE_URL=https://你的域名/api/v1 pnpm build:weapp；' +
-        '若用于本地微信开发者工具调试，请改用 pnpm dev:weapp 或 pnpm build:weapp:local。',
-    )
-  }
+  // 生产构建 fail-fast：缺失 / 非 https / 占位域名时直接中止构建（见 config/apiBaseUrl.ts）
+  resolveProdApiBaseUrl(process.env)
   return merge({}, baseConfig, prodConfig)
 })

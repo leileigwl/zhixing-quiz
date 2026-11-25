@@ -1,12 +1,55 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-12
+> 最后更新：2026-11-24（分支 `chore/phase0-ci-and-frontend-tests`，仅本地提交，未 push）
 
-## 当前阶段
+## 本轮（2026-11-24）· Phase 0：工程化闸门 + 记忆曲线修复 + 点按手感审计
+
+**当前阶段**：在 V2.4 基础上进入「vmark 式工程流程」Phase 0——H5 为主目标、weapp 次之。本轮只做工程化、逻辑修复与原型，**未改任何前端视觉样式**（样式提案见 V2.7 原型，待用户确认）。
+
+### 本轮做了什么
+1. **CI**：`.github/workflows/ci.yml`（`pull_request` + push `main`，`concurrency` 取消旧运行）。backend：uv + Python 3.12 → `uv sync --frozen` → `ruff` → `pytest`；frontend：pnpm（`packageManager: pnpm@10.20.0`）+ Node 22 → `install --frozen-lockfile` → `lint` → `typecheck` → `test:coverage` → `build:h5` / `build:weapp`（占位 `TARO_APP_API_BASE_URL=https://api.example.com` + `TARO_APP_ALLOW_PLACEHOLDER_API=1`），依赖缓存。
+2. **前端测试基建**：Vitest 3 + jsdom + Testing Library + coverage-v8；`test/mocks/taro.ts`、`test/mocks/components.tsx` 替身（globalThis 单例，支持 `vi.resetModules()` 重新加载有模块级状态的服务）；时区固定 `Asia/Shanghai`。脚本：`test` / `test:watch` / `test:coverage` / `lint` / `check:all`。ESLint 9 flat config（`react-hooks/rules-of-hooks: error`，已验证能拦住 #310 那类「早 return 后调用 Hook」）。
+3. **测试**：`api.ts`（BASE_URL/Bearer、业务错误、404、4010 静默重登重放、重登失败不无限重试、无登录通道直接抛错、任务/报告轮询完成/失败/超时/取消）、`backgroundQuizManager.ts`（订阅即推送、退订、反复订阅不累积监听器、running→计时→阶段文案→completed、停留发起页自动跳转、运行中防重复、失败停表、失败后可重发）、`quizSessionStore.ts`、`v2Adapters.ts`、`RetentionCurveCanvas` / `SevenDayRhythmBar` 抽出的纯数据层 `chartModel.ts` / `rhythmModel.ts`（绘制与 DOM 输出保持不变）、`config/apiBaseUrl.ts`。覆盖率阈值（仅统计被测逻辑文件）：lines/statements 70、functions 70、branches 70，当前 81.25 / 81.25 / 78.48 / 81.08。
+4. **生产构建 fail-fast**（HANDOFF §4-1）：`frontend/config/apiBaseUrl.ts`，缺失 / 非 https / 占位域名直接中止构建；已实测 3 种失败场景退出码 1、占位放行后两端构建成功。
+5. **Git hooks**：`.githooks/pre-commit`（暂存前端文件 ESLint + tsc、后端 ruff、拦截 `.env` 与 `backend/data/`）、`.githooks/pre-push`（`pnpm check:all` + ruff + pytest）；`bash scripts/setup-git-hooks.sh` 启用（本沙箱克隆已启用并实际触发过）。
+6. **AI 配置**：`AGENTS.md` 声明为唯一事实来源并新增「质量闸门」；`CLAUDE.md` 仅 `@AGENTS.md`；中文 PR 模板与 bug / feature Issue 模板。
+7. **修复「学习记忆曲线每天看起来一样」**（`fix(mastery)`，含前后端回归测试）：
+   - 后端根因①：总览态「若巩固」= `max(今日+8, 掌握分×0.55+44)`，今日保持率低于约 `掌握分×0.55+36` 后，右半段（若巩固 / +3 / +7 / +14 天）只由静态掌握分决定，日日相同 → 改为锚定今日实时保持率：`今日 + (100-今日) × (0.35 + 0.4×掌握分/100)`。
+   - 后端根因②：「全部域」视图左段取全局最近测验、右段却是 focus 域保持率 → 历史改按 focus 域查询。
+   - 前端根因③：`/mastery/overview` 任意失败（含生产 H5 无登录）都静默回退 `buildFallbackMasteryOverview`，其曲线（92/74/58/46/…/72/60）与周节律柱高（48/64/35/78…）都是写死的 → 改为由真实历史推算（实测节点 → e^(-t/S) 衰减到今天 → 投影），无历史时返回空曲线。
+   - 前端根因④：`buildRealCalendarStrip` 用 `toISOString()`（UTC），北京时间 0~8 点日期错一天 → 改本地日期。
+8. **点按手感审计 + V2.7 原型**：[`docs/02-design/tap-feel-audit.md`](02-design/tap-feel-audit.md)、[`v27-tap-feel-and-retention-curve.html`](02-design/prototypes/v27-tap-feel-and-retention-curve.html)（**待用户确认**，确认前不改 `frontend/` 样式）。
+9. 顺带：修复 `backend/app/llm/langchain_factory.py` 的 ruff I001（main 上 `ruff check` 原本是失败的）。
+
+### 实际执行的命令与结果（2026-11-24，本沙箱 Linux / Node 22.23 / Python 3.12.16 / uv 0.13.9 / pnpm 10.20.0）
+- `cd backend && uv run ruff check app tests` → `All checks passed!`
+- `cd backend && uv run pytest -q` → **`199 passed`**（原 193 + 新增 `tests/test_mastery_curve_daily_variation.py` 6 个；其中 3 个在修复前实测失败）
+- `cd frontend && pnpm install --frozen-lockfile` → 成功
+- `pnpm lint` → `0 errors, 4 warnings`（均为既有页面 `react-hooks/exhaustive-deps` 警告，未改页面代码）
+- `pnpm typecheck` → 通过
+- `pnpm test:coverage` → **`7 files / 77 passed`**，覆盖率达阈值
+- `TARO_APP_API_BASE_URL=https://api.example.com TARO_APP_ALLOW_PLACEHOLDER_API=1 pnpm build:h5` / `pnpm build:weapp` → 均退出码 0（注：本沙箱 `frontend/dist/` 现为占位地址的生产包，本地调试请重新 `pnpm build:weapp:local`）
+- `.githooks/pre-push` 手动全量执行 → 通过；之后的提交均经 `pre-commit` 实际触发
+- 原型：Playwright（headless Chromium）打开 V2.7 原型截图检查，`pageerror` / console error 为 0
+- **未实机验证**：未启动 FastAPI / MySQL / Redis / Chroma，曲线修复只经单元测试与 mock 验证，未在真实账号数据上逐日观察；点按审计为 SCSS 静态推算，未在 iOS Safari / Android / 微信真机测量；GitHub Actions 工作流未在 GitHub 上实际运行过（无推送凭据）。
+
+### 未决事项 / 下一步
+1. **请用户确认 V2.7 原型**（点按手感 + 记忆曲线时间轴重设计），确认后按审计「三、修复提案」落地 `usePressable` / 热区 / 曲线新布局，并补 Playwright 热区 ≥44px 断言。
+2. **H5 生产登录方案（需用户决策）**：生产 H5 没有任何登录通道（只有 weapp `wx.login` 与 dev-login），H5 作为主目标上线前必须定方案；涉及鉴权范围，按规则先问用户。
+3. `SevenDayRhythmBar` 周均虚线内联 px 与柱子设计稿 px 单位不一致（位置约偏高 1 倍），随 V2.7 原型一起确认后修。
+4. 后端 `live_retention = 100·e^(-t/S)` 不考虑交卷时的 `retention_rate`（刚交卷恒为 100%），是否改为 `retention_rate·e^(-t/S)` 属模型口径，待确认。
+5. `inferDomainFromText` 关键词 `词` 过宽（「唐诗宋词」会被归到「核心英语」），待产品确认关键词表。
+6. 4 条既有 `exhaustive-deps` 警告、`api.ts` 覆盖率 59% 可在后续逐步收紧；推送后在 GitHub 上确认 CI 首次运行结果。
+
+---
+
+## 上一轮（2026-11-12）· V2.4
+
+### 当前阶段（V2.4）
 
 **`zhixing-quiz` V2.4（在 V2.3 基础上完成「后端全链路 5 段耗时 + 流式首字 TTFT / 中途断流自动重连监控与诊断压测脚本」、「等待文案移除『可逛其他页』与首页双重计时去重 + 跨页 `originTag` 精准隔离」、以及「曲线页重构为纯洞察看板 + 至多 1 枚轻重练入口」）已完成原型门控确认、前后端实现、双端编译与 Playwright 全流程验收。**
 
-## 已完成核心改造
+### 已完成核心改造
 
 1. **V2.4 后端全链路 5 段耗时与流式 TTFT 监控 + 自测诊断脚本（[`quiz_chain.py`](../backend/app/llm/quiz_chain.py)、[`quiz_service.py`](../backend/app/services/quiz_service.py)、[`task_repository.py`](../backend/app/repositories/task_repository.py)、[`monitor_quiz_latency.py`](../backend/scripts/monitor_quiz_latency.py)）**：
    - 保持 `.env` 当前 `deepseek-ai/DeepSeek-V3.2` 与 Prompt 不变（待后续测试新模型），新增 `QuizTaskTelemetry` 结构并拆解 `queue_wait_ms`、`domain_classify_ms`、`rag_search_ms`、`llm_ttft_ms`（首字延迟）、`llm_total_ms`、`completion_tokens`、`tps`、`db_save_ms` 与 `attempt` / `retry_reason`。
@@ -21,7 +64,7 @@
 4. **V2.3 / V2.2 / V2.1 核心底座能力（一并保留）**：
    - Redis + ARQ 域级 Pre-Warm 预热池（`allow_prewarm: true`）、差异化实测+预测双轨曲线、周明细与印章下钻、未交卷草稿分离、3 步诊断结论、自包含 `custom-tab-bar` (`4350` B 独立 `index.wxss`)。
 
-## 已执行的真实校验（2026-11-12，基于 V2.4 最终代码重跑）
+### 已执行的真实校验（2026-11-12，基于 V2.4 最终代码重跑）
 
 - **后端静态检查、单测与实时 3 组对照监控**：
   - `cd /Users/leileigwl/Work/Learn/new/zhixing-quiz/backend && uv run ruff check app tests` -> **`All checks passed!`**
@@ -31,13 +74,13 @@
   - `pnpm typecheck`、`NODE_ENV=development pnpm build:h5` 与 `pnpm build:weapp:local` 均退出码 `0`（`frontend/dist/` 保留最新微信小程序构建产物，含独立 `dist/custom-tab-bar/index.wxss`）。
   - Playwright 实测：首页等待中不渲染重复 `.bg-pill` 且按钮只显示 `出题中 (Xs)`、切换至口袋页时文档按钮维持 `出题 →` 且悬浮胶囊实时展示 `AI 正在编排 3 道题目...`、曲线页 `.schedule-go=0` / `.btn-secondary-ai=0` / `.zx-btn-obsidian=0` 且仅有 `1` 枚标题旁轻重练胶囊、`PAGE_ERRORS: 0`、`CONSOLE_ERRORS: 0`、`HTTP_ERRORS: 0`。
 
-## 本地已启动服务状态
+### 本地已启动服务状态（2026-11-12 开发机记录，本轮沙箱未启动这些服务）
 
 - `zhixing-quiz-mysql-1` (`127.0.0.1:3306`, Healthy) & `zhixing-quiz-redis-1` (`127.0.0.1:6379`, Healthy)
 - Standalone Chroma HTTP Server (`127.0.0.1:8001`)
 - ARQ Worker (`uv run arq app.workers.arq_worker.WorkerSettings`)
 - FastAPI 2-Worker API (`http://127.0.0.1:8000`) & Taro H5 Dev Server (`http://127.0.0.1:10086`)
 
-## 尚待生产部署确认项
+### 尚待生产部署确认项
 
 - 本机 `.env` 已配置真实 LLM、Embedding 与 Tavily 联网搜索配置；若在微信真机启用一次性订阅消息提醒，仍需在 `.env` 填入 `WECHAT_SUBSCRIBE_TEMPLATE_ID`、`WECHAT_APP_ID` / `WECHAT_APP_SECRET` 并在微信开发者工具打开 `frontend/dist/` 做真机测试；若需使用 Endor 云端漏洞审计，请先在本机安装并登录 `endorctl`。

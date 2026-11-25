@@ -52,7 +52,7 @@ uv run arq app.workers.arq_worker.WorkerSettings
 # 3. 启动 FastAPI（端口 8000）
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
 
-# 4. 运行后端全量单元测试（当前 193 passed）
+# 4. 运行后端全量单元测试（当前 199 passed）
 uv run pytest -q
 ```
 
@@ -60,8 +60,9 @@ uv run pytest -q
 ```bash
 cd frontend
 
-# TypeScript 类型检查
-pnpm typecheck
+# 一键质量闸门：ESLint（react-hooks）+ tsc + Vitest 覆盖率（当前 77 passed）
+pnpm check:all
+# 单独运行：pnpm lint / pnpm typecheck / pnpm test / pnpm test:watch / pnpm test:coverage
 
 # H5 本地开发调试（http://127.0.0.1:10086）
 pnpm dev:h5
@@ -69,9 +70,14 @@ pnpm dev:h5
 # 微信小程序本地构建（输出至 frontend/dist/，用微信开发者工具导入）
 pnpm build:weapp:local
 
-# 微信小程序生产构建（必须注入 HTTPS API 基址！）
-TARO_APP_API_BASE_URL="https://your-api.example.com" pnpm build:weapp
+# 生产构建（必须注入 HTTPS API 基址；缺失 / 非 https / 占位域名会直接中止构建）
+TARO_APP_API_BASE_URL="https://你的域名/api/v1" pnpm build:h5
+TARO_APP_API_BASE_URL="https://你的域名/api/v1" pnpm build:weapp
 ```
+
+### 2.4 CI 与本地 Git Hooks
+- CI：`.github/workflows/ci.yml`（PR 与 push 到 `main`），命令清单见 [`AGENTS.md`](../AGENTS.md)「质量闸门」。
+- 本地：`bash scripts/setup-git-hooks.sh` 启用 `.githooks/pre-commit`（暂存改动的 ESLint + tsc / ruff，拦截 `.env`）与 `.githooks/pre-push`（`pnpm check:all` + ruff + pytest）。
 
 ---
 
@@ -104,9 +110,9 @@ LLM_MAX_TOKENS=4096
 
 以下为当前代码审计中最明显、上线生产前必须处理的要点：
 
-1. **生产构建缺少 `TARO_APP_API_BASE_URL` 环境变量保护**
-   - `frontend/config/prod.ts` 读取 `process.env.TARO_APP_API_BASE_URL`，若直接执行 `pnpm build:weapp` 未传该变量，`API_BASE_URL` 会为空字符串，导致小程序请求全部失败。
-   - 发布前务必确认传入正式 `https://` 域名，并在微信小程序后台配置 `request`、`uploadFile`、`downloadFile` 合法域名。
+1. **生产构建 `TARO_APP_API_BASE_URL` 保护（2026-11-24 已加 fail-fast）**
+   - `frontend/config/apiBaseUrl.ts`：生产构建（`build:h5` / `build:weapp`）在变量缺失、非 `https://`、或仍为 `api.example.com` 等占位域名时直接抛错中止；`TARO_APP_ALLOW_PLACEHOLDER_API=1` 仅供 CI 冒烟构建。
+   - 发布前仍需在微信小程序后台配置 `request`、`uploadFile`、`downloadFile` 合法域名。
 
 2. **安全配置强制切换（`backend/.env`）**
    - 生产环境必须设置 `APP_ENV=production`、`APP_DEBUG=false`、`ALLOW_DEV_LOGIN=false`。
@@ -126,9 +132,17 @@ LLM_MAX_TOKENS=4096
 6. **数据库表结构变更管理**
    - 当前依赖 `MYSQL_AUTO_INIT=true` 在启动时执行 `CREATE TABLE IF NOT EXISTS` 与轻量字段补齐；长期生产演进建议引入 Alembic 进行版本化 Schema 迁移。
 
+7. **H5 生产环境没有登录通道（H5 为主目标前必须决策）**
+   - `frontend/src/services/api.ts` 的 `ensureLogin()` 只有两条路：微信小程序 `wx.login`，或 `NODE_ENV=development` 下的 `/user/dev-login`。生产 H5 构建两者都不满足 → 所有需鉴权接口在请求前就抛「登录未完成」，页面只能显示兜底数据（例如记忆曲线页）。
+   - 这涉及 JWT 鉴权范围与匿名访问策略，按 AGENTS.md 需先与用户确认方案（如手机号 / 邮箱登录、微信公众号 OAuth、或受限匿名账号），**本轮未改动**。
+
 ---
 
-## 5. 近期关键修复记录（2026-11-13 基线）
+## 5. 近期关键修复记录
+
+- **2026-11-24 `chore/phase0-ci-and-frontend-tests` 分支**：CI + Vitest/ESLint 质量闸门 + git hooks + 生产构建 API 地址 fail-fast；修复「学习记忆曲线每天看起来一样」（后端投影锚定今日保持率、全部域视图历史与 focus 域对齐；前端兜底总览不再渲染写死曲线 / 节律、节律条日期改用本地时区）。详见 [`session-handoff.md`](session-handoff.md)。
+
+### 2026-11-13 基线
 
 - **`941fc97`**：修复从「学习档案 -> 历史未交卷测验」进入答题页时，因条件提前 `return` 位于 `useMemo` 之前导致的 `Minified React error #310`（Hook 数量不一致崩溃）。
 - **`d46b49c`**：修复微信小程序从二级页返回后底部 `custom-tab-bar` 无法点击的问题：

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { View, Canvas } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import type { RetentionCurvePoint } from '../../services/api'
+import { CHART_PADDING, prepareRetentionChart } from './chartModel'
 import './index.scss'
 
 interface RetentionCurveCanvasProps {
@@ -15,41 +16,26 @@ function drawRetentionChart(
   height: number,
   points: RetentionCurvePoint[],
 ) {
-  const safePoints =
-    points.length >= 2
-      ? points
-      : [
-          { day_label: '上次巩固', retention_pct: 84, baseline_pct: 84 },
-          { day_label: '测前遗忘', retention_pct: 52, baseline_pct: 52, is_today: true },
-          { day_label: '本次巩固', retention_pct: 86, baseline_pct: 42, is_recovery: true },
-          { day_label: '+14天', retention_pct: 64, baseline_pct: 22 },
-        ]
+  const model = prepareRetentionChart(points, width, height)
+  const { layout, activeStart } = model
+  const padL = CHART_PADDING.left
+  const padR = CHART_PADDING.right
+  const padT = CHART_PADDING.top
+  const padB = CHART_PADDING.bottom
 
   ctx.clearRect(0, 0, width, height)
-
-  const padL = 16
-  const padR = 16
-  const padT = 24
-  const padB = 22
-  const chartW = Math.max(40, width - padL - padR)
-  const chartH = Math.max(40, height - padT - padB)
-
-  const toY = (pct: number) => padT + ((100 - Math.max(10, Math.min(100, pct))) / 90) * chartH
-  const toX = (idx: number) =>
-    padL + (safePoints.length === 1 ? chartW / 2 : (idx / (safePoints.length - 1)) * chartW)
-
   ctx.save()
 
   // 顶部 100% 浅灰基线
   ctx.strokeStyle = 'rgba(20, 21, 26, 0.06)'
   ctx.lineWidth = 1
   ctx.beginPath()
-  ctx.moveTo(padL, toY(100))
-  ctx.lineTo(width - padR, toY(100))
+  ctx.moveTo(padL, model.y100)
+  ctx.lineTo(width - padR, model.y100)
   ctx.stroke()
 
   // 50% 临界警戒虚线
-  const y50 = toY(50)
+  const y50 = model.y50
   ctx.setLineDash([4, 4])
   ctx.strokeStyle = '#d8685a'
   ctx.lineWidth = 1.2
@@ -64,40 +50,31 @@ function drawRetentionChart(
   ctx.fillText('50% 警戒', Math.max(padL, width - padR - 46), y50 - 5)
 
   // 下层：未巩固自然遗忘对照虚线（仅当存在 baseline_pct 且分叉后绘制）
-  const hasBaseline = safePoints.some((p) => typeof p.baseline_pct === 'number')
-  if (hasBaseline) {
+  if (model.hasBaseline) {
     ctx.setLineDash([3, 3])
     ctx.strokeStyle = 'rgba(20, 21, 26, 0.30)'
     ctx.lineWidth = 1.8
     ctx.beginPath()
-    safePoints.forEach((pt, i) => {
-      const x = toX(i)
-      const y = toY(typeof pt.baseline_pct === 'number' ? pt.baseline_pct : pt.retention_pct)
-      if (i === 0) ctx.moveTo(x, y)
-      else ctx.lineTo(x, y)
+    layout.forEach((pt, i) => {
+      if (i === 0) ctx.moveTo(pt.x, pt.baselineY)
+      else ctx.lineTo(pt.x, pt.baselineY)
     })
     ctx.stroke()
     ctx.setLineDash([])
   }
 
   // 上层：本次巩固/当前稳定曲线 + 柔雾蓝面积填充
-  const recoveryIdx = safePoints.findIndex((p) => p.is_recovery)
-  const todayIdx = safePoints.findIndex((p) => p.is_today)
-  const activeStart = todayIdx >= 0 ? todayIdx : recoveryIdx > 0 ? recoveryIdx - 1 : 0
-
   const grad = ctx.createLinearGradient(0, padT, 0, height - padB)
   grad.addColorStop(0, 'rgba(37, 99, 235, 0.20)')
   grad.addColorStop(1, 'rgba(37, 99, 235, 0.0)')
 
   ctx.beginPath()
-  for (let i = activeStart; i < safePoints.length; i++) {
-    const x = toX(i)
-    const y = toY(safePoints[i].retention_pct)
-    if (i === activeStart) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
+  for (let i = activeStart; i < layout.length; i++) {
+    if (i === activeStart) ctx.moveTo(layout[i].x, layout[i].y)
+    else ctx.lineTo(layout[i].x, layout[i].y)
   }
-  ctx.lineTo(toX(safePoints.length - 1), height - padB)
-  ctx.lineTo(toX(activeStart), height - padB)
+  ctx.lineTo(layout[layout.length - 1].x, height - padB)
+  ctx.lineTo(layout[activeStart].x, height - padB)
   ctx.closePath()
   ctx.fillStyle = grad
   ctx.fill()
@@ -107,18 +84,14 @@ function drawRetentionChart(
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   ctx.beginPath()
-  for (let i = 0; i < safePoints.length; i++) {
-    const x = toX(i)
-    const y = toY(safePoints[i].retention_pct)
-    if (i === 0) ctx.moveTo(x, y)
-    else ctx.lineTo(x, y)
-  }
+  layout.forEach((pt, i) => {
+    if (i === 0) ctx.moveTo(pt.x, pt.y)
+    else ctx.lineTo(pt.x, pt.y)
+  })
   ctx.stroke()
 
   // 关键锚点与真实数值/增益标注
-  safePoints.forEach((pt, idx) => {
-    const x = toX(idx)
-    const y = toY(pt.retention_pct)
+  layout.forEach(({ x, y, point: pt }) => {
     if (pt.is_actual) {
       ctx.fillStyle = '#ffffff'
       ctx.beginPath()
@@ -147,25 +120,16 @@ function drawRetentionChart(
       ctx.lineWidth = 1.5
       ctx.stroke()
 
-      const prePt = todayIdx >= 0 ? safePoints[todayIdx] : null
-      const delta = prePt ? Math.round(pt.retention_pct - prePt.retention_pct) : 0
-      const labelTxt =
-        delta > 0 ? `巩固 ${Math.round(pt.retention_pct)}% (+${delta}%)` : `保持 ${Math.round(pt.retention_pct)}%`
       ctx.fillStyle = '#2563eb'
       ctx.font = '700 10px "PingFang SC", sans-serif'
-      ctx.fillText(labelTxt, Math.min(x + 6, width - 108), Math.max(12, y - 9))
+      ctx.fillText(model.recoveryLabel || '', Math.min(x + 6, width - 108), Math.max(12, y - 9))
     }
   })
 
   // X 轴标签
   ctx.fillStyle = '#969aa6'
   ctx.font = '500 9.5px "PingFang SC", sans-serif'
-  const firstLabel = safePoints[0].day_label
-  const lastLabel = safePoints[safePoints.length - 1].day_label
-  ctx.fillText(firstLabel, padL, height - 5)
-  const midIdx = recoveryIdx >= 0 ? recoveryIdx : Math.floor(safePoints.length / 2)
-  ctx.fillText(safePoints[midIdx].day_label, Math.max(padL + 42, toX(midIdx) - 18), height - 5)
-  ctx.fillText(lastLabel, Math.max(padL + 96, width - padR - lastLabel.length * 9), height - 5)
+  model.axisLabels.forEach((lbl) => ctx.fillText(lbl.text, lbl.x, height - 5))
 
   ctx.restore()
 }

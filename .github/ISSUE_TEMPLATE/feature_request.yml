@@ -1,0 +1,44 @@
+name: ✨ 功能建议 / 体验优化
+description: 新功能、交互或界面改进建议
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提示：涉及前端样式或界面的改动，需要先在 `docs/02-design/prototypes/` 做可交互 HTML 原型并经确认后再改代码（见 AGENTS.md）。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决什么问题
+      description: 现在哪里不方便、不好用？谁会遇到？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议的方案
+      description: 期望的交互或效果，可附参考截图 / 链接
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 影响范围
+      multiple: true
+      options:
+        - 前端界面（需要原型确认）
+        - 前端逻辑
+        - 后端接口 / 数据模型
+        - 鉴权 / 数据隔离 / 费用阈值（需先与产品负责人确认）
+        - 文档 / 工程流程
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 考虑过的其他方案
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 确认
+      options:
+        - label: 已对照 docs/PRODUCT.md，确认不与现有产品边界冲突（或已在上方说明冲突点）

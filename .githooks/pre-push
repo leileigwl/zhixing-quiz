@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# 知行快刷 pre-push：推送前跑与 CI 相同的完整闸门（构建除外，构建交给 CI）。
+# 紧急跳过：git push --no-verify
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo "▶ frontend: pnpm check:all（lint + typecheck + test:coverage）"
+cd "$ROOT/frontend"
+pnpm check:all
+
+echo "▶ backend: ruff + pytest"
+cd "$ROOT/backend"
+uv run ruff check app tests
+uv run pytest -q
+
+echo "✔ pre-push passed"

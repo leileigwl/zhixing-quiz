@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# 知行快刷 pre-commit：只检查本次暂存的改动，保持提交够快。
+# 启用：bash scripts/setup-git-hooks.sh（等价于 git config core.hooksPath .githooks）
+# 紧急跳过：git commit --no-verify（CI 仍会兜底）
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+STAGED="$(git diff --cached --name-only --diff-filter=ACMR)"
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+# 防止误提交密钥 / 本地数据
+BAD="$(echo "$STAGED" | grep -E '(^|/)\.env(\..+)?$' | grep -v '\.env\.example$' || true)"
+BAD_DATA="$(echo "$STAGED" | grep -E '^backend/data/' || true)"
+if [ -n "$BAD$BAD_DATA" ]; then
+  echo "✖ pre-commit: 禁止提交 .env / backend/data/：" >&2
+  echo "$BAD$BAD_DATA" >&2
+  exit 1
+fi
+
+FRONT_FILES="$(echo "$STAGED" | grep -E '^frontend/.*\.(ts|tsx|js|mjs)$' || true)"
+if [ -n "$FRONT_FILES" ]; then
+  echo "▶ frontend: eslint（暂存文件）+ tsc"
+  cd "$ROOT/frontend"
+  LINT_TARGETS="$(echo "$FRONT_FILES" | sed 's#^frontend/##' | grep -E '^(src|config|test)/' || true)"
+  if [ -n "$LINT_TARGETS" ]; then
+    # shellcheck disable=SC2086
+    pnpm exec eslint $LINT_TARGETS
+  fi
+  pnpm typecheck
+  cd "$ROOT"
+fi
+
+BACK_FILES="$(echo "$STAGED" | grep -E '^backend/.*\.py$' || true)"
+if [ -n "$BACK_FILES" ]; then
+  echo "▶ backend: ruff check app tests"
+  cd "$ROOT/backend"
+  uv run ruff check app tests
+  cd "$ROOT"
+fi
+
+echo "✔ pre-commit passed"
