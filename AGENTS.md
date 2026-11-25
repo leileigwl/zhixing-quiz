@@ -35,6 +35,9 @@ pnpm typecheck       # tsc --noEmit
 pnpm test:coverage   # Vitest + 覆盖率阈值（见 frontend/vitest.config.ts）
 TARO_APP_API_BASE_URL=https://api.example.com TARO_APP_ALLOW_PLACEHOLDER_API=1 pnpm build:h5
 TARO_APP_API_BASE_URL=https://api.example.com TARO_APP_ALLOW_PLACEHOLDER_API=1 pnpm build:weapp
+# H5 端到端（V3.0 起，CI e2e job）：基于上面的 H5 产物，接口全部 mock
+pnpm exec playwright install --with-deps chromium   # 首次
+pnpm e2e
 ```
 
 - 一键本地前端闸门：`pnpm check:all`（lint + typecheck + test:coverage）。

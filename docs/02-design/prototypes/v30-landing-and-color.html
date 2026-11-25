@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>知行快刷 V3.0 · 门头页与彩色视觉体系（设计记录）</title>
+<style>
+body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f4fb;color:#17162b;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding:32px 20px 64px}
+.hero{border-radius:28px;padding:40px 32px;color:#fff;background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 52%,#db2777 100%)}
+.hero h1{margin:0 0 8px;font-size:34px} .note{background:#fff;border-radius:18px;padding:16px 20px;margin:20px 0;box-shadow:0 6px 18px rgba(23,22,43,.05)}
+h2{margin:36px 0 12px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.tok{background:#fff;border-radius:14px;padding:12px;display:grid;grid-template-columns:36px 1fr;column-gap:10px}
+.tok i{grid-row:span 2;width:36px;height:36px;border-radius:10px} .tok span{font-size:12.5px;color:#62617a}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden;font-size:14px} td,th{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}
+.sw{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:700}
+.grads{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px} .grads div{height:72px;border-radius:18px;color:#fff;font-weight:700;padding:12px}
+ul li{margin:4px 0} code{background:#ecebf7;padding:1px 6px;border-radius:6px}
+</style></head><body><div class="wrap">
+<div class="hero"><h1>知行快刷 V3.0 · 门头页与彩色视觉体系</h1><div>设计记录（2026-11-26）。用户 2026-11-26 授权直接上线，免确认原型；本文件按 AGENTS.md 留存设计依据。</div></div>
+<div class="note">实现即真相：页面以 <code>frontend/src/pages/landing</code>、<code>frontend/src/app.scss</code>（token）与各页 scss 末尾「V3.0 色彩层」为准。线上截图见 PR 描述。</div>
+
+<h2>1. 参考官网提炼的版式要点（只借鉴结构，不用其素材 / 文案 / logo）</h2>
+<ul>
+<li>顶部细导航：品牌 + 锚点 + 一个强 CTA（登录）；滚动时吸顶、半透明毛玻璃。</li>
+<li>Hero：眉标胶囊（一句定位）→ 两行大标题（关键词渐变着色）→ 一段说明 → 主 / 次两个按钮 → 一行信任小字；右侧放产品画面卡片（本项目为 CSS/SVG 绘制，标「界面示意」）。</li>
+<li>Hero 下方一条「事实条」（4 格大字 + 小字）。参考站多用数据条；本项目没有可公开的真实统计，只写产品能力（3 题起 / SM-2 / 4 种格式 / 3 端同步），不虚构用户数。</li>
+<li>功能分区：小标题（kicker）+ 大标题 + 一句说明 + 卡片网格，每张卡一个主色图标块 + 要点列表；各功能一种辅助色。</li>
+<li>编号流程 01 / 02 / 03，浅色渐变底分区，与上下分区拉开节奏。</li>
+<li>原理分区：左文右图（曲线示意图，明确标「示意」）。</li>
+<li>FAQ 折叠 → 收尾 CTA 渐变色带 → 简洁页脚（品牌、链接、版权、备案号链接工信部）。</li>
+<li>不做 logo 墙：没有可展示的合作方，避免虚假背书。</li>
+</ul>
+
+<h2>2. 色彩 token</h2>
+<div class="grid"><div class="tok"><i style="background:#5b4cf0"></i><b>--brand-500</b><span>#5b4cf0 · 主色靛紫</span></div>
+<div class="tok"><i style="background:#4a3ad8"></i><b>--brand-600</b><span>#4a3ad8 · 主色深</span></div>
+<div class="tok"><i style="background:#3a2bb5"></i><b>--brand-700</b><span>#3a2bb5 · 主色文字</span></div>
+<div class="tok"><i style="background:#f0eeff"></i><b>--brand-50</b><span>#f0eeff · 主色浅底</span></div>
+<div class="tok"><i style="background:#ff6b4a"></i><b>--coral-500</b><span>#ff6b4a · 珊瑚</span></div>
+<div class="tok"><i style="background:#c2410c"></i><b>--coral-700</b><span>#c2410c · 珊瑚文字</span></div>
+<div class="tok"><i style="background:#1fbf8f"></i><b>--mint-500</b><span>#1fbf8f · 薄荷</span></div>
+<div class="tok"><i style="background:#047857"></i><b>--mint-700</b><span>#047857 · 薄荷文字</span></div>
+<div class="tok"><i style="background:#3b9cf0"></i><b>--sky-500</b><span>#3b9cf0 · 天蓝</span></div>
+<div class="tok"><i style="background:#1d63b0"></i><b>--sky-700</b><span>#1d63b0 · 天蓝文字</span></div>
+<div class="tok"><i style="background:#ffc83d"></i><b>--butter-500</b><span>#ffc83d · 奶油黄</span></div>
+<div class="tok"><i style="background:#ec4899"></i><b>--berry-500</b><span>#ec4899 · 莓粉</span></div>
+<div class="tok"><i style="background:#f5f4fb"></i><b>--bg-canvas</b><span>#f5f4fb · 画布</span></div>
+<div class="tok"><i style="background:#17162b"></i><b>--ink-900</b><span>#17162b · 正文</span></div>
+<div class="tok"><i style="background:#62617a"></i><b>--ink-500</b><span>#62617a · 次要文字</span></div></div>
+<h2>3. 渐变</h2>
+<div class="grads"><div style="background:linear-gradient(135deg,#4f46e5,#7c3aed 52%,#db2777)">--grad-hero</div><div style="background:linear-gradient(135deg,#5b4cf0,#7c3aed)">--grad-brand（主按钮）</div><div style="background:linear-gradient(135deg,#ffc83d,#ff8a5b);color:#17162b">--grad-warm（今日待巩固）</div><div style="background:linear-gradient(135deg,#1d63b0,#047857)">待解锁攻坚（新用户）</div></div>
+
+<h2>4. 对比度（WCAG 2.1，正文需 ≥ 4.5:1）</h2>
+<table><tr><th>用法</th><th>样例</th><th>前景 / 背景</th><th>对比度</th><th>结论</th></tr><tr><td>白字 / 主色靛紫（按钮）</td><td><span class="sw" style="background:#5b4cf0;color:#ffffff">Aa 示例</span></td><td>#ffffff / #5b4cf0</td><td>5.62:1</td><td>AA ✓</td></tr>
+<tr><td>白字 / hero 渐变起点</td><td><span class="sw" style="background:#4f46e5;color:#ffffff">Aa 示例</span></td><td>#ffffff / #4f46e5</td><td>6.29:1</td><td>AA ✓</td></tr>
+<tr><td>白字 / hero 渐变中段</td><td><span class="sw" style="background:#7c3aed;color:#ffffff">Aa 示例</span></td><td>#ffffff / #7c3aed</td><td>5.70:1</td><td>AA ✓</td></tr>
+<tr><td>白字 / hero 渐变终点</td><td><span class="sw" style="background:#db2777;color:#ffffff">Aa 示例</span></td><td>#ffffff / #db2777</td><td>4.60:1</td><td>AA ✓</td></tr>
+<tr><td>白字 / 待解锁卡渐变起点</td><td><span class="sw" style="background:#1d63b0;color:#ffffff">Aa 示例</span></td><td>#ffffff / #1d63b0</td><td>6.06:1</td><td>AA ✓</td></tr>
+<tr><td>白字 / 待解锁卡渐变终点</td><td><span class="sw" style="background:#047857;color:#ffffff">Aa 示例</span></td><td>#ffffff / #047857</td><td>5.48:1</td><td>AA ✓</td></tr>
+<tr><td>深字 / 暖色卡起点</td><td><span class="sw" style="background:#ffc83d;color:#17162b">Aa 示例</span></td><td>#17162b / #ffc83d</td><td>11.45:1</td><td>AA ✓</td></tr>
+<tr><td>深字 / 暖色卡终点</td><td><span class="sw" style="background:#ff8a5b;color:#17162b">Aa 示例</span></td><td>#17162b / #ff8a5b</td><td>7.62:1</td><td>AA ✓</td></tr>
+<tr><td>主色深字 / 主色浅底（chip）</td><td><span class="sw" style="background:#f0eeff;color:#3a2bb5">Aa 示例</span></td><td>#3a2bb5 / #f0eeff</td><td>8.38:1</td><td>AA ✓</td></tr>
+<tr><td>珊瑚深字 / 珊瑚浅底</td><td><span class="sw" style="background:#fff0eb;color:#c2410c">Aa 示例</span></td><td>#c2410c / #fff0eb</td><td>4.66:1</td><td>AA ✓</td></tr>
+<tr><td>薄荷深字 / 薄荷浅底</td><td><span class="sw" style="background:#e6f8f1;color:#047857">Aa 示例</span></td><td>#047857 / #e6f8f1</td><td>4.98:1</td><td>AA ✓</td></tr>
+<tr><td>天蓝深字 / 天蓝浅底</td><td><span class="sw" style="background:#e7f2fe;color:#1d63b0">Aa 示例</span></td><td>#1d63b0 / #e7f2fe</td><td>5.35:1</td><td>AA ✓</td></tr>
+<tr><td>次要文字 ink-500 / 白卡</td><td><span class="sw" style="background:#ffffff;color:#62617a">Aa 示例</span></td><td>#62617a / #ffffff</td><td>5.98:1</td><td>AA ✓</td></tr>
+<tr><td>次要文字 ink-500 / 画布</td><td><span class="sw" style="background:#f5f4fb;color:#62617a">Aa 示例</span></td><td>#62617a / #f5f4fb</td><td>5.47:1</td><td>AA ✓</td></tr>
+<tr><td>正文 ink-900 / 画布</td><td><span class="sw" style="background:#f5f4fb;color:#17162b">Aa 示例</span></td><td>#17162b / #f5f4fb</td><td>16.20:1</td><td>AA ✓</td></tr></table>
+<p style="font-size:13px;color:#62617a">已知例外：彩色卡片上的半透明白底小标签（如「重点攻坚」）对比度随渐变位置变化，约 4:1；占位符文字 ink-400 不承载信息。</p>
+
+<h2>5. 排布规则</h2>
+<ul>
+<li>断点不变：&lt;768 手机底部 Dock；768–1099 iPad 竖屏<b>保留底部 Dock</b>（用户 2026-11-25 规则）；≥1100 左侧 232px 侧栏。</li>
+<li>iPad 偏小的根因：设计稿 px 经 pxtransform 转 rem（1rem = 40 设计 px），V2.9 根字号封顶 22Px，iPad 上与手机同大。V3.0：≥768 根字号 <code>clamp(24Px, 2.5vw, 26Px)</code>，≥1100 为 24Px，≥1440 为 25Px；平板内容最大宽 720 → 880。</li>
+<li>首页平板：两列网格 —— 快捷卡（2 张）/ 发起新测验 / 本周完成题数 + 学习概览（进度环 + 大数字）；新用户换成三步引导。宽屏：左 7 份发起测验，右 5 份快捷卡 / 概览 / 本周。</li>
+<li>备案页脚：所有 <code>.zx-rpage</code> 纵向 flex，页脚 <code>margin-top:auto</code>，内容不足一屏也贴底，位于 Dock 留白之上；门头页页脚含备案号并链接 https://beian.miit.gov.cn/ 。</li>
+<li>空状态：三步引导（上传资料 → 出一组题 → 看记忆曲线），每张示意小图左上角标「示意」，与真实数据区分。</li>
+</ul>
+
+<h2>6. 路由</h2>
+<ul><li>未登录访问根路径 → 门头页 <code>#/pages/landing/index</code>；未登录访问应用内页面 → 登录页；已登录访问根路径 → 应用首页；门头页对已登录用户仍可打开。</li><li>门头页仅 H5（小程序 pages 不包含它）。</li></ul>
+</div></body></html>
