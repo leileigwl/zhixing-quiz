@@ -75,8 +75,54 @@ docker compose --env-file backend/.env -f deploy/docker-compose.prod.yml logs -f
 
 - 证书：`systemctl list-timers certbot.timer`；续期后 `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` 自动重载 nginx。
 - H5 回滚：上一版保存在 `/var/www/zhixing-quiz/h5.prev`。
-- MySQL 备份（建议加 cron）：
-  `docker compose ... exec -T mysql sh -c 'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction zhixing_quiz' | gzip > /root/backup/zx-$(date +%F).sql.gz`
+- MySQL 备份：见 §4.1（每日 03:30 自动备份，保留 14 天）。
+
+### 4.1 MySQL 备份与恢复
+
+**自动备份**（2026-11-25 起已在线上启用）：
+
+```bash
+cd /opt/zhixing-quiz
+bash deploy/deploy.sh backup-cron   # 安装 /etc/cron.d/zhixing-quiz-backup：每天 03:30（宿主机时区 Asia/Shanghai）
+bash deploy/backup-mysql.sh         # 立即手动备份一次
+tail -n 20 /var/log/zhixing-quiz-backup.log
+ls -lh /var/backups/zhixing-quiz/
+```
+
+- 脚本 [`deploy/backup-mysql.sh`](../deploy/backup-mysql.sh)：运行时从 `backend/.env` 读取 `MYSQL_PASSWORD` / `MYSQL_DATABASE`，通过 `docker exec -e MYSQL_PWD`（不带值，继承环境变量）传入容器，**cron 文件与进程参数里都不出现密码**；`mysqldump --single-transaction --quick --routines --triggers --events --databases zhixing_quiz`（InnoDB 一致性快照、不锁表）→ gzip。
+- 产物：`/var/backups/zhixing-quiz/zhixing_quiz-YYYYmmdd-HHMMSS.sql.gz`（目录 700、文件 600，仅 root 可读）；先写 `.part` 临时文件，`gzip -t` 可解压 + 含 `CREATE TABLE` + 以 `-- Dump completed` 结尾三项校验通过后才改为正式文件名。
+- 保留：删除修改时间超过 14 天的备份（`RETENTION_DAYS` 可覆盖）；`flock` 防止并发重复执行。
+- 日志：`/var/log/zhixing-quiz-backup.log`（logrotate 每月轮转、保留 6 份）。
+- **只在本机**：备份与数据库在同一块云盘上，防误删/误操作，不防整机或云盘故障。重要数据上线后建议再加异地副本（如阿里云 OSS 或定期下载到本地），或开启 ECS 云盘快照。
+
+**恢复**（会覆盖线上库，先停写入）：
+
+```bash
+cd /opt/zhixing-quiz
+C="docker compose --env-file backend/.env -f deploy/docker-compose.prod.yml -p zhixing-quiz-prod"
+F=/var/backups/zhixing-quiz/zhixing_quiz-20261125-213513.sql.gz   # 选要恢复的文件
+gzip -t "$F" && zcat "$F" | grep -c '^CREATE TABLE'                 # 1) 确认文件完好
+
+bash deploy/backup-mysql.sh                                          # 2) 恢复前先给当前库再备份一次
+$C stop api worker                                                   # 3) 停止写入
+
+export MYSQL_PWD="$(grep -E '^MYSQL_PASSWORD=' backend/.env | cut -d= -f2-)"
+MID=$($C ps -q mysql)
+zcat "$F" | docker exec -i -e MYSQL_PWD "$MID" mysql -uroot            # 4) 导入（备份含 CREATE DATABASE/USE 与 DROP TABLE IF EXISTS，按表覆盖）
+unset MYSQL_PWD
+
+$C start api worker                                                  # 5) 恢复服务
+curl -fsS http://127.0.0.1:8010/api/v1/health
+```
+
+- 只想**先演练、不动线上库**：把库名替换后导入临时库，核对后删除（2026-11-25 首次备份已按此演练通过：12 张表、行数与线上一致）：
+
+```bash
+zcat "$F" | sed 's/`zhixing_quiz`/`zq_restore_check`/g' | docker exec -i -e MYSQL_PWD "$MID" mysql -uroot
+docker exec -e MYSQL_PWD "$MID" mysql -uroot -e 'SHOW TABLES FROM zq_restore_check; DROP DATABASE zq_restore_check;'
+```
+
+- 备份文件里只有 `zhixing_quiz` 库，不含 MySQL 用户/权限；Redis（ARQ 队列、限流计数）与 Chroma 向量库、`uploads` 卷不在此备份范围内（向量可由原文档重新入库）。
 
 ## 5. 端口与安全组
 
