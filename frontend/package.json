@@ -18,8 +18,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src config test",
-    "check:all": "pnpm lint && pnpm typecheck && pnpm test:coverage"
+    "lint": "eslint src config test e2e playwright.config.ts",
+    "check:all": "pnpm lint && pnpm typecheck && pnpm test:coverage",
+    "e2e": "playwright test",
+    "e2e:live": "playwright test --project=chromium"
   },
   "browserslist": [
     "last 3 versions",
@@ -43,6 +45,7 @@
   "devDependencies": {
     "@babel/runtime": "^7.21.5",
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "1.65.1",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.6.2",
     "@tarojs/cli": "4.1.11",
     "@tarojs/webpack5-runner": "4.1.11",

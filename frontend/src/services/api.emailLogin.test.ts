@@ -126,6 +126,21 @@ describe('redirectToLogin', () => {
     expect(Taro.reLaunch).not.toHaveBeenCalled()
   })
 
+  it('V3.0：在公开门头页上不跳登录页', async () => {
+    __setCurrentPages([{ route: 'pages/landing/index' }])
+    const api = await loadApi()
+    expect(api.redirectToLogin()).toBe(false)
+    expect(Taro.reLaunch).not.toHaveBeenCalled()
+  })
+
+  it('V3.0：页面栈为空时按 hash 判断门头页', async () => {
+    __setCurrentPages([])
+    window.history.replaceState(null, '', '/#/pages/landing/index')
+    const api = await loadApi()
+    expect(api.redirectToLogin()).toBe(false)
+    window.history.replaceState(null, '', '/')
+  })
+
   it('getCurrentPages 异常时仍可跳转', async () => {
     const api = await loadApi()
     vi.mocked(Taro.getCurrentPages).mockImplementationOnce(() => {

@@ -65,8 +65,8 @@ function drawRetentionChart(
 
   // 上层：本次巩固/当前稳定曲线 + 柔雾蓝面积填充
   const grad = ctx.createLinearGradient(0, padT, 0, height - padB)
-  grad.addColorStop(0, 'rgba(37, 99, 235, 0.20)')
-  grad.addColorStop(1, 'rgba(37, 99, 235, 0.0)')
+  grad.addColorStop(0, 'rgba(91, 76, 240, 0.22)')
+  grad.addColorStop(1, 'rgba(91, 76, 240, 0.0)')
 
   ctx.beginPath()
   for (let i = activeStart; i < layout.length; i++) {
@@ -79,7 +79,7 @@ function drawRetentionChart(
   ctx.fillStyle = grad
   ctx.fill()
 
-  ctx.strokeStyle = '#18191e'
+  ctx.strokeStyle = '#4a3ad8'
   ctx.lineWidth = 2.4
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
@@ -97,7 +97,7 @@ function drawRetentionChart(
       ctx.beginPath()
       ctx.arc(x, y, 4, 0, Math.PI * 2)
       ctx.fill()
-      ctx.strokeStyle = '#18191e'
+      ctx.strokeStyle = '#4a3ad8'
       ctx.lineWidth = 2
       ctx.stroke()
 
@@ -112,7 +112,7 @@ function drawRetentionChart(
       ctx.fill()
     }
     if (pt.is_recovery) {
-      ctx.fillStyle = '#2563eb'
+      ctx.fillStyle = '#5b4cf0'
       ctx.beginPath()
       ctx.arc(x, y, 4.5, 0, Math.PI * 2)
       ctx.fill()
@@ -120,7 +120,7 @@ function drawRetentionChart(
       ctx.lineWidth = 1.5
       ctx.stroke()
 
-      ctx.fillStyle = '#2563eb'
+      ctx.fillStyle = '#5b4cf0'
       ctx.font = '700 10px "PingFang SC", sans-serif'
       ctx.fillText(model.recoveryLabel || '', Math.min(x + 6, width - 108), Math.max(12, y - 9))
     }

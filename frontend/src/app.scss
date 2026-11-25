@@ -5,6 +5,26 @@ html {
   font-size: clamp(16Px, 5.3333vw, 22Px);
 }
 
+/* V3.0：平板 / 宽屏放大根字号（设计稿 px 经 pxtransform 转 rem，1rem = 40 设计 px）。
+   V2.9 根字号封顶 22Px，iPad 竖屏上文字与控件只有手机大小、整体像被缩小（用户 2026-11-26 截图反馈） */
+@media (min-width: 768px) {
+  html {
+    font-size: clamp(24Px, 2.5vw, 26Px);
+  }
+}
+
+@media (min-width: 1100px) {
+  html {
+    font-size: 24Px;
+  }
+}
+
+@media (min-width: 1440px) {
+  html {
+    font-size: 25Px;
+  }
+}
+
 taro-textarea-core textarea,
 taro-textarea-core .taro-textarea,
 .taro-textarea,
@@ -62,31 +82,59 @@ scroll-view {
 
 :root,
 page {
-  --bg-canvas: #f6f5f1;
+  /* ---- V3.0 色彩体系（2026-11-26，用户授权直接上线；原型记录 docs/02-design/prototypes/v30-landing-and-color.html） ----
+     主色靛紫 + 珊瑚 / 薄荷 / 天蓝 / 奶油黄 / 莓粉 辅助色；文字色均满足 WCAG AA（≥4.5:1，见 v30 原型对比度表） */
+  --brand-500: #5b4cf0;
+  --brand-600: #4a3ad8;
+  --brand-700: #3a2bb5;
+  --brand-50: #f0eeff;
+  --brand-100: #e2defe;
+  --coral-500: #ff6b4a;
+  --coral-700: #c2410c;
+  --coral-50: #fff0eb;
+  --mint-500: #1fbf8f;
+  --mint-700: #047857;
+  --mint-50: #e6f8f1;
+  --sky-500: #3b9cf0;
+  --sky-700: #1d63b0;
+  --sky-50: #e7f2fe;
+  --butter-500: #ffc83d;
+  --butter-700: #8a5a00;
+  --butter-50: #fff6d9;
+  --berry-500: #ec4899;
+  --berry-700: #be185d;
+  --berry-50: #fdeaf4;
+  --grad-hero: linear-gradient(135deg, #4f46e5 0%, #7c3aed 52%, #db2777 100%);
+  --grad-brand: linear-gradient(135deg, #5b4cf0 0%, #7c3aed 100%);
+  --grad-warm: linear-gradient(135deg, #ffc83d 0%, #ff8a5b 100%);
+  --grad-cool: linear-gradient(135deg, #3b9cf0 0%, #1fbf8f 100%);
+
+  --bg-canvas: #f5f4fb;
   --surface-card: #ffffff;
-  --surface-soft: #efeff3;
-  --surface-stone: #e9e6dc;
-  --ink-900: #18191e;
-  --ink-700: #3d404b;
-  --ink-500: #6e7280;
-  --ink-400: #969aa6;
-  --hairline: rgba(20, 21, 26, 0.08);
-  --accent-butter: #f4d06f;
-  --accent-sky: #cbe5f5;
-  --accent-sky-deep: #4f94c4;
-  --ds-blue: #2563eb;
-  --ds-bg: #eef4ff;
-  --ds-border: rgba(37, 99, 235, 0.24);
-  --ok: #165e35;
-  --ok-bg: #f0f9f3;
-  --ok-border: rgba(34, 150, 82, 0.35);
-  --warn-red: #d8685a;
-  --warn-bg: #fdf0ee;
-  --warn-border: rgba(216, 104, 90, 0.35);
-  --pocket-blue: #dcecf7;
-  --pocket-butter: #f5e2aa;
-  --pocket-purple: #e4def9;
-  --pocket-sage: #d9eddf;
+  --surface-soft: #efeef7;
+  --surface-stone: #e6e3f5;
+  --ink-900: #17162b;
+  --ink-700: #3a3953;
+  --ink-600: #4d4c66;
+  --ink-500: #62617a;
+  --ink-400: #8e8da4;
+  --hairline: rgba(23, 22, 43, 0.08);
+  --accent-butter: #ffd166;
+  --accent-sky: #cfe6ff;
+  --accent-sky-deep: #1d63b0;
+  --ds-blue: #4a3ad8;
+  --ds-bg: #f0eeff;
+  --ds-border: rgba(91, 76, 240, 0.28);
+  --ok: #047857;
+  --ok-bg: #e6f8f1;
+  --ok-border: rgba(31, 191, 143, 0.4);
+  --warn-red: #d4462f;
+  --warn-bg: #fff0eb;
+  --warn-border: rgba(255, 107, 74, 0.4);
+  --pocket-blue: #cfe6ff;
+  --pocket-butter: #ffe7a3;
+  --pocket-purple: #e2defe;
+  --pocket-sage: #c9f0de;
 }
 
 page,
@@ -136,10 +184,11 @@ button {
   width: 100%;
   height: 96px;
   border-radius: 999px;
-  background: var(--ink-900);
+  background: var(--grad-brand);
   color: #ffffff;
   font-size: 28px;
   font-weight: 600;
+  box-shadow: 0 14px 30px -12px rgba(91, 76, 240, 0.55);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -296,7 +345,7 @@ button {
   }
 
   .zx-btn-obsidian:hover {
-    background: #2b2d35;
+    background: linear-gradient(135deg, #4a3ad8 0%, #6d28d9 100%);
   }
 
   .zx-hover-lift {
@@ -313,17 +362,29 @@ button {
   }
 }
 
+/* V3.0 粘底页脚：页面容器纵向 flex，备案页脚 margin-top:auto，内容不足一屏时也贴在底部（Dock 留白之上） */
+.zx-rpage {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.zx-rpage > .zx-icp {
+  margin-top: auto;
+}
+
 @media (min-width: 768px) {
-  /* 页面容器：内容最大宽 720 居中（左右至少 32） */
+  /* 页面容器：V3.0 平板竖屏内容最大宽 720 → 880 居中（左右至少 40），配合根字号放大 */
   .zx-rpage {
-    padding-top: 28Px !important;
-    padding-left: max(32Px, calc((100% - 720Px) / 2)) !important;
-    padding-right: max(32Px, calc((100% - 720Px) / 2)) !important;
+    padding-top: 32Px !important;
+    padding-left: max(40Px, calc((100% - 880Px) / 2)) !important;
+    padding-right: max(40Px, calc((100% - 880Px) / 2)) !important;
   }
 
   .bg-pill-wrap {
-    left: max(32Px, calc((100% - 720Px) / 2));
-    right: max(32Px, calc((100% - 720Px) / 2));
+    left: max(40Px, calc((100% - 880Px) / 2));
+    right: max(40Px, calc((100% - 880Px) / 2));
   }
 }
 

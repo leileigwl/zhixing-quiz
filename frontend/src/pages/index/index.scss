@@ -737,3 +737,309 @@
   }
 }
 /* #endif */
+
+/* =========================================================
+   V3.0 色彩层 + 学习概览 / 三步引导 + 平板排布（2026-11-26）
+   ========================================================= */
+.monogram-circle {
+  background: var(--grad-brand);
+  color: #ffffff;
+}
+
+.topbar-badge {
+  background: var(--brand-50);
+  color: var(--brand-700);
+}
+
+.mini-tile.is-butter {
+  background: var(--grad-warm);
+  box-shadow: 0 18px 36px -18px rgba(255, 122, 69, 0.6);
+}
+
+.mini-tile.is-sky {
+  background: var(--grad-brand);
+  box-shadow: 0 18px 36px -18px rgba(91, 76, 240, 0.6);
+}
+
+.mini-tile.is-sky-cold {
+  background: linear-gradient(135deg, #1d63b0 0%, #047857 100%);
+  box-shadow: 0 18px 36px -18px rgba(29, 99, 176, 0.55);
+}
+
+.mini-tile.is-sky,
+.mini-tile.is-sky-cold {
+  .mini-tag {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+
+  .mini-arrow,
+  .mini-val {
+    color: #ffffff;
+  }
+
+  .mini-sub {
+    color: rgba(255, 255, 255, 0.92);
+  }
+}
+
+.mini-tile.is-butter .mini-tag {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.mini-tile.is-butter .mini-sub {
+  color: rgba(23, 22, 43, 0.78);
+}
+
+.mini-val {
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.quick-chip {
+  background: var(--brand-50);
+  color: var(--brand-700);
+}
+
+.tool-chip.is-on {
+  background: var(--brand-600);
+  color: #ffffff;
+}
+
+.seg-item.is-on {
+  color: var(--brand-700);
+}
+
+/* 学习概览卡 */
+.home-overview-card {
+  background: var(--surface-card);
+  border-radius: 40px;
+  padding: 28px;
+  box-shadow: 0 12px 32px rgba(58, 43, 181, 0.06);
+  margin-bottom: 24px;
+}
+
+.home-overview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.home-overview-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--ink-900);
+}
+
+.home-overview-link {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--brand-700);
+}
+
+.home-overview-body {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.home-overview-ring {
+  width: 180px;
+  height: 180px;
+}
+
+.home-overview-stats {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ov-stat {
+  border-radius: 26px;
+  padding: 18px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ov-stat.is-coral {
+  background: var(--coral-50);
+}
+
+.ov-stat.is-mint {
+  background: var(--mint-50);
+}
+
+.ov-stat.is-brand {
+  background: var(--brand-50);
+}
+
+.ov-num {
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.ov-stat.is-coral .ov-num {
+  color: var(--coral-700);
+}
+
+.ov-stat.is-mint .ov-num {
+  color: var(--mint-700);
+}
+
+.ov-stat.is-brand .ov-num {
+  color: var(--brand-700);
+}
+
+.ov-lbl {
+  font-size: 20px;
+  color: var(--ink-600);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+/* #ifdef h5 */
+@media (min-width: 768px) {
+  /* 平板竖屏（768–1099，保留底部 Dock）：两列网格，卡片放大、纵向铺满 */
+  .home-topbar {
+    margin-bottom: 22Px;
+  }
+
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'bento bento'
+      'comp comp'
+      'rhythm overview';
+    gap: 18Px;
+    align-items: stretch;
+  }
+
+  .home-grid.is-cold {
+    grid-template-areas:
+      'bento bento'
+      'comp comp'
+      'onb onb'
+      'rhythm rhythm';
+  }
+
+  .home-grid .mini-bento-grid {
+    grid-area: bento;
+    margin-bottom: 0;
+    gap: 18Px;
+  }
+
+  .home-grid .composer-card {
+    grid-area: comp;
+    margin-bottom: 0;
+  }
+
+  .home-grid .home-rhythm-card {
+    grid-area: rhythm;
+  }
+
+  .home-grid .home-overview-card {
+    grid-area: overview;
+    margin-bottom: 0;
+    border-radius: 26Px;
+    padding: 20Px 22Px;
+  }
+
+  .home-grid .home-onboarding {
+    grid-area: onb;
+    margin-bottom: 0;
+    border-radius: 26Px;
+    padding: 22Px;
+  }
+
+  .mini-tile {
+    min-height: 200Px;
+    padding: 22Px 24Px;
+  }
+
+  .composer-card {
+    padding: 26Px;
+  }
+
+  .composer-textarea {
+    height: 190Px;
+  }
+
+  .home-rhythm-card {
+    padding: 20Px 22Px 18Px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .home-rhythm-card .zx-bar-track {
+    height: 150Px;
+    width: 26Px;
+  }
+
+  .home-rhythm-title {
+    font-size: 17Px;
+  }
+
+  .home-rhythm-sub {
+    font-size: 14Px;
+  }
+
+  .home-overview-body {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16Px;
+  }
+
+  .home-overview-ring {
+    align-self: center;
+    width: 150Px;
+    height: 150Px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .home-grid {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-areas:
+      'comp bento'
+      'comp overview'
+      'comp rhythm';
+    grid-template-rows: auto auto 1fr;
+    gap: 20Px;
+    align-items: start;
+  }
+
+  .home-grid.is-cold {
+    grid-template-areas:
+      'comp bento'
+      'comp rhythm'
+      'onb onb';
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .home-grid .home-overview-card {
+    padding: 18Px 20Px;
+  }
+
+  .home-overview-body {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .home-overview-ring {
+    width: 128Px;
+    height: 128Px;
+  }
+
+  .mini-tile {
+    min-height: 168Px;
+  }
+}
+/* #endif */

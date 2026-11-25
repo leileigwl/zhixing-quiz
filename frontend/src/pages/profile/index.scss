@@ -840,3 +840,121 @@
   display: flex;
   align-items: center;
 }
+
+/* =========================================================
+   V3.0 色彩层（2026-11-26）：渐变资料卡 / 彩色指标 + 进度环 / 品牌按钮 / 印章
+   ========================================================= */
+.profile-hero {
+  background: var(--grad-hero);
+  color: #ffffff;
+  box-shadow: 0 24px 48px -24px rgba(91, 76, 240, 0.6);
+
+  .profile-name {
+    color: #ffffff;
+  }
+
+  .nickname-input {
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--ink-900);
+  }
+
+  .btn-cancel-name {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+
+  .btn-save-name {
+    background: #ffffff;
+    color: var(--brand-700);
+  }
+
+  .profile-motto {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .btn-edit-name-pill {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .btn-edit-name-txt {
+    color: #ffffff;
+  }
+}
+
+.avatar-lg-fallback {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--brand-700);
+}
+
+.stat-box.is-coral {
+  background: var(--coral-50);
+}
+
+.stat-box.is-coral .stat-num {
+  color: var(--coral-700);
+}
+
+.stat-box.is-mint {
+  background: var(--mint-50);
+}
+
+.stat-box.is-mint .stat-num {
+  color: var(--mint-700);
+}
+
+.stat-box.is-coral,
+.stat-box.is-mint {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-box.is-coral .stat-num,
+.stat-box.is-mint .stat-num {
+  font-weight: 900;
+}
+
+.stat-box.is-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.stat-box.is-ring .stat-lbl {
+  margin-bottom: 0;
+}
+
+.stat-ring {
+  width: 120px;
+  height: 120px;
+}
+
+.stat-ring .zx-ring-num {
+  font-size: 28px;
+}
+
+.stamp-badge.is-yes {
+  background: var(--grad-warm);
+}
+
+.stamp-badge.is-selected {
+  background: var(--brand-600);
+  color: #ffffff;
+}
+
+.btn-due-go,
+.due-act-btn.is-primary {
+  background: var(--grad-brand);
+  color: #ffffff;
+}
+
+/* #ifdef h5 */
+@media (min-width: 768px) {
+  .stat-ring {
+    width: 104Px;
+    height: 104Px;
+  }
+}
+/* #endif */

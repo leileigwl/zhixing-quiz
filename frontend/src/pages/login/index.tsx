@@ -99,7 +99,7 @@ export default function LoginPage() {
         title: '请先同意协议',
         content: AGREE_PROMPT,
         confirmText: '同意',
-        confirmColor: '#18191e',
+        confirmColor: '#4a3ad8',
         cancelText: '暂不',
       }),
     ).catch(() => null)
@@ -207,6 +207,11 @@ export default function LoginPage() {
       )}
 
       <View className='login-right'>
+      {process.env.TARO_ENV === 'h5' && (
+        <View className='login-back' role='link' onClick={() => Taro.reLaunch({ url: '/pages/landing/index' })}>
+          <Text>← 返回首页</Text>
+        </View>
+      )}
       <View className='login-col'>
       <View className='login-brand'>
         <View className='brand-mark'>

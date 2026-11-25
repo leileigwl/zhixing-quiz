@@ -1,8 +1,21 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-25 22:20 CST（H5 基础问题修复 PR #10 **已合并并上线**，线上 main `7248f76`）
+> 最后更新：2026-11-26 03:10 CST（**V3.0 进行中**：分支 `feat/v30-landing-visual`，未合并）
 
-## 当前进度（H5 基础问题修复 · 2026-11-25 · 已上线 `7248f76`）
+## 当前进度（V3.0 门头页 + 彩色视觉 + iPad 排布 + 备案贴底 · 2026-11-26 · 进行中）
+
+> 用户 2026-11-26 02:36 授权：配色改得更有颜色、新增公开门头页、修 iPad 排布与备案位置、加 E2E 与 CI，**做好直接上线，免确认原型**（AGENTS.md 原型门控按她的授权跳过，仍在 `docs/02-design/prototypes/v30-landing-and-color.html` 留设计记录）。
+
+- [x] 门头页 `pages/landing/index`（仅 H5）；`authGuard`：未登录根路径 → 门头页，应用内页 → 登录页；已登录根路径 → 首页；门头页 / 登录页为公开页（`redirectToLogin` 在公开页不跳）。
+- [x] V3.0 色彩 token（`app.scss`：靛紫主色 + 珊瑚 / 薄荷 / 天蓝 / 奶油黄 / 莓粉、hero 渐变），首页 / 口袋 / 曲线 / 我的 / 登录 / Dock / 侧栏已上色；`ProgressRing`、`OnboardingSteps`（示意已标注）、`utils/domainColor`。
+- [x] iPad：根字号 ≥768 改 `clamp(24Px, 2.5vw, 26Px)`、内容宽 720→880，首页平板两列网格；备案页脚：`.zx-rpage` 纵向 flex + 页脚 `margin-top:auto`（贴底、在 Dock 之上）。
+- [x] Playwright E2E（`frontend/e2e/`，`pnpm e2e`，mock 接口）本地 39 条通过（首轮）。
+- [ ] 全量闸门、CI e2e job、PR、合并、上线、线上冒烟、截图归档。
+- 截图：项目工作区 `v30-screens/`；截图脚本 `work/shot_v30.mjs`（不入库）。沙箱跑 Playwright 需 `NO_PROXY=127.0.0.1`。
+
+---
+
+## 上一轮（H5 基础问题修复 · 2026-11-25 · 已上线 `7248f76`）
 
 - 回滚：H5 `cp -a /var/www/zhixing-quiz/h5.bak-20261125-2205/. /var/www/zhixing-quiz/h5/`；后端把 `zhixing-quiz-backend:prev-f70bdf3` 重新打成 prod 标签后 `up -d --no-deps api worker`。
 - 线上浏览器冒烟（未登录进登录页、获取验证码先弹同意）Playwright 超时未跑通，curl 正常；本地生产构建 + mock 已验证。

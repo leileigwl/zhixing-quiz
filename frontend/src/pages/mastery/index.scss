@@ -616,3 +616,152 @@
   }
 }
 /* #endif */
+
+/* =========================================================
+   V3.0 色彩层（2026-11-26）：知识域分色胶囊 / 进度环 / 彩色指标 / 难度条
+   ========================================================= */
+.mastery-kicker {
+  color: var(--brand-600);
+}
+
+.domain-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  --tone: var(--brand-500);
+}
+
+.domain-pill.tone-coral {
+  --tone: var(--coral-500);
+}
+
+.domain-pill.tone-mint {
+  --tone: var(--mint-500);
+}
+
+.domain-pill.tone-sky {
+  --tone: var(--sky-500);
+}
+
+.domain-pill.tone-butter {
+  --tone: var(--butter-500);
+}
+
+.domain-pill.tone-berry {
+  --tone: var(--berry-500);
+}
+
+.domain-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--tone);
+  flex-shrink: 0;
+}
+
+.domain-pill.is-on {
+  background: var(--brand-600);
+  color: #ffffff;
+}
+
+.domain-pill.is-on .domain-dot {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85);
+}
+
+.stat-box.is-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.stat-box.is-ring .stat-lbl {
+  margin-bottom: 0;
+  text-align: center;
+}
+
+.stat-ring {
+  width: 132px;
+  height: 132px;
+}
+
+.stat-ring .zx-ring-num {
+  font-size: 30px;
+}
+
+.stat-box.is-coral {
+  background: var(--coral-50);
+}
+
+.stat-box.is-coral .stat-num {
+  color: var(--coral-700);
+}
+
+.stat-box.is-mint {
+  background: var(--mint-50);
+}
+
+.stat-box.is-mint .stat-num {
+  color: var(--mint-700);
+}
+
+.stat-box.is-coral,
+.stat-box.is-mint {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.stat-box.is-coral .stat-num,
+.stat-box.is-mint .stat-num {
+  font-size: 44px;
+  font-weight: 900;
+}
+
+.diff-fill.is-easy {
+  background: linear-gradient(90deg, #6ee7b7 0%, #1fbf8f 100%);
+}
+
+.diff-fill.is-medium {
+  background: linear-gradient(90deg, #ffd166 0%, #ffb020 100%);
+}
+
+.diff-fill.is-hard {
+  background: linear-gradient(90deg, #ff8a5b 0%, #e8573a 100%);
+}
+
+.mastery-compact-cta,
+.md-btn.is-dark {
+  background: var(--grad-brand);
+  color: #ffffff;
+}
+
+.schedule-card {
+  background: linear-gradient(135deg, #f0eeff 0%, #fdeaf4 100%);
+  border-color: rgba(91, 76, 240, 0.18);
+}
+
+.schedule-badge {
+  background: var(--brand-600);
+  color: #ffffff;
+}
+
+.mastery-onboarding {
+  margin-bottom: 24px;
+}
+
+/* #ifdef h5 */
+@media (min-width: 768px) {
+  .stat-ring {
+    width: 112Px;
+    height: 112Px;
+  }
+
+  .mastery-onboarding {
+    border-radius: 26Px;
+    padding: 22Px;
+    margin-bottom: 18Px;
+  }
+}
+/* #endif */
