@@ -1,11 +1,11 @@
 """用户路由"""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 
 from app.core.auth import get_current_user
 from app.models.common import ApiResponse
 from app.models.user import DevLoginRequest, LoginRequest, UpdateProfileRequest
-from app.services import history_service, user_service
+from app.services import avatar_service, history_service, user_service
 
 router = APIRouter(prefix="/user", tags=["user"])
 
@@ -37,6 +37,18 @@ async def update_profile(
 ):
     await user_service.update_profile(user_id, req.nickname, req.avatar_url)
     return ApiResponse.success()
+
+
+@router.post("/avatar", response_model=ApiResponse)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    user_id: int = Depends(get_current_user),
+):
+    """上传头像图片（multipart，字段名 file）；返回新的 avatar_url 并已写回档案。"""
+    # 多读 1 字节即可判断是否超限，避免把超大文件整个读进内存
+    data = await file.read(avatar_service.AVATAR_MAX_BYTES + 1)
+    url = await avatar_service.upload_avatar(user_id, data)
+    return ApiResponse.success(data={"avatar_url": url})
 
 
 @router.get("/quizzes", response_model=ApiResponse)

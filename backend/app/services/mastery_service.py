@@ -290,12 +290,18 @@ async def get_mastery_overview(
     domain_summaries: list[DomainMasterySummary] = []
 
     for r in raw_rows:
+        has_practice = r.get("last_practiced_at") is not None or (
+            int(r.get("easy_total") or 0) + int(r.get("medium_total") or 0) + int(r.get("hard_total") or 0)
+        ) > 0
         days_elapsed = compute_days_elapsed(r.get("last_practiced_at"), now=now)
         live_retention = (
             compute_retention_rate(days_elapsed, r["stability_days"])
             if r.get("last_practiced_at") is not None
             else r["retention_rate"]
         )
+        if not has_practice:
+            # 没答过题就没有保持率：不再给出 85% / 50 分之类的默认值
+            live_retention = 0.0
         easy_acc = round((r["easy_correct"] / r["easy_total"]) * 100.0, 1) if r["easy_total"] else 0.0
         med_acc = round((r["medium_correct"] / r["medium_total"]) * 100.0, 1) if r["medium_total"] else 0.0
         hard_acc = round((r["hard_correct"] / r["hard_total"]) * 100.0, 1) if r["hard_total"] else 0.0
@@ -320,12 +326,13 @@ async def get_mastery_overview(
                 name=r["name"],
                 color_token=r["color_token"],
                 doc_count=r["doc_count"],
-                mastery_score=round(r["mastery_score"], 1),
+                mastery_score=round(r["mastery_score"], 1) if has_practice else 0.0,
                 retention_rate=round(live_retention, 1),
                 stability_days=round(r["stability_days"], 1),
                 due_review_count=r["due_review_count"],
                 recommended_count=plan.recommended_count,
-                below_threshold=(live_retention < 50.0),
+                below_threshold=has_practice and live_retention < 50.0,
+                has_practice=has_practice,
                 next_review_day_label=sched.when_label,
                 next_recommended_difficulty=sched.focus_difficulty,
                 schedule_reason=sched.reason,
@@ -340,16 +347,18 @@ async def get_mastery_overview(
             )
         )
 
+    practiced = [d for d in domain_summaries if d.has_practice]
+    has_practice_data = bool(practiced)
+
     focus: Optional[DomainMasterySummary] = None
     if domain_id is not None:
         focus = next((d for d in domain_summaries if d.domain_id == domain_id), None)
-    if focus is None and domain_summaries:
-        focus = min(domain_summaries, key=lambda d: d.retention_rate)
+    if focus is None and practiced:
+        focus = min(practiced, key=lambda d: d.retention_rate)
 
+    # 新用户 / 只上传了资料还没答题：没有保持率（0 + has_practice_data=False，前端显示空状态）
     overall_retention = (
-        round(sum(d.retention_rate for d in domain_summaries) / len(domain_summaries), 1)
-        if domain_summaries
-        else 85.0
+        round(sum(d.retention_rate for d in practiced) / len(practiced), 1) if practiced else 0.0
     )
     # 曲线左段的真实测验节点必须与右段（focus 域的今日保持率 / 稳定性）属于同一个领域；
     # 全部域视图下此前取的是全局最近测验，与 focus 域的保持率混在一条线上。
@@ -371,22 +380,29 @@ async def get_mastery_overview(
         due_review_count=total_due,
     )
 
+    focus_has_data = bool(focus and focus.has_practice)
     response = MasteryOverviewResponse(
-        streak_days=max(1, streak_days) if domain_summaries else streak_days,
+        streak_days=streak_days,
         overall_retention=overall_retention,
         due_review_total=total_due,
         subscribe_remaining=subscribe_remaining,
         focus_domain=focus,
-        next_plan=next_plan,
+        # 没有真实答题就不给「下次遗忘节点」与示意曲线
+        next_plan=next_plan if focus_has_data else None,
         domains=domain_summaries,
-        retention_curve=build_retention_curve(
-            target_stability,
-            target_retention,
-            mastery_score=target_mastery,
-            history_points=history_points,
+        retention_curve=(
+            build_retention_curve(
+                target_stability,
+                target_retention,
+                mastery_score=target_mastery,
+                history_points=history_points,
+            )
+            if focus_has_data
+            else []
         ),
         weekly_rhythm=build_weekly_rhythm(daily_counts, daily_sessions=daily_sessions),
         seven_day_forecast=forecast,
+        has_practice_data=has_practice_data,
     )
 
     if domain_id is None:

@@ -55,8 +55,9 @@ backend/app/
 
 ## JWT 与安全边界（上线强约束）
 
-- **全站 AI 接口强制鉴权**：`/api/v1/knowledge/*`、`/api/v1/quiz/*`、`/api/v1/report/*`、`/api/v1/user/profile`、`/api/v1/user/quizzes*`、`/api/v1/mastery/*`、`/api/v1/reviews/*` 均强制通过 `get_current_user` 校验 HS256 JWT 并核验 `user_id` 归属（越权返回 `403` / `code=4003`）。
+- **全站 AI 接口强制鉴权**：`/api/v1/knowledge/*`、`/api/v1/quiz/*`、`/api/v1/report/*`、`/api/v1/user/profile`、`/api/v1/user/avatar`、`/api/v1/user/quizzes*`、`/api/v1/mastery/*`、`/api/v1/reviews/*` 均强制通过 `get_current_user` 校验 HS256 JWT 并核验 `user_id` 归属（越权返回 `403` / `code=4003`）。
 - **登录通道（2026-11-24 起）**：微信小程序 `POST /api/v1/user/login`（`wx.login`）；**H5 邮箱验证码** `POST /api/v1/auth/email/send-code` + `/auth/email/verify`（签发同一种 JWT，数据隔离仍按 `user_id`）；`dev-login` 仅非生产。验证码只以 HMAC 摘要存 Redis、10 分钟有效、每码 5 次、单次使用，邮箱 60s 冷却 / 每日 10 次 / 按 IP 限流；`APP_ENV=production` 下缺 SMTP 或 Redis 时该接口返回 503。SMTP 完全由 `SMTP_*` 环境变量配置（163/QQ 授权码 → 阿里云 DirectMail 只改配置）。细节见 [`system-architecture.md` §3 / §4.1](02-design/system-architecture.md)。
+- **空状态不造数据（2026-11-25）**：`/mastery/overview` 以 `has_practice_data` / 域级 `has_practice` 标明是否有真实答题；无答题时保持率为 0、`retention_curve=[]`、`next_plan=null`，前端各页显示空状态，不再用默认 85% / 示意曲线 / 示例知识域兜底。
 - **生产密钥门禁**：`APP_ENV=production` 时校验 `JWT_SECRET` 非默认且 `>= 32` 字符，且强制关闭 `/api/v1/user/dev-login`（返回 `403`）。
 - **分布式 Redis Lua 限流**：`/quiz/generate` 与 `/quiz/generate/async` 通过 Redis Lua 原子滑动窗口脚本在多 Worker 间精确限流（默认每分钟 5 次）。
 

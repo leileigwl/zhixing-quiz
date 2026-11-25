@@ -365,3 +365,16 @@ button {
   }
 }
 /* #endif */
+
+/* 2026-11-25 基础问题修复：卡片标题前线性图标行 + 无数据时的占位数字 */
+.panel-title-row,
+.zx-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stat-num.is-empty {
+  color: var(--ink-400);
+}

@@ -84,3 +84,11 @@ class ServiceUnavailableError(Exception):
     def __init__(self, message: str = "服务暂不可用，请稍后再试"):
         self.message = message
         super().__init__(self.message)
+
+
+class InvalidUploadError(Exception):
+    """上传文件不合法（类型 / 大小），HTTP 400，业务码 4002。"""
+
+    def __init__(self, message: str = "上传文件不合法"):
+        self.message = message
+        super().__init__(message)

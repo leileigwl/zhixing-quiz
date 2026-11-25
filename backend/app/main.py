@@ -16,6 +16,7 @@ from app.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
     ContentFilterError,
+    InvalidUploadError,
     KnowledgeBaseError,
     QuizGenerationError,
     RateLimitError,
@@ -156,6 +157,14 @@ async def report_error_handler(request: Request, exc: ReportGenerationError):
     return JSONResponse(
         status_code=500,
         content=ApiResponse.error(code=5002, message=str(exc)).model_dump(),
+    )
+
+
+@app.exception_handler(InvalidUploadError)
+async def invalid_upload_handler(request: Request, exc: InvalidUploadError):
+    return JSONResponse(
+        status_code=400,
+        content=ApiResponse.error(code=4002, message=str(exc)).model_dump(),
     )
 
 

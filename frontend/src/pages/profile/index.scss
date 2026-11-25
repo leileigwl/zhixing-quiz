@@ -62,6 +62,31 @@
   justify-content: center;
 }
 
+.avatar-uploading {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(24, 25, 30, 0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-spinner {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  animation: zx-avatar-spin 0.8s linear infinite;
+}
+
+@keyframes zx-avatar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .avatar-cam-badge {
   position: absolute;
   right: -4px;
@@ -794,3 +819,24 @@
   }
 }
 /* #endif */
+
+/* 2026-11-25：错题本空状态带「去出题」 */
+.due-empty-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.due-empty-go {
+  min-height: 60px;
+  padding: 0 24px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  font-size: 23px;
+  font-weight: 600;
+  color: var(--ink-900);
+  display: flex;
+  align-items: center;
+}

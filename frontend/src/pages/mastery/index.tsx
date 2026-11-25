@@ -19,6 +19,8 @@ import {
   buildEmptyDueReviews,
   buildFallbackMasteryOverview,
   buildInstantReviewQuiz,
+  domainHasPractice,
+  hasPracticeData,
   invalidateSwrCache,
   readSwrCache,
   writeSwrCache,
@@ -33,6 +35,9 @@ import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
 import ResponsiveNav from '../../components/ResponsiveNav'
 import IcpFooter from '../../components/IcpFooter'
 import { setNavDueCount } from '../../components/SideNav/navBadge'
+import { FOCUS_COMPOSER_EVENT } from '../../components/SideNav'
+import LineIcon from '../../components/LineIcon'
+import EmptyState from '../../components/EmptyState'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
@@ -100,8 +105,12 @@ export default function MasteryPage() {
     [overview, historyItems, docs],
   )
 
+  const hasData = hasPracticeData(effectiveOverview)
+
   const activeDomain = useMemo(() => {
-    if (!selectedDomainId) return effectiveOverview.focus_domain || effectiveOverview.domains[0]
+    if (!selectedDomainId) {
+      return effectiveOverview.focus_domain || effectiveOverview.domains.find((d) => domainHasPractice(d))
+    }
     return (
       effectiveOverview.domains.find((d) => d.domain_id === selectedDomainId) ||
       effectiveOverview.focus_domain
@@ -127,7 +136,21 @@ export default function MasteryPage() {
     () => weeklyDays.reduce((sum, d) => sum + (d.completed_count || 0), 0),
     [weeklyDays],
   )
-  const nextPlan = effectiveOverview.next_plan
+  const nextPlan = hasData ? effectiveOverview.next_plan : null
+  const activeHasPractice = domainHasPractice(activeDomain)
+  const curvePoints = hasData && activeHasPractice ? effectiveOverview.retention_curve || [] : []
+  const diffStats = activeDomain?.difficulty_stats
+  const showDiff =
+    !!activeDomain &&
+    activeHasPractice &&
+    !!diffStats &&
+    diffStats.easy_total + diffStats.medium_total + diffStats.hard_total > 0
+
+  /** 空状态按钮：直接回「今日」并聚焦出题输入框 */
+  const goCompose = () => {
+    Taro.switchTab({ url: '/pages/index/index' })
+    setTimeout(() => Taro.eventCenter.trigger(FOCUS_COMPOSER_EVENT), 320)
+  }
 
   const handleInstantReview = (cards?: DueReviewCardItem[]) => {
     const targetCards = cards || dueReviews.items.slice(0, 6)
@@ -187,12 +210,14 @@ export default function MasteryPage() {
         ))}
       </View>
 
-      <View className={`curve-grid ${nextPlan ? 'has-sched' : 'no-sched'} ${activeDomain ? 'has-diff' : 'no-diff'}`}>
+      <View className={`curve-grid ${nextPlan ? 'has-sched' : 'no-sched'} ${showDiff ? 'has-diff' : 'no-diff'}`}>
       {/* 3 格核心记忆指标 */}
       <View className='stat-grid-3 a-stats'>
         <View className='stat-box'>
           <Text className='stat-lbl'>总体保持率</Text>
-          <Text className='stat-num'>{Math.round(effectiveOverview.overall_retention)}%</Text>
+          <Text className={`stat-num ${hasData ? '' : 'is-empty'}`}>
+            {hasData ? `${Math.round(effectiveOverview.overall_retention)}%` : '—'}
+          </Text>
         </View>
         <View className='stat-box'>
           <Text className='stat-lbl'>当前待复习</Text>
@@ -204,28 +229,40 @@ export default function MasteryPage() {
         </View>
       </View>
 
-      {/* 学习记忆曲线卡片 */}
+      {/* 学习记忆曲线卡片（没有真实答题时显示空状态，不画示意曲线） */}
       <View className='zx-card curve-panel a-curve'>
         <View className='panel-head'>
-          <Text className='panel-title'>
-            {activeDomain ? `${activeDomain.name} · 记忆曲线` : '学习记忆曲线 · R(t) = e^(-t/S)'}
-          </Text>
-          <Text className='panel-warn'>50% 临界提醒</Text>
-        </View>
-        <RetentionCurveCanvas
-          canvasId='mastery-retention-canvas'
-          points={effectiveOverview.retention_curve}
-        />
-        <View className='curve-legend'>
-          <View className='legend-item'>
-            <View className='legend-line is-solid' />
-            <Text>实测与巩固轨迹</Text>
+          <View className='panel-title-row'>
+            <LineIcon name='chart' size={16} />
+            <Text className='panel-title'>
+              {activeDomain && activeHasPractice ? `${activeDomain.name} · 记忆曲线` : '学习记忆曲线'}
+            </Text>
           </View>
-          <View className='legend-item'>
-            <View className='legend-line is-dashed' />
-            <Text>未复习自然遗忘</Text>
-          </View>
+          {curvePoints.length >= 2 && <Text className='panel-warn'>50% 临界提醒</Text>}
         </View>
+        {curvePoints.length >= 2 ? (
+          <>
+            <RetentionCurveCanvas canvasId='mastery-retention-canvas' points={curvePoints} />
+            <View className='curve-legend'>
+              <View className='legend-item'>
+                <View className='legend-line is-solid' />
+                <Text>实测与巩固轨迹</Text>
+              </View>
+              <View className='legend-item'>
+                <View className='legend-line is-dashed' />
+                <Text>未复习自然遗忘</Text>
+              </View>
+            </View>
+          </>
+        ) : (
+          <EmptyState
+            icon='chart'
+            title={hasData ? '这个知识域还没有答题记录' : '还没有答题记录'}
+            desc='完成第一组测验后，这里会按你的真实作答画出记忆曲线，并在保持率跌破 50% 前提醒你巩固。'
+            actionText='去出第一组题'
+            onAction={goCompose}
+          />
+        )}
       </View>
 
       {/* 曲线洞察与下次遗忘预警（纯阅读提示，去除了重复出题大按钮） */}
@@ -233,6 +270,7 @@ export default function MasteryPage() {
         <View className='zx-card schedule-card a-sched'>
           <View className='schedule-head'>
             <View className='schedule-badge'>
+              <LineIcon name='bell' size={13} />
               <Text>下次遗忘节点 · {nextPlan.when_label}</Text>
             </View>
             <Text className='schedule-meta'>
@@ -248,7 +286,10 @@ export default function MasteryPage() {
       {/* 本周学习进度（已完成答题数 + 点击柱子看当日具体内容） */}
       <View className='zx-card curve-panel a-week'>
         <View className='panel-head'>
-          <Text className='panel-title'>本周完成题数</Text>
+          <View className='panel-title-row'>
+            <LineIcon name='calendar' size={16} />
+            <Text className='panel-title'>本周完成题数</Text>
+          </View>
           <Text className='panel-sub'>共 {totalWeekQuestions} 题 · 点击柱子看明细</Text>
         </View>
         <SevenDayRhythmBar
@@ -300,10 +341,13 @@ export default function MasteryPage() {
       </View>
 
       {/* 三维难度掌握分布 */}
-      {activeDomain && (
+      {showDiff && activeDomain && (
         <View className='zx-card curve-panel a-diff'>
           <View className='panel-head'>
-            <Text className='panel-title'>{activeDomain.name} · 难度掌握度</Text>
+            <View className='panel-title-row'>
+              <LineIcon name='layers' size={16} />
+              <Text className='panel-title'>{activeDomain.name} · 难度掌握度</Text>
+            </View>
             <Text className='panel-sub'>稳定性 S = {activeDomain.stability_days} 天</Text>
           </View>
           <View className='diff-bars'>
@@ -345,7 +389,10 @@ export default function MasteryPage() {
       {dueReviews.items.length > 0 && (
         <View className='zx-card curve-panel a-due'>
           <View className='panel-head'>
-            <Text className='panel-title'>待巩固错题 ({dueReviews.items.length})</Text>
+            <View className='panel-title-row'>
+              <LineIcon name='alert' size={16} />
+              <Text className='panel-title'>待巩固错题 ({dueReviews.items.length})</Text>
+            </View>
             <View
               className='mastery-compact-cta zx-press'
               onClick={() => handleInstantReview()}

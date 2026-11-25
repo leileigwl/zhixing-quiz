@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
-import { View, Canvas } from '@tarojs/components'
+import { View, Canvas, Text } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import type { RetentionCurvePoint } from '../../services/api'
-import { CHART_PADDING, prepareRetentionChart } from './chartModel'
+import { CHART_PADDING, hasDrawableCurve, prepareRetentionChart } from './chartModel'
 import './index.scss'
 
 interface RetentionCurveCanvasProps {
@@ -135,7 +135,9 @@ function drawRetentionChart(
 }
 
 export default function RetentionCurveCanvas({ canvasId, points }: RetentionCurveCanvasProps) {
+  const drawable = hasDrawableCurve(points)
   useEffect(() => {
+    if (!drawable) return undefined
     let cancelled = false
 
     const renderWeapp = (attempt = 0) => {
@@ -229,7 +231,15 @@ export default function RetentionCurveCanvas({ canvasId, points }: RetentionCurv
       if (observer) observer.disconnect()
       if (frame && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
     }
-  }, [canvasId, points])
+  }, [canvasId, points, drawable])
+
+  if (!drawable) {
+    return (
+      <View className='zx-curve-wrap is-empty'>
+        <Text className='zx-curve-empty-text'>暂无记忆曲线数据，完成一组测验后自动生成</Text>
+      </View>
+    )
+  }
 
   return (
     <View className='zx-curve-wrap'>

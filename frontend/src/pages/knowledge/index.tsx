@@ -14,6 +14,9 @@ import {
   type MasteryOverviewResponse,
 } from '../../services/api'
 import { groupDocumentsToPockets } from '../../services/v2Adapters'
+import { KB_ACCEPT, KB_SUPPORTED_EXTENSIONS, checkKnowledgeFile } from '../../services/knowledgeUpload'
+import LineIcon from '../../components/LineIcon'
+import EmptyState from '../../components/EmptyState'
 import {
   getBackgroundQuizState,
   startBackgroundQuizGeneration,
@@ -25,8 +28,6 @@ import IcpFooter from '../../components/IcpFooter'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
-const SUPPORTED_EXTENSIONS = ['pdf', 'docx', 'md', 'txt']
-const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   processing: { label: '切片归类中', cls: 'is-processing' },
@@ -151,20 +152,12 @@ export default function KnowledgePage() {
   }
 
   const validateFileMeta = (fileName: string, size: number): string | null => {
-    const ext = (fileName.split('.').pop() || '').toLowerCase()
-    if (!SUPPORTED_EXTENSIONS.includes(ext)) {
-      Taro.showToast({ title: '仅支持 PDF / Word / Markdown / TXT 文件', icon: 'none' })
+    const res = checkKnowledgeFile(fileName, size)
+    if (!res.ok) {
+      Taro.showToast({ title: res.message, icon: 'none' })
       return null
     }
-    if (size === 0) {
-      Taro.showToast({ title: '文件内容不能为空', icon: 'none' })
-      return null
-    }
-    if (size > MAX_FILE_SIZE) {
-      Taro.showToast({ title: '文件大小不能超过 10MB', icon: 'none' })
-      return null
-    }
-    return ext
+    return res.ext
   }
 
   const handleWeappUpload = async () => {
@@ -178,7 +171,7 @@ export default function KnowledgePage() {
       const chooseRes = await Taro.chooseMessageFile({
         count: 1,
         type: 'file',
-        extension: SUPPORTED_EXTENSIONS,
+        extension: [...KB_SUPPORTED_EXTENSIONS],
       })
       const file = chooseRes.tempFiles?.[0]
       if (!file) return
@@ -270,7 +263,8 @@ export default function KnowledgePage() {
           <Text className='kb-title'>你的知识口袋</Text>
         </View>
         <View className='kb-upload-pill zx-press' onClick={handleTriggerUpload}>
-          <Text>{uploading ? '上传中...' : '+ 上传文档'}</Text>
+          <LineIcon name='upload' size={14} color='#ffffff' />
+          <Text>{uploading ? '上传中...' : '上传文档'}</Text>
         </View>
       </View>
 
@@ -278,7 +272,7 @@ export default function KnowledgePage() {
         <input
           ref={fileInputRef}
           type='file'
-          accept='.pdf,.docx,.md,.txt'
+          accept={KB_ACCEPT}
           style={{ display: 'none' }}
           onChange={handleH5FileChange}
         />
@@ -291,6 +285,17 @@ export default function KnowledgePage() {
 
       <View className='kb-grid'>
       <View className='kb-col-pockets'>
+      {pockets.length === 0 ? (
+        <View className='zx-card kb-empty-card'>
+          <EmptyState
+            icon='folder'
+            title='口袋还是空的'
+            desc='上传你自己的笔记或教材（PDF / Word / MD / TXT），会按主题自动归成口袋，之后可以直接基于它出题。'
+            actionText={uploading ? '上传中…' : '上传第一份资料'}
+            onAction={handleTriggerUpload}
+          />
+        </View>
+      ) : (
       <View className='pockets-grid'>
         {pockets.map((bucket, idx) => {
           const isSelected = activeDomain === bucket.name
@@ -310,7 +315,8 @@ export default function KnowledgePage() {
                 <View className='pocket-stitch' />
                 <Text className='pocket-name'>{bucket.name}</Text>
                 <Text className='pocket-meta'>
-                  {bucket.docs.length} 份文档 · 保持 {bucket.retentionPct}%
+                  {bucket.docs.length} 份文档 ·{' '}
+                  {bucket.retentionPct === null ? '未练习' : `保持 ${bucket.retentionPct}%`}
                 </Text>
               </View>
             </View>
@@ -324,14 +330,18 @@ export default function KnowledgePage() {
           </View>
         )}
       </View>
+      )}
 
       </View>
 
       <View className='kb-col-docs'>
       <View className='docs-head'>
-        <Text className='docs-title'>
-          {activeDomain === '全部' ? `全部文档 (${documents.length}/10)` : `${activeDomain} (${filteredDocs.length})`}
-        </Text>
+        <View className='docs-title-row'>
+          <LineIcon name='file' size={15} />
+          <Text className='docs-title'>
+            {activeDomain === '全部' ? `全部文档 (${documents.length}/10)` : `${activeDomain} (${filteredDocs.length})`}
+          </Text>
+        </View>
         {activeDomain !== '全部' && (
           <Text className='docs-reset' onClick={() => setActiveDomain('全部')}>
             查看全部
@@ -341,6 +351,7 @@ export default function KnowledgePage() {
 
       {filteredDocs.length === 0 ? (
         <View className='zx-card empty-docs' onClick={handleTriggerUpload}>
+          <LineIcon name='upload' size={18} color='#6e7280' />
           <Text className='empty-docs-text'>暂无资料，点此上传 PDF / Markdown / Word 装入口袋</Text>
         </View>
       ) : (

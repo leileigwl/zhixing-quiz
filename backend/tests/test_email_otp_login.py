@@ -134,6 +134,33 @@ class TestPureHelpers:
             email_otp_service.normalize_email(bad)
         assert getattr(exc.value, "code", None) == 4011
 
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("julia@gmail.com", "julia@gmail.com"),
+            ("Me@Outlook.COM", "me@outlook.com"),
+            ("first.last+tag@mail.company.com.cn", "first.last+tag@mail.company.com.cn"),
+            ("o'brien@school.edu", "o'brien@school.edu"),
+            ("a_b-c@sub-domain.example.io", "a_b-c@sub-domain.example.io"),
+            ("user@example.technology", "user@example.technology"),
+            ("1234567@qq.com", "1234567@qq.com"),
+            # 中文输入法：全角 ＠ 与句号
+            ("ｊｕｌｉａ＠１６３。ｃｏｍ", "julia@163.com"),
+            # 中文域名 / 中文顶级域 → punycode
+            ("me@例子.中国", "me@xn--fsqu00a.xn--fiqs8s"),
+            ("me@xn--fsqu00a.xn--fiqs8s", "me@xn--fsqu00a.xn--fiqs8s"),
+        ],
+    )
+    def test_normalize_email_accepts_any_provider(self, raw, expected):
+        """邮箱不限类型：常见/企业/学校/长顶级域/中文域名都能登录。"""
+        assert email_otp_service.normalize_email(raw) == expected
+
+    @pytest.mark.parametrize("bad", ["a@-b.com", "a@b-.com", "a@b.c", "a@b.123", "a.@b.com", "a@b..com"])
+    def test_normalize_email_rejects_bad_domains(self, bad):
+        with pytest.raises(Exception) as exc:
+            email_otp_service.normalize_email(bad)
+        assert getattr(exc.value, "code", None) == 4011
+
     def test_generate_code_is_six_digits(self):
         for _ in range(200):
             code = email_otp_service.generate_code()

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { View, Text, Textarea, Image } from '@tarojs/components'
 import Taro, { useDidHide, useDidShow } from '@tarojs/taro'
 import {
@@ -8,6 +8,8 @@ import {
   getKnowledgeDocuments,
   getMasteryOverview,
   getDueReviews,
+  getKnowledgeDocumentStatus,
+  uploadKnowledgeDocumentFromWebFile,
   waitForLogin,
   type UserBrief,
   type KnowledgeDocumentItem,
@@ -22,6 +24,8 @@ import {
   buildFallbackMasteryOverview,
   buildInstantReviewQuiz,
   computeRecommendedCount,
+  domainHasPractice,
+  hasPracticeData,
   readSwrCache,
   writeSwrCache,
 } from '../../services/v2Adapters'
@@ -38,6 +42,8 @@ import { setNavDueCount } from '../../components/SideNav/navBadge'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
 import { useEscClose } from '../../hooks/useEscClose'
+import LineIcon from '../../components/LineIcon'
+import { KB_ACCEPT, checkKnowledgeFile } from '../../services/knowledgeUpload'
 import './index.scss'
 
 const QUICK_TOPICS = ['RAG 检索', 'HTTP/3', '分布式锁']
@@ -80,6 +86,10 @@ export default function IndexPage() {
   const [showSettingsSheet, setShowSettingsSheet] = useState(false)
   const [dockVisible, setDockVisible] = useState(true)
   const [composerFocus, setComposerFocus] = useState(false)
+  const [refFocus, setRefFocus] = useState(false)
+  const [sheetUploading, setSheetUploading] = useState(false)
+  const sheetFileRef = useRef<HTMLInputElement | null>(null)
+  const sheetPollTimers = useRef<Record<string, ReturnType<typeof setInterval>>>({})
   // V2.9：≥768 弹层变居中对话框；H5 下 Esc 关闭并管理焦点
   useEscClose(showMaterialSheet, () => setShowMaterialSheet(false), '.sheet-panel')
   useEscClose(showSettingsSheet, () => setShowSettingsSheet(false), '.sheet-panel')
@@ -194,7 +204,9 @@ export default function IndexPage() {
     }
   }, [])
 
-  const streakDays = user?.streak_days ?? effectiveOverview.streak_days ?? 1
+  const streakDays = user?.streak_days ?? effectiveOverview.streak_days ?? 0
+  const hasData = hasPracticeData(effectiveOverview)
+  const focusHasPractice = domainHasPractice(activeFocusDomain)
   const todayCompleted = useMemo(() => {
     const todayBar = effectiveOverview.weekly_rhythm?.find((d) => d.is_today)
     return todayBar?.completed_count || 0
@@ -207,18 +219,19 @@ export default function IndexPage() {
 
   const isColdStart = useMemo(() => {
     if (quizCount === 0 && dueCount === 0) return true
+    if (!hasData && dueCount === 0) return true
     if (!overview?.focus_domain && (!effectiveOverview.domains || effectiveOverview.domains.length === 0)) {
       return true
     }
     return false
-  }, [quizCount, dueCount, overview?.focus_domain, effectiveOverview.domains])
+  }, [quizCount, dueCount, hasData, overview?.focus_domain, effectiveOverview.domains])
 
   const recommendedNum = useMemo(
     () =>
       questionChoice === 'adaptive'
-        ? computeRecommendedCount(selfRated, activeFocusDomain?.mastery_score)
+        ? computeRecommendedCount(selfRated, focusHasPractice ? activeFocusDomain?.mastery_score : undefined)
         : questionChoice,
-    [questionChoice, selfRated, activeFocusDomain?.mastery_score],
+    [questionChoice, selfRated, focusHasPractice, activeFocusDomain?.mastery_score],
   )
 
   const readyDocs = useMemo(() => docs.filter((d) => d.status === 'ready'), [docs])
@@ -277,11 +290,26 @@ export default function IndexPage() {
     })
   }
 
-  /** 右侧薄弱主攻快捷卡：新用户自动填入新手摸底考点；老用户优先 0.1s 命中预热题库或后台组卷 */
+  /** 打开「导入参考资料」弹层并直接聚焦粘贴框：新用户点卡片就能填资料 / 传文件，而不是只看到提示 */
+  const openMaterialSheet = () => {
+    setShowMaterialSheet(true)
+    setRefFocus(false)
+    setTimeout(() => setRefFocus(true), 60)
+  }
+
+  /** 聚焦「发起新测验」输入框（滚动到可见处） */
+  const focusComposer = () => {
+    setComposerFocus(false)
+    setTimeout(() => setComposerFocus(true), 0)
+    if (process.env.TARO_ENV === 'h5' && typeof document !== 'undefined') {
+      document.querySelector('.composer-card')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    }
+  }
+
+  /** 右侧攻坚卡：新用户直接打开资料导入；老用户优先 0.1s 命中预热题库或后台组卷 */
   const handleFocusTileTap = () => {
     if (isColdStart) {
-      setInputValue('请基于「计算机核心高频考点」为我生成一套新手自适应摸底测验')
-      Taro.showToast({ title: '已填入推荐新手考点，点击开始测验即可开刷', icon: 'none' })
+      openMaterialSheet()
       return
     }
     const dom = activeFocusDomain
@@ -315,8 +343,94 @@ export default function IndexPage() {
       })
       return
     }
+    // 还没答过题：没有曲线可看，直接带去出题
+    if (isColdStart) {
+      focusComposer()
+      return
+    }
     Taro.switchTab({ url: '/pages/mastery/index' })
   }
+
+  /* ---------- 弹层内直接上传文档（H5）：选完立即上传，解析就绪后自动勾选 ---------- */
+  useEffect(() => {
+    const timers = sheetPollTimers.current
+    return () => Object.values(timers).forEach((t) => clearInterval(t))
+  }, [])
+
+  const pollSheetDoc = (docId: string) => {
+    let attempts = 0
+    const timer = setInterval(async () => {
+      attempts += 1
+      try {
+        const st = await getKnowledgeDocumentStatus(docId)
+        setDocs((prev) =>
+          prev.map((d) =>
+            d.doc_id === docId
+              ? { ...d, status: st.status, chunk_count: st.chunk_count, domain_name: st.domain_name ?? d.domain_name }
+              : d,
+          ),
+        )
+        if (st.status === 'ready') {
+          setSelectedDocIds((prev) => (prev.includes(docId) ? prev : [...prev, docId].slice(-4)))
+        }
+        if (st.status === 'ready' || st.status === 'failed' || attempts >= 40) {
+          clearInterval(timer)
+          delete sheetPollTimers.current[docId]
+        }
+      } catch {
+        clearInterval(timer)
+        delete sheetPollTimers.current[docId]
+      }
+    }, 3000)
+    sheetPollTimers.current[docId] = timer
+  }
+
+  const handleSheetUploadClick = () => {
+    if (sheetUploading) return
+    if (process.env.TARO_ENV === 'h5') {
+      sheetFileRef.current?.click()
+      return
+    }
+    setShowMaterialSheet(false)
+    Taro.switchTab({ url: '/pages/knowledge/index' })
+  }
+
+  const handleSheetFile = async (e: any) => {
+    const file: File | undefined = e?.target?.files?.[0]
+    if (e?.target) e.target.value = ''
+    if (!file || sheetUploading) return
+    const check = checkKnowledgeFile(file.name, file.size)
+    if (!check.ok) {
+      Taro.showToast({ title: check.message, icon: 'none' })
+      return
+    }
+    setSheetUploading(true)
+    try {
+      const res = await uploadKnowledgeDocumentFromWebFile(file)
+      setDocs((prev) => [
+        {
+          doc_id: res.doc_id,
+          file_name: res.file_name,
+          file_type: check.ext,
+          file_size: file.size,
+          status: 'processing',
+          chunk_count: 0,
+          domain_name: res.domain_name,
+          error_message: null,
+          created_at: new Date().toISOString(),
+        },
+        ...prev,
+      ])
+      Taro.showToast({ title: '已上传，解析完成后自动选用', icon: 'none' })
+      pollSheetDoc(res.doc_id)
+    } catch (err: any) {
+      Taro.showToast({ title: err?.message || '上传失败，请稍后重试', icon: 'none' })
+    } finally {
+      setSheetUploading(false)
+    }
+  }
+
+  const processingDocs = docs.filter((d) => d.status === 'processing')
 
   const avatarInitial = user?.nickname?.[0] || '知'
   const materialCount = (referenceText.trim() ? 1 : 0) + selectedDocs.length
@@ -367,7 +481,10 @@ export default function IndexPage() {
       <View className='mini-bento-grid'>
         <View className='mini-tile is-butter zx-press zx-hover-lift' onClick={handleDueCardTap}>
           <View className='mini-top'>
-            <Text className='mini-tag'>今日待巩固</Text>
+            <View className='mini-tag-row'>
+              <LineIcon name='refresh' size={14} />
+              <Text className='mini-tag'>今日待巩固</Text>
+            </View>
             <Text className='mini-arrow'>→</Text>
           </View>
           <View className='mini-bottom'>
@@ -375,7 +492,7 @@ export default function IndexPage() {
               {String(dueCount).padStart(2, '0')} {dueCount > 0 ? '待巩固' : '已清零'}
             </Text>
             <Text className='mini-sub'>
-              {dueCount > 0 ? '秒开错题回忆' : '暂无到期 · 查看曲线'}
+              {dueCount > 0 ? '秒开错题回忆' : isColdStart ? '答错的题会自动进这里 · 去出题' : '暂无到期 · 查看曲线'}
             </Text>
           </View>
         </View>
@@ -385,7 +502,10 @@ export default function IndexPage() {
           onClick={handleFocusTileTap}
         >
           <View className='mini-top'>
-            <Text className='mini-tag'>{isColdStart ? '待解锁攻坚' : '重点攻坚'}</Text>
+            <View className='mini-tag-row'>
+              <LineIcon name='target' size={14} />
+              <Text className='mini-tag'>{isColdStart ? '待解锁攻坚' : '重点攻坚'}</Text>
+            </View>
             <Text className='mini-arrow'>{isFocusRunning ? '···' : '›'}</Text>
           </View>
           <View className='mini-bottom'>
@@ -394,10 +514,12 @@ export default function IndexPage() {
             </Text>
             <Text className='mini-sub'>
               {isColdStart
-                ? '完成首测自动定位 · 点此填入'
+                ? '上传资料或粘贴笔记 · 点此导入'
                 : isFocusRunning
                   ? `生成中 (${bgQuiz.elapsedSec}s)...`
-                  : `掌握 ${Math.round(activeFocusDomain?.mastery_score ?? 60)}% · 一键开刷 ${activeFocusDomain?.recommended_count ?? 4} 题`}
+                  : focusHasPractice
+                    ? `掌握 ${Math.round(activeFocusDomain?.mastery_score ?? 0)}% · 一键开刷 ${activeFocusDomain?.recommended_count ?? 4} 题`
+                    : `未练习 · 一键开刷 ${activeFocusDomain?.recommended_count ?? 4} 题`}
             </Text>
           </View>
         </View>
@@ -407,6 +529,7 @@ export default function IndexPage() {
       <View className='composer-card'>
         <View className='composer-head'>
           <View className='composer-title-wrap'>
+            <LineIcon name='pen' size={15} />
             <Text className='composer-kicker'>发起新测验</Text>
             {selectedDomainId && activeFocusDomain && (
               <Text className='composer-domain-tag'>· {activeFocusDomain.name}</Text>
@@ -518,7 +641,10 @@ export default function IndexPage() {
         {/* V2.9：iPad / 宽屏新增「本周完成题数」卡（手机端隐藏，保持现网） */}
         <View className='home-rhythm-card'>
           <View className='home-rhythm-head'>
-            <Text className='home-rhythm-title'>本周完成题数</Text>
+            <View className='zx-title-row'>
+              <LineIcon name='calendar' size={15} />
+              <Text className='home-rhythm-title'>本周完成题数</Text>
+            </View>
             <Text className='home-rhythm-sub'>共 {weekTotal} 题</Text>
           </View>
           <SevenDayRhythmBar days={effectiveOverview.weekly_rhythm || []} />
@@ -544,25 +670,36 @@ export default function IndexPage() {
                 placeholderClass='composer-placeholder'
                 value={referenceText}
                 onInput={(e) => setReferenceText(e.detail.value)}
+                focus={refFocus}
+                onBlur={() => setRefFocus(false)}
                 maxlength={12000}
               />
             </View>
 
             <View className='sheet-doc-head'>
               <Text className='sheet-label'>选用口袋已解析文档（支持多选）</Text>
-              <Text
-                className='sheet-link'
-                onClick={() => {
-                  setShowMaterialSheet(false)
-                  Taro.switchTab({ url: '/pages/knowledge/index' })
-                }}
-              >
-                去口袋上传 ›
-              </Text>
+              <View className='sheet-upload-btn zx-press' onClick={handleSheetUploadClick}>
+                <LineIcon name='upload' size={13} />
+                <Text>{sheetUploading ? '上传中…' : '上传文件'}</Text>
+              </View>
             </View>
+            {process.env.TARO_ENV === 'h5' && (
+              <input
+                ref={sheetFileRef}
+                type='file'
+                accept={KB_ACCEPT}
+                style={{ display: 'none' }}
+                onChange={handleSheetFile}
+              />
+            )}
+            {processingDocs.length > 0 && (
+              <Text className='sheet-processing'>
+                {processingDocs.map((d) => `《${d.file_name}》`).join('、')} 解析中，完成后自动勾选
+              </Text>
+            )}
 
             {readyDocs.length === 0 ? (
-              <Text className='sheet-empty'>暂无就绪文档，可先前往「口袋」上传 PDF / Word / MD</Text>
+              <Text className='sheet-empty'>还没有文档。点右上角「上传文件」选 PDF / Word / MD / TXT，或直接在上面粘贴笔记</Text>
             ) : (
               <View className='sheet-doc-list'>
                 {readyDocs.slice(0, 6).map((doc) => {

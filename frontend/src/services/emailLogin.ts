@@ -8,8 +8,17 @@ export const CODE_LENGTH = 6
 export const DEFAULT_COOLDOWN_SECONDS = 60
 export const MAX_EMAIL_LENGTH = 254
 
-/** 与后端 app/services/email_otp_service.py 的 _EMAIL_RE 保持一致 */
-const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}$/
+/**
+ * 邮箱格式：不限邮箱服务商（QQ / 163 / Gmail / Outlook / 企业邮箱 / 学校邮箱 / 中文域名均可）。
+ * 与后端 app/services/email_otp_service.py 的规则保持一致：
+ * - 本地部分：RFC 5322 dot-atom 允许的 ASCII 字符（字母数字与 !#$%&'*+/=?^_`{|}~-，点不能打头/结尾/连续）；
+ * - 域名：每段 1–63 个字母/数字/连字符（不以连字符开头或结尾），允许中文等非 ASCII 字符（后端转 punycode）；
+ * - 顶级域：至少 2 个字母，或 punycode 形式 xn--…，或非 ASCII 顶级域（如 .中国）。
+ */
+const LOCAL_RE = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/
+// 不用后行断言（iOS Safari < 16.4 不支持）
+const LABEL_RE = /^[A-Za-z0-9\u0080-\uFFFF]([A-Za-z0-9\u0080-\uFFFF-]{0,61}[A-Za-z0-9\u0080-\uFFFF])?$/
+const TLD_RE = /^([A-Za-z]{2,63}|xn--[A-Za-z0-9-]{1,59}|[\u0080-\uFFFF]{1,63})$/
 
 export const MSG = {
   invalidEmail: '请输入正确的邮箱地址',
@@ -29,15 +38,30 @@ export const AUTH_ERROR_CODE = {
   unavailable: 5030,
 } as const
 
+/**
+ * 去空格、全角转半角（中文输入法常打出「＠」「．」「。」）、小写。
+ * 与后端 normalize 前的预处理一致：NFKC + 句号「。｡」→「.」。
+ */
 export function normalizeEmail(raw: string): string {
-  return (raw || '').trim().toLowerCase()
+  let s = String(raw || '')
+  // 极老内核没有 String#normalize 时跳过（仍可正常输入半角邮箱）
+  if (typeof s.normalize === 'function') s = s.normalize('NFKC')
+  s = s.replace(/[\u3002\uFF61]/g, '.')
+  return s.trim().toLowerCase()
 }
 
 export function isValidEmail(raw: string): boolean {
   const email = normalizeEmail(raw)
-  if (!email || email.length > MAX_EMAIL_LENGTH || !EMAIL_RE.test(email)) return false
-  const local = email.split('@')[0]
-  return local.length <= 64 && !local.startsWith('.') && !local.endsWith('.') && !email.includes('..')
+  if (!email || email.length > MAX_EMAIL_LENGTH) return false
+  const at = email.lastIndexOf('@')
+  if (at <= 0 || at !== email.indexOf('@')) return false
+  const local = email.slice(0, at)
+  const domain = email.slice(at + 1)
+  if (local.length > 64 || !LOCAL_RE.test(local)) return false
+  const labels = domain.split('.')
+  if (labels.length < 2 || domain.length > 253) return false
+  if (!labels.every((l) => LABEL_RE.test(l))) return false
+  return TLD_RE.test(labels[labels.length - 1])
 }
 
 /** 只保留数字并截断到 6 位（粘贴「验证码：123 456」也能正确填入） */

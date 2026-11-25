@@ -80,3 +80,13 @@ describe('prepareRetentionChart', () => {
     expect(clampPct(140)).toBe(100)
   })
 })
+
+describe('hasDrawableCurve', () => {
+  it('少于 2 个点不画（不再用示意曲线占位）', async () => {
+    const { hasDrawableCurve } = await import('./chartModel')
+    expect(hasDrawableCurve([])).toBe(false)
+    expect(hasDrawableCurve(undefined)).toBe(false)
+    expect(hasDrawableCurve([{ day_label: 'a', retention_pct: 50 }])).toBe(false)
+    expect(hasDrawableCurve([{ day_label: 'a', retention_pct: 50 }, { day_label: 'b', retention_pct: 40 }])).toBe(true)
+  })
+})

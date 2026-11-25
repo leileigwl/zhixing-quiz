@@ -228,7 +228,7 @@ export default function ReportPage() {
 
   const wrongCount = serverStats?.wrongCount ?? localWrongCount
   const accuracy = Math.round(report?.accuracy ?? serverStats?.accuracy ?? localAccuracy)
-  const streakDays = serverStats?.streakDays ?? overview?.streak_days ?? 1
+  const streakDays = serverStats?.streakDays ?? overview?.streak_days ?? 0
 
   const effectiveOverview = useMemo(
     () => overview ?? buildFallbackMasteryOverview([], []),

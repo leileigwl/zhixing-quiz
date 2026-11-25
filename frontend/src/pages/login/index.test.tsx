@@ -46,8 +46,37 @@ describe('LoginPage（H5 邮箱验证码登录）', () => {
     expect(requestMock()).not.toHaveBeenCalled()
   })
 
-  it('发码成功 → 60s 倒计时 → 输入验证码并同意协议 → 登录成功保存 token 并回到首页', async () => {
+  it('未勾选协议点「获取验证码」：先弹同意确认；选「暂不」不发送并提示', async () => {
     const ui = setup()
+    vi.mocked(Taro.showModal).mockResolvedValueOnce({ confirm: false, cancel: true } as any)
+    ui.typeEmail('julia@gmail.com')
+    fireEvent.click(ui.codeBtn())
+    await flush()
+    expect(Taro.showModal).toHaveBeenCalledWith(
+      expect.objectContaining({ title: '请先同意协议', confirmText: '同意' }),
+    )
+    // Taro / 微信 showModal 的按钮文字最多 4 个汉字，超长会直接失败（2026-11-25 线上截图验证时踩到）
+    const opts = vi.mocked(Taro.showModal).mock.calls[0][0] as any
+    for (const t of [opts.confirmText, opts.cancelText]) expect(t.replace(/[\u0391-\uFFE5]/g, 'aa').length).toBeLessThanOrEqual(8)
+    expect(requestMock()).not.toHaveBeenCalled()
+    expect(ui.container.querySelector('.agree-check')?.className).not.toContain('is-on')
+    expect(screen.getByText('请先阅读并同意用户协议与隐私政策')).toBeTruthy()
+  })
+
+  it('已勾选协议时直接发送，不再弹确认', async () => {
+    const ui = setup()
+    requestMock().mockResolvedValueOnce(ok({ message: '已发送', cooldown_seconds: 60, expires_in_seconds: 600 }) as any)
+    fireEvent.click(ui.agree())
+    ui.typeEmail('me@outlook.com')
+    fireEvent.click(ui.codeBtn())
+    await flush()
+    expect(Taro.showModal).not.toHaveBeenCalled()
+    expect((requestMock().mock.calls[0][0] as any).data).toEqual({ email: 'me@outlook.com' })
+  })
+
+  it('发码前同意 → 自动勾选并发送 → 60s 倒计时 → 输入验证码 → 登录成功保存 token 并回到首页', async () => {
+    const ui = setup()
+    vi.mocked(Taro.showModal).mockResolvedValueOnce({ confirm: true, cancel: false } as any)
     requestMock()
       .mockResolvedValueOnce(ok({ message: '已发送', cooldown_seconds: 60, expires_in_seconds: 600 }) as any)
       .mockResolvedValueOnce(
@@ -57,6 +86,8 @@ describe('LoginPage（H5 邮箱验证码登录）', () => {
     ui.typeEmail('Julia@163.com')
     fireEvent.click(ui.codeBtn())
     await flush()
+    await flush()
+    expect(ui.container.querySelector('.agree-check')?.className).toContain('is-on')
     expect(ui.codeBtn().textContent).toBe('重新获取 (60s)')
     expect(ui.codeBtn().className).toContain('is-disabled')
     expect(screen.getByText('ju***@163.com')).toBeTruthy()
@@ -74,13 +105,6 @@ describe('LoginPage（H5 邮箱验证码登录）', () => {
     ui.typeCode('12a3456')
     expect((ui.codeInput as HTMLInputElement).value).toBe('123456')
 
-    // 未勾选协议：提示并不发请求
-    fireEvent.click(ui.loginBtn())
-    await flush()
-    expect(screen.getByText('请先阅读并同意用户协议与隐私政策')).toBeTruthy()
-    expect(requestMock()).toHaveBeenCalledTimes(1)
-
-    fireEvent.click(ui.agree())
     fireEvent.click(ui.loginBtn())
     await flush()
 
@@ -97,10 +121,10 @@ describe('LoginPage（H5 邮箱验证码登录）', () => {
       .mockResolvedValueOnce(fail(400, 4012, '验证码错误，还可尝试 4 次') as any)
       .mockResolvedValueOnce(fail(400, 4013, '验证码错误次数过多，请重新获取') as any)
 
+    fireEvent.click(ui.agree())
     ui.typeEmail('a@qq.com')
     fireEvent.click(ui.codeBtn())
     await flush()
-    fireEvent.click(ui.agree())
     ui.typeCode('000000')
     fireEvent.click(ui.loginBtn())
     await flush()
@@ -118,6 +142,7 @@ describe('LoginPage（H5 邮箱验证码登录）', () => {
   it('发送过于频繁（429）显示顶部提示条，2.4s 后收起', async () => {
     const ui = setup()
     requestMock().mockResolvedValueOnce(fail(429, 4290, '验证码发送过于频繁，请 60 秒后再试') as any)
+    fireEvent.click(ui.agree())
     ui.typeEmail('a@qq.com')
     fireEvent.click(ui.codeBtn())
     await flush()

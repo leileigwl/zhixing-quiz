@@ -8,3 +8,20 @@
   height: 240px;
   display: block;
 }
+
+.zx-curve-wrap.is-empty {
+  height: auto;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 24px;
+  background: var(--surface-soft);
+}
+
+.zx-curve-empty-text {
+  font-size: 24px;
+  color: var(--ink-500);
+  padding: 0 24px;
+  text-align: center;
+}
