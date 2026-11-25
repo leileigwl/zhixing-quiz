@@ -1,26 +1,35 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-25（V2.9 响应式改版进行中，见下方「当前进度」）
+> 最后更新：2026-11-25 21:10 CST（V2.9 响应式改版已合并并上线；**线上 H5 对应 main `7c19fcb`**）
 
-## 当前进度（V2.9 响应式改版 · 2026-11-25 · 进行中）
+## 当前进度（V2.9 响应式改版 · 2026-11-25 · 已上线）
 
 > 用户 2026-11-25 20:19 确认 V2.9 原型，唯一改动：**iPad 竖屏 768–1099 保留底部 Dock，只把内容加宽居中（最大宽 720），导航不放左边**；其余按原型默认。授权 agent 自行判断细节、CI 全绿后自行合并 PR 并上线 https://study.leileigwl.cn 。
 
-- [x] PR #3（部署文件）已合并到 main（`dc3a060`）。
-- [x] PR ① [#4](https://github.com/leileigwl/zhixing-quiz/pull/4) 已合并（main `d05f88c`）：导航外壳（`ResponsiveNav` = 手机/竖屏底部 Dock、≥1100 `SideNav` 侧栏）+ 备案页脚 `IcpFooter`（4 个 tab 页）+ 全局手感（focus-visible / hover / `.zx-hit` 44px 热区 / 内容容器 720·1120）+ `useViewportTier` / `tierFromWidth` + **修复「未登录时地址是登录页、画面是首页」**（`services/authGuard.ts`，路由初始化前同步切到登录页）+ 登录邮箱记录与 `logout()`；原型与改动清单已按竖屏决定同步修改。
-- [x] PR ② [#5](https://github.com/leileigwl/zhixing-quiz/pull/5) 已合并（main `35f5a33`）：四个 tab 页宽屏多栏布局（首页 7:5 + 本周完成题数卡、口袋 5:7 / 竖屏 3 列、曲线 8:4 + Canvas 随宽度重绘、我的 4:8 sticky）+「我的」页账号区（邮箱 + 退出登录）+ 小胶囊热区统一扩到 44px。
-- [ ] PR ③（分支 `feat/v29-responsive-quiz`，待 CI → 合并）：答题（竖屏 680 窄栏 + sticky 操作栏；宽屏题干 5 / 选项 7 并排 + 键位提示；键盘 1–4/A–D、Enter、← 由纯函数 `pages/quiz/quizKeys.ts` 决定）/ 登录（竖屏 440 白卡、宽屏左品牌面板分屏）/ 复盘（宽屏侧栏 + 7:5 双栏，底部按钮右对齐）/ 首页两个弹层 ≥768 居中对话框 + `useEscClose`（Esc 关闭、焦点进出）/ 答题、登录、复盘页备案号。
-- [ ] 上线：`TARO_APP_API_BASE_URL=https://study.leileigwl.cn/api/v1 pnpm build:h5` → 备份 `/var/www/zhixing-quiz/h5` 为 `h5.bak-<日期>` → 上传替换；服务器 `/opt/zhixing-quiz` 拉最新 main（后端无改动则不重建）。
+- [x] PR #3（部署文件）已合并（main `dc3a060`）。
+- [x] PR ① [#4](https://github.com/leileigwl/zhixing-quiz/pull/4) 已合并（main `d05f88c`）：导航外壳（`ResponsiveNav` = 手机/竖屏底部 Dock、≥1100 `SideNav` 侧栏）+ 备案页脚 `IcpFooter` + 全局手感（focus-visible / hover / 44px 热区 / 内容容器 720·1120）+ `useViewportTier` / `tierFromWidth` + **修复「未登录时地址是登录页、画面是首页」** + 登录邮箱记录与 `logout()`；原型与改动清单已按竖屏决定同步修改。
+- [x] PR ② [#5](https://github.com/leileigwl/zhixing-quiz/pull/5) 已合并（main `35f5a33`）：四个 tab 页宽屏多栏（首页 7:5 + 本周完成题数卡、口袋 5:7 / 竖屏 3 列、曲线 8:4 + Canvas 随宽度重绘、我的 4:8 sticky）+「我的」账号区（邮箱 + 退出登录）+ 小胶囊热区统一扩到 44px。
+- [x] PR ③ [#6](https://github.com/leileigwl/zhixing-quiz/pull/6) 已合并（main `7c19fcb`）：答题（竖屏 680 窄栏 + sticky 操作栏；宽屏 5:7 并排 + 键位提示；键盘 1–4/A–D、Enter、← 由 `pages/quiz/quizKeys.ts` 决定）/ 登录（竖屏 440 白卡、宽屏左品牌面板）/ 复盘（宽屏侧栏 + 7:5）/ 首页两个弹层 ≥768 居中对话框 + `useEscClose` / 答题、登录、复盘页备案号。
+- [x] **上线（2026-11-25 21:00 CST）**：沙箱 `TARO_APP_API_BASE_URL=https://study.leileigwl.cn/api/v1 pnpm build:h5`（构建自 `7c19fcb`）→ 服务器旧目录备份为 `/var/www/zhixing-quiz/h5.bak-20261125`（`deploy.sh web` 另留 `h5.prev`）→ 发布到 `/var/www/zhixing-quiz/h5`。服务器 `/opt/zhixing-quiz` 已快进到 `7c19fcb`（服务器访问 GitHub 超时，用 `git bundle` 上传后 fetch；原手工拷贝的 deploy 文件与仓库逐字节一致，已备份到 `/root/zq-predeploy-20261125/` 后清理）。后端自 `18eeab8` 起只有 Dockerfile/.dockerignore 变化且与运行中镜像一致，**未重建 api/worker**。
+- 冒烟：首页 200、`/api/v1/health` 200 `{"status":"ok"}`、hello-agent `127.0.0.1:8000` 200 且服务 active、5 个容器 healthy/up；未登录访问 `/`、`/#/pages/index/index`、`/#/pages/mastery/index`、`/#/pages/profile/index`、`/#/pages/quiz/index`（正常 + 6 倍 CPU 降速）均稳定显示登录页；线上手机 390 / 电脑 1440 截图无溢出、无 JS 报错、备案号链接 `https://beian.miit.gov.cn/`。
 
-**下一步**：看上面第一个未勾选项。截图脚本与假后端数据在项目工作区 `work/shot_v29_app.py`、`work/mockapi.py`（不入库），截图存 `v29-screens/`。
+**闸门（PR ③ 合并时）**：`pnpm lint` 0 errors（3 条既有 exhaustive-deps 警告）；`typecheck` 通过；`test:coverage` 18 files / 177 passed，lines 87.5 / branches 87.57 / functions 86.01（阈值 70 不变）；`build:h5` / `build:weapp`（占位 env）通过；weapp 产物 wxss 规则集合与改动前一致；GitHub CI 三个 PR 均 backend + frontend 全绿。后端未改动，未在本地重跑 ruff / pytest（CI 已跑且通过）。
 
-**未实机验证**：iOS Safari / iPad 真机 / 微信内置浏览器未测；weapp 仅确认编译产物 wxss 与改动前逐字节一致，未在微信开发者工具里打开。
+**登录 bug 结论**：确有 bug，非偶发。无 token 直接打开 `/#/pages/index/index`（刷新首页、书签）时，App 在首页挂载过程中 `reLaunch` 到登录页，hash 变了但 Taro H5 路由随后又把首页设为可见。修复为 `services/authGuard.ts`：在 Taro 路由初始化前（`app.ts` 模块顶层）同步把地址切到登录页；token 过期（4010）路径也验证会回登录页。单测 `authGuard.test.ts`。
+
+**未实机验证**：iOS Safari / iPad 真机（触控、旋转、外接键盘）/ 微信内置浏览器 / Android；登录后的线上页面（无测试账号，宽屏布局只在本地构建 + 假后端数据上截图验证）；weapp 未在微信开发者工具中打开（仅比对编译产物）。
+
+**下一步 / 遗留**：
+1. 用户在 iPad / 手机 / 电脑真机登录后走一遍首页 → 出题 → 答题（试键盘）→ 复盘 → 我的 → 退出登录。
+2. 既有遗留仍有效：LLM / Embedding / Tavily 生产 key 未配置（出题不可用）；SMTP 真实发信未验证；pypdf / cryptography 漏洞；MySQL 无定时备份；《用户协议》《隐私政策》正文仍是占位；上线前安全审计门控（AGENTS.md）尚未执行。
+3. 回滚 H5：`cp -a /var/www/zhixing-quiz/h5.bak-20261125/. /var/www/zhixing-quiz/h5/`（或 `h5.prev`）。
+4. 截图脚本与假后端数据在项目工作区 `work/shot_v29_app.py`、`work/mockapi.py`（不入库）；截图在 `v29-screens/`。
 
 ---
 
 ## 本轮（2026-11-25）· V2.9 H5 响应式布局原型（分支 `design/v29-responsive`，仅本地提交）
 
-- 只出原型、未改 `frontend/`：[`v29-responsive-layout.html`](02-design/prototypes/v29-responsive-layout.html)（**待用户确认**），覆盖 4 个 tab 页 + 答题 / 复盘 / 登录（V2.8 宽屏版），断点 `<768` / `768–1099` / `≥1100`，页底备案号「浙ICP备2026102405号-1」；文件内附断点与改动清单、工作量与 Taro H5 实现方式。索引已更新。
+- 只出原型、未改 `frontend/`：[`v29-responsive-layout.html`](02-design/prototypes/v29-responsive-layout.html)（2026-11-25 已确认并实现，见顶部），覆盖 4 个 tab 页 + 答题 / 复盘 / 登录（V2.8 宽屏版），断点 `<768` / `768–1099` / `≥1100`，页底备案号「浙ICP备2026102405号-1」；文件内附断点与改动清单、工作量与 Taro H5 实现方式。索引已更新。
 - 校验：Playwright 在 390 / 820 / 1180 / 1440 四宽度打开原型逐页检查，无横向溢出、无文字截断、无 JS 错误；首页截图存于项目工作区 `proto-screens/`（不入库）。未跑前端闸门（无代码改动）。
 - 待决：用户确认原型及 3 个设计选择（平板导航形态 / 答题宽屏并排 / 手机端备案号位置）后再按清单分 3 个 PR 实现。
 
