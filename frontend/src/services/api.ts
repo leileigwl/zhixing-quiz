@@ -626,6 +626,71 @@ export function updateUserProfile(data: { nickname?: string; avatar_url?: string
   })
 }
 
+/** 头像上传（H5）：浏览器里已压缩好的图片 Blob，multipart 字段名 file；返回新的 avatar_url（后端已写回档案） */
+export async function uploadAvatarWebFile(
+  blob: Blob,
+  fileName = 'avatar.jpg',
+  _retried = false,
+): Promise<{ avatar_url: string }> {
+  const token = await ensureAuthToken()
+  const formData = new FormData()
+  formData.append('file', blob, fileName)
+  let resp: Response
+  try {
+    resp = await fetch(`${BASE_URL}/user/avatar`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    })
+  } catch {
+    throw new Error('网络连接失败，请稍后重试')
+  }
+  let body: ApiResponse<{ avatar_url: string }>
+  try {
+    body = (await resp.json()) as ApiResponse<{ avatar_url: string }>
+  } catch {
+    throw new Error(resp.status === 413 ? '图片太大，请换一张' : '头像上传失败，请稍后重试')
+  }
+  if (body.code === 4010) {
+    if (!_retried && (await ensureLogin(true))) {
+      return uploadAvatarWebFile(blob, fileName, true)
+    }
+    clearToken()
+    throw new Error('登录状态已过期，请重新登录')
+  }
+  if (body.code !== 0 || !body.data?.avatar_url) {
+    throw new Error(body.message || '头像上传失败')
+  }
+  return body.data
+}
+
+/** 头像上传（小程序）：chooseAvatar 返回的临时文件路径 */
+export async function uploadAvatarFromPath(filePath: string): Promise<{ avatar_url: string }> {
+  const token = await ensureAuthToken()
+  return new Promise((resolve, reject) => {
+    Taro.uploadFile({
+      url: `${BASE_URL}/user/avatar`,
+      filePath,
+      name: 'file',
+      header: { Authorization: `Bearer ${token}` },
+      timeout: 60000,
+      success: (res) => {
+        try {
+          const body = JSON.parse(res.data) as ApiResponse<{ avatar_url: string }>
+          if (body.code !== 0 || !body.data?.avatar_url) {
+            reject(new Error(body.message || '头像上传失败'))
+            return
+          }
+          resolve(body.data)
+        } catch {
+          reject(new Error('上传响应解析失败'))
+        }
+      },
+      fail: (err) => reject(new Error(err.errMsg || '头像上传失败')),
+    })
+  })
+}
+
 export function getQuizHistory(page = 1, pageSize = 10) {
   return request<QuizHistoryList>(`/user/quizzes?page=${page}&page_size=${pageSize}`)
 }

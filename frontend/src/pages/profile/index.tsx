@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { View, Text, Image, Button, Input } from '@tarojs/components'
 import Taro, { useDidHide, useDidShow } from '@tarojs/taro'
 import {
@@ -8,6 +8,8 @@ import {
   getMasteryOverview,
   markQuestionForReview,
   updateUserProfile,
+  uploadAvatarFromPath,
+  uploadAvatarWebFile,
   setCachedUser,
   waitForLogin,
   getLoginEmail,
@@ -34,6 +36,7 @@ import {
   subscribeBackgroundQuiz,
   type BackgroundQuizState,
 } from '../../services/backgroundQuizManager'
+import { compressAvatarImage, validateAvatarFile } from '../../services/avatarImage'
 import ResponsiveNav from '../../components/ResponsiveNav'
 import IcpFooter from '../../components/IcpFooter'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
@@ -64,6 +67,9 @@ export default function ProfilePage() {
   const [draftName, setDraftName] = useState('')
   const [bgQuiz, setBgQuiz] = useState<BackgroundQuizState>(() => getBackgroundQuizState())
   const [dockVisible, setDockVisible] = useState(true)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState('')
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
 
   const loadProfile = useCallback(async () => {
     await waitForLogin()
@@ -179,12 +185,67 @@ export default function ProfilePage() {
     })
   }
 
+  /** 头像上传成功：本地档案、首页顶栏缓存同步刷新 */
+  const applyNewAvatar = (avatarUrl: string) => {
+    setProfile((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, avatar_url: avatarUrl }
+      writeSwrCache('profile_user', next)
+      setCachedUser({
+        id: next.id,
+        nickname: next.nickname,
+        avatar_url: avatarUrl,
+        total_xp: next.total_xp,
+        streak_days: next.streak_days,
+      })
+      return next
+    })
+    invalidateSwrCache('home_')
+    Taro.showToast({ title: '头像已更新', icon: 'success' })
+  }
+
+  /** 小程序：微信 chooseAvatar 给的是临时路径，必须先上传到服务器换成 https 地址 */
   const handleChooseAvatar = (e: any) => {
-    const avatarUrl = e?.detail?.avatarUrl
-    if (avatarUrl) {
-      updateUserProfile({ avatar_url: avatarUrl })
-        .then(() => loadProfile())
-        .catch(() => {})
+    const tempPath = e?.detail?.avatarUrl
+    if (!tempPath || avatarUploading) return
+    setAvatarUploading(true)
+    uploadAvatarFromPath(tempPath)
+      .then((res) => applyNewAvatar(res.avatar_url))
+      .catch((err) => Taro.showToast({ title: err?.message || '头像上传失败', icon: 'none' }))
+      .finally(() => setAvatarUploading(false))
+  }
+
+  /** H5：点头像 → 系统相册 / 拍照 → 浏览器内裁成正方形压缩 → 上传 */
+  const handleH5AvatarClick = () => {
+    if (avatarUploading) return
+    avatarInputRef.current?.click()
+  }
+
+  const handleH5AvatarFile = async (e: any) => {
+    const file: File | undefined = e?.target?.files?.[0]
+    if (e?.target) e.target.value = ''
+    if (!file) return
+    const err = validateAvatarFile(file)
+    if (err) {
+      Taro.showToast({ title: err, icon: 'none' })
+      return
+    }
+    setAvatarUploading(true)
+    let previewUrl = ''
+    try {
+      const blob = await compressAvatarImage(file)
+      if (typeof URL !== 'undefined' && URL.createObjectURL) {
+        previewUrl = URL.createObjectURL(blob)
+        setAvatarPreview(previewUrl)
+      }
+      const res = await uploadAvatarWebFile(blob, 'avatar.jpg')
+      applyNewAvatar(res.avatar_url)
+    } catch (uploadErr: any) {
+      Taro.showToast({ title: uploadErr?.message || '头像上传失败', icon: 'none' })
+    } finally {
+      setAvatarUploading(false)
+      setAvatarPreview('')
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
     }
   }
 
@@ -311,25 +372,33 @@ export default function ProfilePage() {
             </Button>
           ) : (
             <View
-              className='avatar-btn'
-              onClick={() =>
-                Taro.showToast({
-                  title: '微信小程序端可点击更换微信头像',
-                  icon: 'none',
-                })
-              }
+              className={`avatar-btn ${avatarUploading ? 'is-uploading' : ''}`}
+              onClick={handleH5AvatarClick}
+              aria-label='更换头像'
             >
-              {profile?.avatar_url ? (
-                <Image className='avatar-lg-img' src={profile.avatar_url} mode='aspectFill' />
+              {avatarPreview || profile?.avatar_url ? (
+                <Image className='avatar-lg-img' src={avatarPreview || profile?.avatar_url || ''} mode='aspectFill' />
               ) : (
                 <View className='avatar-lg-fallback'>
                   <Text>{avatarInitial}</Text>
                 </View>
               )}
+              {avatarUploading && <View className='avatar-uploading'><View className='avatar-spinner' /></View>}
               <View className='avatar-cam-badge'>
                 <View className='cam-icon' />
               </View>
             </View>
+          )}
+          {/* 文件选择框放在头像按钮外，避免程序触发的 click 冒泡回按钮再次打开 */}
+          {process.env.TARO_ENV === 'h5' && (
+            <input
+              ref={avatarInputRef}
+              className='avatar-file-input'
+              type='file'
+              accept='image/*'
+              style={{ display: 'none' }}
+              onChange={handleH5AvatarFile}
+            />
           )}
         </View>
 
