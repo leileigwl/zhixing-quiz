@@ -63,3 +63,24 @@ class ResourceNotFoundError(Exception):
     def __init__(self, message: str = "请求的资源不存在"):
         self.message = message
         super().__init__(self.message)
+
+
+class VerificationCodeError(Exception):
+    """邮箱验证码校验失败（格式错误 / 错误或过期 / 尝试次数超限），HTTP 400，不触发前端静默重登。"""
+
+    INVALID_EMAIL = 4011
+    INVALID_OR_EXPIRED = 4012
+    TOO_MANY_ATTEMPTS = 4013
+
+    def __init__(self, message: str = "验证码错误或已过期", code: int = INVALID_OR_EXPIRED):
+        self.message = message
+        self.code = code
+        super().__init__(self.message)
+
+
+class ServiceUnavailableError(Exception):
+    """依赖服务未配置或暂不可用（如生产环境缺 SMTP / Redis），HTTP 503。"""
+
+    def __init__(self, message: str = "服务暂不可用，请稍后再试"):
+        self.message = message
+        super().__init__(self.message)

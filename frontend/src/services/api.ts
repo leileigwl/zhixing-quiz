@@ -165,10 +165,101 @@ export async function ensureLogin(forceRefresh = false): Promise<boolean> {
   return _inflightLogin
 }
 
+/* ---- H5 邮箱验证码登录（生产 H5 唯一登录通道；weapp 仍走 wx.login） ---- */
+
+export const LOGIN_PAGE_URL = '/pages/login/index'
+export const HOME_PAGE_URL = '/pages/index/index'
+const LOGIN_PAGE_ROUTE = 'pages/login/index'
+const REDIRECT_DEDUPE_MS = 1500
+let _lastRedirectAt = 0
+
+/** 当前端是否使用邮箱登录页（仅 H5；小程序保持 wx.login 静默登录） */
+export function usesEmailLoginPage(): boolean {
+  return process.env.TARO_ENV === 'h5'
+}
+
+function isOnLoginPage(): boolean {
+  try {
+    const pages = Taro.getCurrentPages()
+    const current = pages[pages.length - 1] as { route?: string } | undefined
+    return (current?.route || '').replace(/^\//, '').startsWith(LOGIN_PAGE_ROUTE)
+  } catch {
+    return false
+  }
+}
+
+/** H5 无有效登录态时跳转登录页（去重：并发请求同时 401 只跳一次；已在登录页时不跳） */
+export function redirectToLogin(): boolean {
+  if (!usesEmailLoginPage() || isOnLoginPage()) return false
+  const now = Date.now()
+  if (now - _lastRedirectAt < REDIRECT_DEDUPE_MS) return false
+  _lastRedirectAt = now
+  void Promise.resolve(Taro.reLaunch({ url: LOGIN_PAGE_URL })).catch(() => undefined)
+  return true
+}
+
+/** 携带后端业务码的认证错误，供登录页 mapAuthError 映射界面状态 */
+export class AuthApiError extends Error {
+  code?: number
+  statusCode?: number
+
+  constructor(message: string, code?: number, statusCode?: number) {
+    super(message)
+    this.name = 'AuthApiError'
+    this.code = code
+    this.statusCode = statusCode
+  }
+}
+
+export interface SendEmailCodeResult {
+  message: string
+  cooldown_seconds: number
+  expires_in_seconds: number
+}
+
+async function authRequest<T>(url: string, data: Record<string, unknown>): Promise<T> {
+  let res: { statusCode: number; body: ApiResponse<T> }
+  try {
+    res = await rawRequest<T>(url, { method: 'POST', data, withAuth: false, timeout: 20000 })
+  } catch {
+    throw new AuthApiError('网络连接失败，请检查网络后重试')
+  }
+  const { statusCode, body } = res
+  if (body && typeof body.code === 'number') {
+    if (body.code === 0) return body.data
+    throw new AuthApiError(body.message || '请求失败，请稍后重试', body.code, statusCode)
+  }
+  // 非 ApiResponse 结构（如 422 参数校验、网关 502）
+  throw new AuthApiError('请求失败，请稍后重试', statusCode >= 500 ? 5000 : 4000, statusCode)
+}
+
+export function sendEmailCode(email: string) {
+  return authRequest<SendEmailCodeResult>('/auth/email/send-code', { email: email.trim().toLowerCase() })
+}
+
+/** 校验验证码；成功后与 wx.login 一致地保存 token 与用户信息并解除登录等待 */
+export async function verifyEmailCode(email: string, code: string): Promise<LoginResponse> {
+  const data = await authRequest<LoginResponse>('/auth/email/verify', {
+    email: email.trim().toLowerCase(),
+    code,
+  })
+  if (!data?.token) {
+    throw new AuthApiError('登录失败，请稍后重试')
+  }
+  setToken(data.token)
+  setCachedUser(data.user)
+  _lastLoginFailAt = 0
+  resolveLogin()
+  return data
+}
+
 async function ensureAuthToken(): Promise<string> {
   if (!getToken()) {
     const loggedIn = await ensureLogin()
     if (!loggedIn || !getToken()) {
+      if (redirectToLogin()) {
+        throw new Error('请先登录')
+      }
       throw new Error('登录未完成，请确认后端服务与接口地址配置正确')
     }
   }
@@ -196,6 +287,9 @@ export async function request<T = any>(
       }
     }
     clearToken()
+    if (redirectToLogin()) {
+      throw new Error('登录已过期，请重新登录')
+    }
     throw new Error('登录状态已过期，请刷新或重新进入')
   }
 

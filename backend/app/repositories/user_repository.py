@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import pymysql
 import structlog
 
 from app.core.db import get_mysql_pool
@@ -114,3 +115,62 @@ async def get_user_by_id(user_id: int) -> Optional[dict]:
                 "total_xp": row[4],
                 "streak_days": int(row[5] or 0),
             }
+
+
+_DUPLICATE_ENTRY_ERRNO = 1062
+
+
+async def find_user_by_email(email: str) -> Optional[dict]:
+    """按已规范化（小写去空格）的邮箱查找用户。"""
+    pool = get_mysql_pool()
+    if pool is None:
+        return None
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT id, openid, nickname, avatar_url, total_xp, streak_days, email "
+                "FROM users WHERE email = %s",
+                (email,),
+            )
+            row = await cur.fetchone()
+            if row is None:
+                return None
+            return {
+                "id": row[0],
+                "openid": row[1],
+                "nickname": row[2],
+                "avatar_url": row[3],
+                "total_xp": row[4],
+                "streak_days": int(row[5] or 0),
+                "email": row[6],
+            }
+
+
+async def create_user_with_email(openid: str, email: str) -> dict:
+    """创建邮箱用户；并发重复注册（uk_users_email / uk_users_openid 冲突）时回查已存在用户。"""
+    pool = get_mysql_pool()
+    if pool is None:
+        raise RuntimeError("数据库未初始化")
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO users (openid, email) VALUES (%s, %s)",
+                    (openid, email),
+                )
+                user_id = cur.lastrowid
+    except pymysql.err.IntegrityError as exc:
+        if exc.args and exc.args[0] == _DUPLICATE_ENTRY_ERRNO:
+            existing = await find_user_by_email(email)
+            if existing is not None:
+                return existing
+        raise
+    return {
+        "id": user_id,
+        "openid": openid,
+        "nickname": "学习者",
+        "avatar_url": "",
+        "total_xp": 0,
+        "streak_days": 0,
+        "email": email,
+    }

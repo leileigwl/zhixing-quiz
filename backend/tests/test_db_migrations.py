@@ -97,3 +97,26 @@ async def test_recover_stale_jobs_updates_tasks_docs_reports_and_images():
     ):
         arq_tasks, arq_docs = await recover_stale_jobs()
     assert (arq_tasks, arq_docs) == (0, 0)
+
+
+def test_users_table_has_nullable_unique_email():
+    users_ddl = next(s for s in SCHEMA_STATEMENTS if "CREATE TABLE IF NOT EXISTS users" in s)
+    assert "email VARCHAR(254) NULL" in users_ddl
+    assert "UNIQUE KEY uk_users_email (email)" in users_ddl
+    assert ("users", "email", "VARCHAR(254) NULL") in COLUMN_MIGRATIONS
+
+
+@pytest.mark.asyncio
+async def test_ensure_index_migrations_adds_missing_email_unique_index():
+    from app.core.db import INDEX_MIGRATIONS, _ensure_index_migrations
+
+    cursor = AsyncMock()
+    cursor.fetchone = AsyncMock(side_effect=[(0,)] * len(INDEX_MIGRATIONS))
+    await _ensure_index_migrations(cursor, "zhixing_quiz")
+    alters = [c.args[0] for c in cursor.execute.await_args_list if c.args[0].startswith("ALTER")]
+    assert alters == ["ALTER TABLE `users` ADD UNIQUE KEY `uk_users_email` (`email`)"]
+
+    cursor = AsyncMock()
+    cursor.fetchone = AsyncMock(side_effect=[(1,)] * len(INDEX_MIGRATIONS))
+    await _ensure_index_migrations(cursor, "zhixing_quiz")
+    assert not [c for c in cursor.execute.await_args_list if c.args[0].startswith("ALTER")]

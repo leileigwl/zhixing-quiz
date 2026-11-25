@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>zhixing-quiz V2.8 原型 · H5 邮箱验证码登录（待用户确认）</title>
+  <style>
+    /* 方案 B · MOVEPOP 暖石膏 Token（docs/02-design/v2-ui-design-system.md §2） */
+    :root {
+      --bg-canvas: #F6F5F1;
+      --surface-card: #FFFFFF;
+      --surface-soft: #EFEFF3;
+      --surface-stone: #E9E6DC;
+      --ink-primary: #18191E;
+      --ink-700: #3D404B;
+      --ink-muted: #6E7280;
+      --ink-faint: #969AA6;
+      --hairline: rgba(20, 21, 26, 0.08);
+      --accent-butter: #F4D06F;
+      --accent-sky: #CBE5F5;
+      --ds-blue: #2563EB;
+      --ok: #165E35;
+      --ok-bg: #F0F9F3;
+      --warn-red: #D8685A;
+      --warn-bg: #FDF0EE;
+      --warn-border: rgba(216, 104, 90, 0.35);
+      --shadow: 0 8px 24px rgba(20, 21, 26, 0.035);
+      --press-ms: 90ms;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      background: #EAE8E1;
+      color: var(--ink-primary);
+      padding: 28px 20px 60px;
+    }
+    .header { max-width: 1120px; margin: 0 auto 20px; }
+    .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .header p { font-size: 13px; color: var(--ink-muted); margin-top: 6px; max-width: 760px; line-height: 1.6; }
+    .stage { max-width: 1120px; margin: 0 auto; display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; align-items: flex-start; }
+
+    /* ---------- 手机外框 ---------- */
+    .phone { width: 390px; height: 844px; background: var(--bg-canvas); border-radius: 44px; border: 10px solid #14151A; overflow: hidden; position: relative; box-shadow: 0 30px 60px -20px rgba(20, 21, 26, 0.35); flex-shrink: 0; }
+    .screen { height: 100%; overflow-y: auto; overflow-x: hidden; padding: 64px 22px 40px; scrollbar-width: none; display: flex; flex-direction: column; }
+    .screen::-webkit-scrollbar { display: none; }
+
+    /* ---------- 品牌区 ---------- */
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-mark { width: 40px; height: 40px; position: relative; }
+    .brand-mark i { position: absolute; border-radius: 11px; }
+    .brand-mark i:nth-child(1) { inset: 6px 0 0 6px; background: var(--accent-sky); }
+    .brand-mark i:nth-child(2) { inset: 0 6px 6px 0; background: var(--accent-butter); }
+    .brand-mark i:nth-child(3) { width: 12px; height: 12px; right: 8px; bottom: 8px; border-radius: 50%; background: var(--ink-primary); }
+    .brand-name { font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
+    .hero-title { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; margin: 28px 0 6px; }
+    .hero-sub { font-size: 13.5px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 22px; }
+
+    /* ---------- 表单卡 ---------- */
+    .card { background: var(--surface-card); border-radius: 26px; padding: 20px 18px; box-shadow: var(--shadow); }
+    .label { font-size: 12px; font-weight: 600; color: var(--ink-muted); margin-bottom: 8px; display: block; }
+    .field { display: flex; align-items: center; min-width: 0; height: 52px; border-radius: 16px; background: var(--bg-canvas); border: 1.5px solid transparent; padding: 0 14px; transition: border-color 140ms ease-out, background-color 140ms ease-out; }
+    .field:focus-within { border-color: rgba(24, 25, 30, 0.28); background: #FFF; }
+    .field.has-error { border-color: var(--warn-border); background: var(--warn-bg); }
+    .field input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink-primary); font-family: inherit; height: 100%; }
+    .field input::placeholder { color: var(--ink-faint); }
+    .field .clear { width: 44px; height: 44px; margin-right: -12px; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 16px; border-radius: 50%; }
+    .field-error { font-size: 12px; color: var(--warn-red); min-height: 18px; line-height: 18px; margin: 6px 2px 4px; }
+    .code-row { display: flex; gap: 10px; align-items: stretch; }
+    .code-row .field { flex: 1; min-width: 0; }
+    .code-row .field input { letter-spacing: 0.32em; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .code-row .field input::placeholder { letter-spacing: 0; font-weight: 400; }
+
+    /* ---------- 按钮与点按反馈（V2.7 手感规范：≥44px 热区、按下态至少保持 90ms） ---------- */
+    .tap { position: relative; cursor: pointer; user-select: none; touch-action: manipulation; border: 0; font-family: inherit; transition: transform 140ms cubic-bezier(.2,.8,.2,1), background-color 140ms ease-out, opacity 140ms ease-out; }
+    .tap.is-pressed { transform: scale(0.965); transition-duration: 60ms; }
+    .btn-code { flex-shrink: 0; min-width: 112px; height: 52px; border-radius: 16px; background: var(--ink-primary); color: #FFF; font-size: 14px; font-weight: 600; white-space: nowrap; padding: 0 14px; }
+    .btn-code.is-pressed { background: #2B2D34; }
+    .btn-code[disabled] { background: var(--surface-soft); color: var(--ink-faint); cursor: default; transform: none; }
+    .btn-code .num { font-variant-numeric: tabular-nums; }
+    .btn-primary { width: 100%; height: 52px; border-radius: 999px; background: var(--ink-primary); color: #FFF; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; padding: 0 22px 0 26px; margin-top: 18px; }
+    .btn-primary.is-pressed { background: #2B2D34; transform: scale(0.985); }
+    .btn-primary.is-disabled { opacity: 0.42; }
+    .btn-primary .arrow { font-size: 18px; }
+    .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.28); border-top-color: #FFF; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---------- 已发送提示 ---------- */
+    .sent-tip { display: none; margin: 2px 0 14px; padding: 10px 12px; border-radius: 14px; background: rgba(244, 208, 111, 0.28); font-size: 12.5px; line-height: 1.55; color: var(--ink-700); }
+    .sent-tip.show { display: block; }
+    .sent-tip b { color: var(--ink-primary); }
+
+    /* ---------- 协议勾选：视觉 20px，热区 44px ---------- */
+    .agree { display: flex; align-items: center; gap: 2px; margin-top: 14px; font-size: 12.5px; color: var(--ink-muted); line-height: 1.5; }
+    .agree-hit { width: 44px; height: 44px; margin-left: -12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+    .check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid rgba(24,25,30,.28); display: flex; align-items: center; justify-content: center; transition: background-color 140ms ease-out, border-color 140ms ease-out; }
+    .check.on { background: var(--ink-primary); border-color: var(--ink-primary); }
+    .check.on::after { content: ""; width: 9px; height: 5px; border-left: 2px solid #FFF; border-bottom: 2px solid #FFF; transform: translateY(-1px) rotate(-45deg); }
+    .agree a { color: var(--ink-primary); font-weight: 600; text-decoration: none; padding: 12px 0; }
+    .agree.nudge .check { border-color: var(--warn-red); animation: shake 320ms ease-in-out; }
+    @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+    .foot { margin-top: auto; padding-top: 24px; text-align: center; font-size: 12px; color: var(--ink-faint); line-height: 1.6; }
+
+    /* ---------- 全局错误条（非阻塞，置顶） ---------- */
+    .banner { position: absolute; left: 16px; right: 16px; top: 16px; z-index: 5; padding: 12px 14px; border-radius: 16px; font-size: 13px; line-height: 1.5; background: var(--ink-primary); color: #FFF; box-shadow: 0 12px 28px rgba(20,21,26,.18); transform: translateY(-140%); transition: transform 220ms cubic-bezier(.2,.8,.2,1); }
+    .banner.show { transform: translateY(0); }
+    .banner.err { background: #FFF; color: var(--warn-red); border: 1px solid var(--warn-border); }
+
+    /* ---------- 侧栏：模拟后端 ---------- */
+    .panel { width: 330px; background: #FFF; border-radius: 22px; padding: 18px; box-shadow: var(--shadow); font-size: 13px; color: var(--ink-700); }
+    .panel h3 { font-size: 14px; margin-bottom: 4px; color: var(--ink-primary); }
+    .panel .hint { font-size: 12px; color: var(--ink-muted); line-height: 1.55; margin-bottom: 12px; }
+    .panel .opts { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    .panel label { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 12px; background: var(--bg-canvas); cursor: pointer; min-height: 40px; }
+    .panel input[type=radio] { accent-color: var(--ink-primary); }
+    .panel .mail { border: 1px dashed rgba(24,25,30,.18); border-radius: 14px; padding: 12px; background: var(--bg-canvas); }
+    .panel .mail .code { font-size: 22px; font-weight: 700; letter-spacing: .3em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .panel .mail .fill { margin-top: 8px; height: 36px; padding: 0 12px; border-radius: 999px; background: var(--ink-primary); color: #FFF; font-size: 12px; font-weight: 600; }
+    .panel ul { padding-left: 16px; line-height: 1.7; font-size: 12px; color: var(--ink-muted); }
+    .panel ul b { color: var(--ink-primary); }
+    .log { margin-top: 12px; font-size: 11.5px; color: var(--ink-faint); min-height: 16px; }
+
+    /* ---------- 登录成功态 ---------- */
+    .done { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; gap: 10px; }
+    .done .badge { width: 64px; height: 64px; border-radius: 22px; background: var(--ok-bg); display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--ok); }
+    .done h2 { font-size: 20px; }
+    .done p { font-size: 13px; color: var(--ink-muted); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>V2.8 原型 · H5 邮箱验证码登录（待用户确认）</h1>
+    <p>H5 生产环境唯一登录入口：邮箱 + 6 位验证码，首次登录自动建号。小程序端仍走 <code>wx.login</code> 静默登录，不出现本页。右侧可切换「模拟后端返回」逐个验证错误态；所有可点元素热区 ≥44px，按下态至少保持 90ms（沿用 V2.7 手感规范）。</p>
+  </div>
+
+  <div class="stage">
+    <div class="phone">
+      <div class="banner" id="banner"></div>
+      <div class="screen" id="screen">
+        <div id="form-view" style="display:flex;flex-direction:column;min-height:100%;">
+          <div class="brand">
+            <div class="brand-mark"><i></i><i></i><i></i></div>
+            <span class="brand-name">知行快刷</span>
+          </div>
+          <div class="hero-title">邮箱登录</div>
+          <div class="hero-sub">输入邮箱获取验证码，首次登录将自动创建账号，学习记录跨设备同步。</div>
+
+          <div class="card">
+            <span class="label">邮箱</span>
+            <div class="field" id="email-field">
+              <input id="email" type="email" inputmode="email" autocomplete="email" placeholder="name@163.com" maxlength="254" />
+              <span class="clear tap" id="email-clear" style="display:none" aria-label="清空">✕</span>
+            </div>
+            <div class="field-error" id="email-err"></div>
+
+            <span class="label">验证码</span>
+            <div class="code-row">
+              <div class="field" id="code-field">
+                <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 位数字" maxlength="6" />
+              </div>
+              <button class="btn-code tap" id="btn-code">获取验证码</button>
+            </div>
+            <div class="field-error" id="code-err"></div>
+            <div class="sent-tip" id="sent-tip"></div>
+
+            <div class="agree" id="agree">
+              <span class="agree-hit tap" id="agree-hit" role="checkbox" aria-checked="false"><span class="check" id="check"></span></span>
+              <span>我已阅读并同意 <a href="#" onclick="return false">《用户协议》</a> 和 <a href="#" onclick="return false">《隐私政策》</a></span>
+            </div>
+
+            <button class="btn-primary tap is-disabled" id="btn-login"><span id="login-text">登录</span><span class="arrow" id="login-arrow">→</span></button>
+          </div>
+
+          <div class="foot">收不到邮件？请检查垃圾邮件箱，或 60 秒后重新获取</div>
+        </div>
+
+        <div class="done" id="done-view">
+          <div class="badge">✓</div>
+          <h2>登录成功</h2>
+          <p>即将回到「今日」开始刷题</p>
+          <button class="btn-primary tap" id="btn-reset" style="width:200px;margin-top:14px;"><span>重新演示</span><span class="arrow">↺</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>模拟后端返回</h3>
+      <div class="hint">选中后再点「获取验证码」或「登录」，查看对应界面状态。</div>
+      <div class="opts" id="scenario">
+        <label><input type="radio" name="sc" value="ok" checked /> 正常（发送成功 / 登录成功）</label>
+        <label><input type="radio" name="sc" value="wrong" /> 验证码错误（剩余 N 次）</label>
+        <label><input type="radio" name="sc" value="burn" /> 错误次数过多（需重新获取）</label>
+        <label><input type="radio" name="sc" value="expired" /> 验证码已过期</label>
+        <label><input type="radio" name="sc" value="rate" /> 发送过于频繁 / 今日次数用完（429）</label>
+        <label><input type="radio" name="sc" value="unavail" /> 邮件服务不可用（503）</label>
+        <label><input type="radio" name="sc" value="network" /> 网络断开</label>
+      </div>
+      <div class="mail" id="mail" style="display:none">
+        <div style="font-size:12px;color:var(--ink-muted)">📮 模拟收件箱 · 知行快刷 验证码</div>
+        <div class="code" id="mail-code">------</div>
+        <button class="fill tap" id="btn-fill">一键填入</button>
+      </div>
+      <h3 style="margin-top:16px">交互约定</h3>
+      <ul>
+        <li>邮箱失焦或点「获取验证码」时校验格式，错误就地红字提示，不弹窗。</li>
+        <li>发送成功后按钮变为 <b>重新获取 (59s)</b> 灰态倒计时；倒计时内不可再点。</li>
+        <li>验证码只接受数字，满 6 位且已勾选协议时「登录」才可点；未勾选时点登录会轻抖勾选框并提示。</li>
+        <li>验证码错误 → 输入框红底 + 「还可尝试 N 次」；次数用完 → 清空并提示重新获取，倒计时立即结束。</li>
+        <li>429 / 503 / 断网 → 顶部非阻塞提示条 2.4s 后自动收起，表单内容保留。</li>
+        <li>登录成功后回到「今日」Tab；Token 失效（4010）时 H5 自动回到本页。</li>
+      </ul>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id)
+    const EMAIL_RE = /^[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,24}$/
+    const COOLDOWN = 60
+    const MAX_ATTEMPTS = 5
+    let agreed = false, countdown = 0, timer = null, loading = false, sending = false, attempts = 0, mailCode = ''
+
+    const scenario = () => document.querySelector('input[name=sc]:checked').value
+    const log = (t) => { $('log').textContent = t }
+
+    // 按下态：pointerdown 立即加 .is-pressed，抬起后至少保持 90ms
+    document.querySelectorAll('.tap').forEach((el) => {
+      let downAt = 0
+      el.addEventListener('pointerdown', () => { if (el.disabled) return; downAt = performance.now(); el.classList.add('is-pressed') })
+      const up = () => { const left = Math.max(0, 90 - (performance.now() - downAt)); setTimeout(() => el.classList.remove('is-pressed'), left) }
+      el.addEventListener('pointerup', up); el.addEventListener('pointerleave', up); el.addEventListener('pointercancel', up)
+    })
+
+    function banner(msg, isErr = true) {
+      const b = $('banner'); b.textContent = msg; b.className = 'banner show' + (isErr ? ' err' : '')
+      clearTimeout(banner._t); banner._t = setTimeout(() => { b.className = 'banner' + (isErr ? ' err' : '') }, 2400)
+    }
+    function mask(email) { const [l, d] = email.split('@'); return l.slice(0, 2) + '***@' + d }
+    function setErr(which, msg) {
+      $(which + '-err').textContent = msg || ''
+      $(which + '-field').classList.toggle('has-error', !!msg)
+    }
+    function validEmail() { const v = $('email').value.trim(); return v && v.length <= 254 && EMAIL_RE.test(v) }
+    function refresh() {
+      const ready = validEmail() && /^\d{6}$/.test($('code').value) && !loading
+      $('btn-login').classList.toggle('is-disabled', !ready)
+      $('email-clear').style.display = $('email').value ? 'flex' : 'none'
+      const btn = $('btn-code')
+      btn.disabled = countdown > 0 || sending
+      btn.innerHTML = sending ? '发送中…' : countdown > 0 ? `重新获取 <span class="num">(${countdown}s)</span>` : (mailCode ? '重新获取' : '获取验证码')
+      $('login-text').textContent = loading ? '登录中…' : '登录'
+      $('login-arrow').outerHTML = loading ? '<span class="spinner" id="login-arrow"></span>' : '<span class="arrow" id="login-arrow">→</span>'
+    }
+    function startCountdown(sec) {
+      countdown = sec; clearInterval(timer)
+      timer = setInterval(() => { countdown -= 1; if (countdown <= 0) { countdown = 0; clearInterval(timer) } refresh() }, 1000)
+      refresh()
+    }
+
+    $('email').addEventListener('input', () => { setErr('email'); refresh() })
+    $('email').addEventListener('blur', () => { if ($('email').value && !validEmail()) setErr('email', '请输入正确的邮箱地址') })
+    $('email-clear').addEventListener('click', () => { $('email').value = ''; setErr('email'); refresh(); $('email').focus() })
+    $('code').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); setErr('code'); refresh() })
+    $('agree-hit').addEventListener('click', () => {
+      agreed = !agreed; $('check').classList.toggle('on', agreed); $('agree-hit').setAttribute('aria-checked', agreed); $('agree').classList.remove('nudge')
+    })
+
+    $('btn-code').addEventListener('click', () => {
+      if (countdown > 0 || sending) return
+      if (!validEmail()) { setErr('email', '请输入正确的邮箱地址'); $('email').focus(); return }
+      sending = true; refresh()
+      setTimeout(() => {
+        sending = false
+        const sc = scenario()
+        if (sc === 'rate') { banner('验证码发送过于频繁，请 60 秒后再试'); refresh(); return log('send → 429 / 4290') }
+        if (sc === 'unavail') { banner('验证码发送失败，请稍后重试'); refresh(); return log('send → 503 / 5030') }
+        if (sc === 'network') { banner('网络连接失败，请检查网络后重试'); refresh(); return log('send → network error') }
+        attempts = 0
+        mailCode = String(Math.floor(Math.random() * 1e6)).padStart(6, '0')
+        $('mail').style.display = 'block'; $('mail-code').textContent = mailCode
+        const tip = $('sent-tip'); tip.innerHTML = `验证码已发送至 <b>${mask($('email').value.trim().toLowerCase())}</b>，10 分钟内有效`; tip.classList.add('show')
+        startCountdown(COOLDOWN); $('code').focus()
+        log('send → 200 · cooldown 60s · 验证码已写入模拟收件箱')
+      }, 650)
+    })
+    $('btn-fill').addEventListener('click', () => { $('code').value = mailCode; setErr('code'); refresh() })
+
+    $('btn-login').addEventListener('click', () => {
+      if (loading) return
+      if (!validEmail()) { setErr('email', '请输入正确的邮箱地址'); return }
+      if (!/^\d{6}$/.test($('code').value)) { setErr('code', '请输入 6 位数字验证码'); return }
+      if (!agreed) { const a = $('agree'); a.classList.remove('nudge'); void a.offsetWidth; a.classList.add('nudge'); banner('请先阅读并同意用户协议与隐私政策'); return }
+      loading = true; refresh()
+      setTimeout(() => {
+        loading = false
+        const sc = scenario()
+        if (sc === 'network') { banner('网络连接失败，请检查网络后重试'); refresh(); return log('verify → network error') }
+        if (sc === 'unavail') { banner('服务暂不可用，请稍后再试'); refresh(); return log('verify → 503') }
+        if (sc === 'expired') { setErr('code', '验证码错误或已过期'); refresh(); return log('verify → 400 / 4012') }
+        if (sc === 'burn' || (sc === 'wrong' && attempts + 1 >= MAX_ATTEMPTS)) {
+          attempts = 0; $('code').value = ''; setErr('code', '验证码错误次数过多，请重新获取'); countdown = 0; clearInterval(timer); refresh(); return log('verify → 400 / 4013')
+        }
+        if (sc === 'wrong') { attempts += 1; setErr('code', `验证码错误，还可尝试 ${MAX_ATTEMPTS - attempts} 次`); refresh(); return log('verify → 400 / 4012') }
+        if ($('code').value !== mailCode) { attempts += 1; setErr('code', `验证码错误，还可尝试 ${MAX_ATTEMPTS - attempts} 次`); refresh(); return log('verify → 400 / 4012（与模拟收件箱不一致）') }
+        $('form-view').style.display = 'none'; $('done-view').style.display = 'flex'; log('verify → 200 · JWT 已保存 · switchTab 今日')
+      }, 700)
+    })
+    $('btn-reset').addEventListener('click', () => { location.reload() })
+    refresh()
+  </script>
+</body>
+</html>

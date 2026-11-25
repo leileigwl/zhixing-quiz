@@ -88,3 +88,12 @@ class QuizDetailResponse(BaseModel):
     report_status: Optional[str] = None
     report_error: Optional[str] = None
     created_at: str
+
+
+class EmailSendCodeRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320, description="登录邮箱")
+
+
+class EmailVerifyRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320, description="登录邮箱")
+    code: str = Field(min_length=1, max_length=12, description="6 位邮箱验证码")

@@ -34,6 +34,7 @@ export default defineConfig({
       // 只对已有测试守护的逻辑层设阈值，避免页面文件拉低整体导致阈值形同虚设
       include: [
         'src/services/**/*.ts',
+        'src/pages/login/index.tsx',
         'src/components/RetentionCurveCanvas/chartModel.ts',
         'src/components/SevenDayRhythmBar/rhythmModel.ts',
         'config/apiBaseUrl.ts',

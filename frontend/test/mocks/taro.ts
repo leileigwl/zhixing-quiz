@@ -57,6 +57,7 @@ const createTaro = () => ({
   showModal: vi.fn(),
   navigateTo: vi.fn(),
   redirectTo: vi.fn(),
+  reLaunch: vi.fn(),
   switchTab: vi.fn(),
   navigateBack: vi.fn(),
   vibrateShort: vi.fn(),
