@@ -1,6 +1,6 @@
 """document_loader_service 单元测试"""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from langchain_core.documents import Document
@@ -49,39 +49,83 @@ def test_load_and_split_respects_chunk_size(tmp_path):
         assert len(chunk.page_content) <= 500
 
 
-def test_load_and_split_pdf_dispatches_to_pypdf_loader(tmp_path):
+def _make_pdf(path, texts):
+    """用 pypdf 生成带文字的真实 PDF（Helvetica，仅 ASCII），供解析回归测试使用。"""
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    writer = PdfWriter()
+    for text in texts:
+        page = writer.add_blank_page(width=612, height=792)
+        font = DictionaryObject(
+            {
+                NameObject("/Type"): NameObject("/Font"),
+                NameObject("/Subtype"): NameObject("/Type1"),
+                NameObject("/BaseFont"): NameObject("/Helvetica"),
+            }
+        )
+        page[NameObject("/Resources")] = DictionaryObject(
+            {NameObject("/Font"): DictionaryObject({NameObject("/F1"): writer._add_object(font)})}
+        )
+        stream = DecodedStreamObject()
+        stream.set_data(f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode("latin-1"))
+        page[NameObject("/Contents")] = writer._add_object(stream)
+    with open(path, "wb") as f:
+        writer.write(f)
+
+
+def test_load_and_split_real_pdf_extracts_each_page(tmp_path):
     file_path = tmp_path / "sample.pdf"
+    _make_pdf(file_path, ["Ebbinghaus forgetting curve page one", "Spaced repetition page two"])
+
+    chunks = document_loader_service.load_and_split(str(file_path), "pdf")
+
+    joined = "\n".join(c.page_content for c in chunks)
+    assert "forgetting curve" in joined
+    assert "Spaced repetition" in joined
+    pages = sorted({c.metadata["page"] for c in chunks})
+    assert pages == [0, 1]
+    assert all(c.metadata["total_pages"] == 2 for c in chunks)
+
+
+def test_load_pdf_blank_pages_raise_friendly_error(tmp_path):
+    from pypdf import PdfWriter
+
+    file_path = tmp_path / "blank.pdf"
+    writer = PdfWriter()
+    writer.add_blank_page(width=612, height=792)
+    with open(file_path, "wb") as f:
+        writer.write(f)
+
+    with pytest.raises(ValueError, match="未提取到有效文字"):
+        document_loader_service.load_and_split(str(file_path), "pdf")
+
+
+def test_load_pdf_corrupted_file_raises_friendly_error(tmp_path):
+    file_path = tmp_path / "broken.pdf"
     file_path.write_bytes(b"%PDF-1.4 fake content")
 
-    fake_docs = [Document(page_content="PDF 页面内容 " * 100, metadata={"page": 0})]
-    mock_loader_instance = MagicMock()
-    mock_loader_instance.load.return_value = fake_docs
-
-    with patch(
-        "langchain_community.document_loaders.PyPDFLoader",
-        return_value=mock_loader_instance,
-    ) as mock_loader_cls:
-        chunks = document_loader_service.load_and_split(str(file_path), "pdf")
-
-        mock_loader_cls.assert_called_once_with(str(file_path))
-        assert len(chunks) >= 1
+    with pytest.raises(ValueError):
+        document_loader_service.load_and_split(str(file_path), "pdf")
 
 
-def test_load_and_split_docx_dispatches_to_docx2txt_loader(tmp_path):
+def test_load_pdf_rejects_too_many_pages(tmp_path, monkeypatch):
+    file_path = tmp_path / "many.pdf"
+    _make_pdf(file_path, ["a", "b", "c"])
+    monkeypatch.setattr(document_loader_service, "MAX_PDF_PAGES", 2)
+
+    with pytest.raises(ValueError, match="页数过多"):
+        document_loader_service.load_and_split(str(file_path), "pdf")
+
+
+def test_load_and_split_docx_dispatches_to_docx2txt(tmp_path):
     file_path = tmp_path / "sample.docx"
     file_path.write_bytes(b"fake docx content")
 
-    fake_docs = [Document(page_content="Word 文档内容 " * 100, metadata={})]
-    mock_loader_instance = MagicMock()
-    mock_loader_instance.load.return_value = fake_docs
-
-    with patch(
-        "langchain_community.document_loaders.Docx2txtLoader",
-        return_value=mock_loader_instance,
-    ) as mock_loader_cls:
+    with patch("docx2txt.process", return_value="Word 文档内容 " * 100) as mock_process:
         chunks = document_loader_service.load_and_split(str(file_path), "docx")
 
-        mock_loader_cls.assert_called_once_with(str(file_path))
+        mock_process.assert_called_once_with(str(file_path))
         assert len(chunks) >= 1
 
 
@@ -126,12 +170,10 @@ def test_load_and_split_empty_pdf_raises_clear_message(tmp_path):
     file_path = tmp_path / "scan.pdf"
     file_path.write_bytes(b"%PDF-1.4 scan")
 
-    mock_loader_instance = MagicMock()
-    mock_loader_instance.load.return_value = [Document(page_content="   ", metadata={"page": 0})]
-
-    with patch(
-        "langchain_community.document_loaders.PyPDFLoader",
-        return_value=mock_loader_instance,
+    with patch.object(
+        document_loader_service,
+        "_load_pdf",
+        return_value=[Document(page_content="   ", metadata={"page": 0})],
     ):
         with pytest.raises(ValueError, match="扫描版 PDF"):
             document_loader_service.load_and_split(str(file_path), "pdf")

@@ -6,6 +6,7 @@
 #   bash deploy/deploy.sh web <h5.tar.gz>  # 发布 H5 静态产物（tar 包内为 frontend/dist-h5/ 的内容）
 #   bash deploy/deploy.sh status           # 查看容器、健康检查与内存
 #   bash deploy/deploy.sh update [分支]     # 拉取最新代码（默认 main）后重新执行 backend
+#   bash deploy/deploy.sh backup-cron      # 安装 MySQL 每日 03:30 备份 cron（/etc/cron.d/zhixing-quiz-backup）
 #
 # 可用环境变量覆盖：DOMAIN、WEB_ROOT、API_UPSTREAM、COMPOSE_PROJECT
 # 前置：backend/.env 已按 docs/deploy.md 创建并 chmod 600（本脚本不会生成或打印任何密钥）
@@ -110,11 +111,38 @@ cmd_update() {
   cmd_backend
 }
 
+cmd_backup_cron() {
+  local cron_file=/etc/cron.d/zhixing-quiz-backup
+  [[ "$(cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value)" == "Asia/Shanghai" ]] \
+    || log "警告：宿主机时区不是 Asia/Shanghai，cron 的 03:30 将按宿主机时区执行"
+  chmod 755 "$REPO_DIR/deploy/backup-mysql.sh"
+  # cron 文件里只有脚本路径，没有任何密码；密码由脚本运行时从 backend/.env 读取
+  cat > "$cron_file" <<CRON
+# 知行快刷 MySQL 每日备份（由 deploy/deploy.sh backup-cron 生成；宿主机时区 Asia/Shanghai）
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+30 3 * * * root $REPO_DIR/deploy/backup-mysql.sh >> /var/log/zhixing-quiz-backup.log 2>&1
+CRON
+  chmod 644 "$cron_file"
+  cat > /etc/logrotate.d/zhixing-quiz-backup <<'ROTATE'
+/var/log/zhixing-quiz-backup.log {
+  monthly
+  rotate 6
+  compress
+  missingok
+  notifempty
+}
+ROTATE
+  systemctl reload cron 2>/dev/null || true
+  log "已安装 $cron_file（每天 03:30），日志 /var/log/zhixing-quiz-backup.log，备份目录 /var/backups/zhixing-quiz"
+}
+
 case "${1:-}" in
   backend) cmd_backend ;;
   nginx)   cmd_nginx ;;
   web)     shift; cmd_web "${1:-}" ;;
   status)  cmd_status ;;
   update)  shift; cmd_update "${1:-main}" ;;
-  *) sed -n '2,11p' "$0"; exit 1 ;;
+  backup-cron) cmd_backup_cron ;;
+  *) sed -n '2,12p' "$0"; exit 1 ;;
 esac
