@@ -553,3 +553,19 @@ class TestRedisStore:
                 assert (await _verify(client, code)).json()["code"] == 4012
         stored_values = [v for v in fake.kv.values() if isinstance(v, dict)]
         assert stored_values == []  # 用后即删
+
+
+def test_smtp_env_aliases_and_enabled_flag(monkeypatch):
+    """SMTP_FROM_EMAIL 等价于 SMTP_FROM；SMTP_ENABLED=false 时视为未配置。"""
+    from app.core.config import Settings
+
+    for key in ("SMTP_FROM", "SMTP_FROM_EMAIL", "SMTP_ENABLED", "SMTP_HOST"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("SMTP_HOST", "smtp.163.com")
+    monkeypatch.setenv("SMTP_FROM_EMAIL", "sender@163.com")
+    s = Settings(_env_file=None)
+    assert s.smtp_from == "sender@163.com"
+    assert s.smtp_configured is True
+
+    monkeypatch.setenv("SMTP_ENABLED", "false")
+    assert Settings(_env_file=None).smtp_configured is False

@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 DEFAULT_INSECURE_JWT_SECRETS = {
@@ -37,11 +38,14 @@ class Settings(BaseSettings):
     allow_dev_login: bool = True
 
     # 邮箱验证码登录（H5 主登录通道）：通用 SMTP，切换阿里云 DirectMail 等服务商只需改环境变量
+    # SMTP_ENABLED=false 可一键关闭真实发信（开发/测试回落到日志打印，生产接口返回 503）
+    smtp_enabled: bool = True
     smtp_host: str = ""
     smtp_port: int = 465
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = ""
+    # 发件地址：SMTP_FROM 与 SMTP_FROM_EMAIL 两种写法都认
+    smtp_from: str = Field(default="", validation_alias=AliasChoices("smtp_from", "smtp_from_email"))
     smtp_use_ssl: bool = True
     smtp_timeout_seconds: int = 10
     email_code_ttl_seconds: int = 600
@@ -139,6 +143,8 @@ class Settings(BaseSettings):
     @property
     def smtp_configured(self) -> bool:
         """SMTP 是否已配置到可发信的最小集合（主机 + 发件地址）。"""
+        if not self.smtp_enabled:
+            return False
         return bool(self.smtp_host.strip() and (self.smtp_from.strip() or self.smtp_user.strip()))
 
     def validate_runtime_security(self) -> None:
