@@ -25,6 +25,29 @@ describe('邮箱校验', () => {
     },
   )
 
+  it.each([
+    'julia@gmail.com',
+    'me@outlook.com',
+    'first.last+tag@mail.company.com.cn',
+    "o'brien@school.edu",
+    'a_b-c@sub-domain.example.io',
+    'user@example.technology',
+    '1234567@qq.com',
+    'me@例子.中国',
+    'me@xn--fsqu00a.xn--fiqs8s',
+    'ｊｕｌｉａ＠１６３。ｃｏｍ',
+  ])('邮箱不限类型：%s', (email) => {
+    expect(isValidEmail(email)).toBe(true)
+  })
+
+  it.each(['a@-b.com', 'a@b-.com', 'a@b.c', 'a@b.123', 'a@b..com'])('非法域名：%s', (email) => {
+    expect(isValidEmail(email)).toBe(false)
+  })
+
+  it('normalizeEmail 全角转半角、中文句号转点', () => {
+    expect(normalizeEmail('ｊｕｌｉａ＠１６３。ｃｏｍ')).toBe('julia@163.com')
+  })
+
   it('normalizeEmail 去空格并小写', () => {
     expect(normalizeEmail('  A.B@QQ.COM ')).toBe('a.b@qq.com')
     expect(normalizeEmail(undefined as unknown as string)).toBe('')

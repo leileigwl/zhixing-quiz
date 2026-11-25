@@ -20,6 +20,7 @@ import IcpFooter from '../../components/IcpFooter'
 import './index.scss'
 
 const BANNER_MS = 2400
+const AGREE_PROMPT = '获取验证码前，请阅读并同意《用户协议》和《隐私政策》。'
 /** 按下态至少保持 90ms（V2.7 点按手感规范），快速轻点也能看见反馈 */
 const PRESS_STAY_MS = 90
 
@@ -45,6 +46,7 @@ export default function LoginPage() {
   const [banner, setBanner] = useState('')
   const [nudgeAgree, setNudgeAgree] = useState(false)
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const askingAgree = useRef(false)
   const countdown = useCountdown()
 
   useEffect(() => {
@@ -84,6 +86,34 @@ export default function LoginPage() {
     return next
   }
 
+  /**
+   * 未勾选协议时先弹「同意」确认：同意后自动勾选并继续原动作，拒绝则什么都不发。
+   * 返回 true 表示可以继续。
+   */
+  const ensureAgreed = async (): Promise<boolean> => {
+    if (agreed) return true
+    if (askingAgree.current) return false
+    askingAgree.current = true
+    const res = await Promise.resolve(
+      Taro.showModal({
+        title: '请先同意协议',
+        content: AGREE_PROMPT,
+        confirmText: '同意并继续',
+        cancelText: '暂不',
+      }),
+    ).catch(() => null)
+    askingAgree.current = false
+    if (res?.confirm) {
+      setAgreed(true)
+      setNudgeAgree(false)
+      return true
+    }
+    setNudgeAgree(false)
+    setTimeout(() => setNudgeAgree(true), 0)
+    showBanner(MSG.needAgree)
+    return false
+  }
+
   const handleSendCode = async () => {
     if (sending || countdown.running) return
     if (!isValidEmail(email)) {
@@ -91,6 +121,8 @@ export default function LoginPage() {
       return
     }
     if (!canRequestCode({ email, sending, remaining: countdown.remaining })) return
+    // 发送验证码前必须先同意《用户协议》《隐私政策》
+    if (!(await ensureAgreed())) return
     setSending(true)
     setCodeError('')
     try {
@@ -114,12 +146,7 @@ export default function LoginPage() {
       setCodeError(MSG.invalidCode)
       return
     }
-    if (!agreed) {
-      setNudgeAgree(false)
-      setTimeout(() => setNudgeAgree(true), 0)
-      showBanner(MSG.needAgree)
-      return
-    }
+    if (!(await ensureAgreed())) return
     setLoading(true)
     try {
       await verifyEmailCode(email, code)
@@ -189,7 +216,7 @@ export default function LoginPage() {
         <Text className='brand-name'>知行快刷</Text>
       </View>
       <Text className='login-title'>邮箱登录</Text>
-      <Text className='login-sub'>输入邮箱获取验证码，首次登录将自动创建账号，学习记录跨设备同步。</Text>
+      <Text className='login-sub'>支持任意邮箱（QQ、163、Gmail、Outlook、企业或学校邮箱）。首次登录自动创建账号，学习记录跨设备同步。</Text>
 
       <View className='login-card'>
         <Text className='field-label'>邮箱</Text>
@@ -199,7 +226,7 @@ export default function LoginPage() {
             type='text'
             value={email}
             maxlength={254}
-            placeholder='name@163.com'
+            placeholder='你的邮箱，如 name@qq.com'
             placeholderClass='field-placeholder'
             onInput={(e) => handleEmailInput(e.detail.value)}
             onBlur={handleEmailBlur}

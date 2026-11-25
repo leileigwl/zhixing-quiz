@@ -12,6 +12,7 @@ import hmac
 import re
 import secrets
 import time
+import unicodedata
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
@@ -28,7 +29,11 @@ from app.services import mail_service, user_service
 logger = structlog.get_logger()
 
 MAX_EMAIL_LENGTH = 254
-_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,24}$")
+# 不限邮箱服务商：QQ / 163 / Gmail / Outlook / 企业邮箱 / 学校邮箱 / 中文域名（转 punycode）均可。
+# 与前端 frontend/src/services/emailLogin.ts 的规则保持一致。
+_LOCAL_RE = re.compile(r"^[A-Za-z0-9!#$%&'*+/=?^_`{|}~\-]+(\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~\-]+)*$")
+_LABEL_RE = re.compile(r"^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?$")
+_TLD_RE = re.compile(r"^([a-z]{2,63}|xn--[a-z0-9\-]{1,59})$")
 _CODE_RE = re.compile(r"^\d{6}$")
 
 GENERIC_SENT_MESSAGE = "如果邮箱地址有效，验证码将很快送达，请查收（含垃圾邮件箱）"
@@ -50,13 +55,30 @@ def _now() -> float:
 
 
 def normalize_email(raw: str) -> str:
-    """去空格 + 小写；格式非法时抛出 VerificationCodeError(4011)。"""
-    email = (raw or "").strip().lower()
-    if not email or len(email) > MAX_EMAIL_LENGTH or not _EMAIL_RE.match(email):
-        raise VerificationCodeError(MSG_INVALID_EMAIL, VerificationCodeError.INVALID_EMAIL)
-    local = email.split("@", 1)[0]
-    if len(local) > 64 or local.startswith(".") or local.endswith(".") or ".." in email:
-        raise VerificationCodeError(MSG_INVALID_EMAIL, VerificationCodeError.INVALID_EMAIL)
+    """NFKC（全角转半角）+ 句号「。｡」→「.」+ 去空格 + 小写；中文域名转 punycode。
+
+    格式非法时抛出 VerificationCodeError(4011)。
+    """
+    invalid = VerificationCodeError(MSG_INVALID_EMAIL, VerificationCodeError.INVALID_EMAIL)
+    email = unicodedata.normalize("NFKC", raw or "").replace("\u3002", ".").replace("\uff61", ".")
+    email = email.strip().lower()
+    if not email or email.count("@") != 1:
+        raise invalid
+    local, domain = email.split("@", 1)
+    if not local or len(local) > 64 or not _LOCAL_RE.match(local):
+        raise invalid
+    try:
+        ascii_domain = domain.encode("idna").decode("ascii").lower()
+    except UnicodeError:
+        raise invalid from None
+    labels = ascii_domain.split(".")
+    if len(labels) < 2 or len(ascii_domain) > 253:
+        raise invalid
+    if not all(_LABEL_RE.match(label) for label in labels) or not _TLD_RE.match(labels[-1]):
+        raise invalid
+    email = f"{local}@{ascii_domain}"
+    if len(email) > MAX_EMAIL_LENGTH:
+        raise invalid
     return email
 
 
