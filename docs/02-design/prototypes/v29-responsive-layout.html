@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>zhixing-quiz V2.9 原型 · H5 响应式布局（手机 / iPad / 电脑，待用户确认）</title>
+  <style>
+    /* 方案 B · MOVEPOP 暖石膏 Token（docs/02-design/v2-ui-design-system.md §2，与 frontend/src/app.scss 一致） */
+    :root {
+      --bg-canvas: #F6F5F1;
+      --surface-card: #FFFFFF;
+      --surface-soft: #EFEFF3;
+      --surface-stone: #E9E6DC;
+      --ink-900: #18191E;
+      --ink-700: #3D404B;
+      --ink-500: #6E7280;
+      --ink-400: #969AA6;
+      --hairline: rgba(20, 21, 26, 0.08);
+      --accent-butter: #F4D06F;
+      --accent-sky: #CBE5F5;
+      --accent-sky-deep: #4F94C4;
+      --ds-blue: #2563EB;
+      --ds-bg: #EEF4FF;
+      --ds-border: rgba(37, 99, 235, 0.24);
+      --ok: #165E35;
+      --ok-bg: #F0F9F3;
+      --ok-border: rgba(34, 150, 82, 0.35);
+      --warn-red: #D8685A;
+      --warn-bg: #FDF0EE;
+      --warn-border: rgba(216, 104, 90, 0.35);
+      --pocket-blue: #DCECF7;
+      --pocket-butter: #F5E2AA;
+      --pocket-purple: #E4DEF9;
+      --pocket-sage: #D9EDDF;
+      --shadow: 0 8px 24px rgba(20, 21, 26, 0.035);
+      --shadow-hover: 0 14px 34px rgba(20, 21, 26, 0.08);
+      --dock-h: 58px;
+      --content-max: 560px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { background: var(--bg-canvas); }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+      color: var(--ink-900);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+    button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; text-align: inherit; }
+    a { color: inherit; text-decoration: none; }
+    .v-doc a, .agree a { text-decoration: none; }
+    svg.ic { width: 22px; height: 22px; flex-shrink: 0; }
+    .app-root { display: none; }
+    body.app-mode .app-root { display: block; }
+    body.app-mode .viewer { display: none; }
+
+    /* ---------- 点按 / 焦点 / 悬停（V2.7 手感规范：热区 ≥44px、按下态至少保持 90ms） ---------- */
+    .tap { position: relative; cursor: pointer; user-select: none; touch-action: manipulation;
+      transition: transform 140ms cubic-bezier(.2,.8,.2,1), background-color 140ms ease-out, box-shadow 160ms ease-out, opacity 140ms ease-out, border-color 140ms ease-out; }
+    .tap.is-pressed { transform: scale(0.97); transition-duration: 60ms; }
+    .hit::after { content: ""; position: absolute; inset: -4px -2px; } /* 视觉 36px → 热区 44px */
+    :focus { outline: none; }
+    :focus-visible { outline: 3px solid rgba(79, 148, 196, 0.6); outline-offset: 2px; border-radius: 14px; }
+    .kbd { display: none; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--hairline); background: var(--bg-canvas); font-size: 11.5px; font-weight: 600; color: var(--ink-500); align-items: center; justify-content: center; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+    @media (hover: hover) and (pointer: fine) {
+      .kbd { display: inline-flex; }
+      .lift:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
+      .btn-primary:hover { background: #2B2D34; }
+      .btn-ghost:hover, .chip:hover, .badge:hover, .icon-btn:hover { background: var(--surface-stone); }
+      .opt:not([disabled]):hover { border-color: rgba(24, 25, 30, 0.22); }
+      .row-link:hover { background: var(--bg-canvas); }
+      .icp a:hover { color: var(--ink-900); text-decoration: underline; }
+    }
+
+    /* ---------- 断点显隐辅助 ---------- */
+    .t-up, .d-up, .t-only, .d-only { display: none; }
+
+    /* ---------- 改动标注（查看器里「显示改动标注」开关） ---------- */
+    .anno { display: none; width: fit-content; max-width: 100%; margin: 0 0 10px; padding: 3px 8px; border-radius: 8px; border: 1px dashed var(--accent-sky-deep); background: rgba(203, 229, 245, 0.35); color: #2F6E98; font-size: 11.5px; line-height: 1.45; }
+    html.notes .anno { display: block; }
+    .bp-chip { display: none; position: fixed; right: 10px; top: 10px; z-index: 60; padding: 4px 10px; border-radius: 999px; background: rgba(24,25,30,.82); color: #FFF; font-size: 11px; font-weight: 600; pointer-events: none; }
+    html.notes .bp-chip { display: block; }
+
+    /* =========================================================
+       外壳：手机 = 底部黑曜石 Dock；平板 = 左侧竖向黑曜石胶囊；宽屏 = 232px 浅色侧栏
+       ========================================================= */
+    .main { min-height: 100vh; padding: 16px 16px calc(var(--dock-h) + 16px + 24px + env(safe-area-inset-bottom)); }
+    .wrap { max-width: var(--content-max); margin: 0 auto; }
+    .page { display: none; }
+    .page.on { display: block; animation: fadeIn 200ms ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    .dock { position: fixed; left: 18px; right: 18px; bottom: calc(16px + env(safe-area-inset-bottom)); max-width: 420px; margin: 0 auto; height: var(--dock-h); border-radius: 999px; background: var(--ink-900); display: flex; justify-content: space-around; align-items: center; padding: 0 10px; box-shadow: 0 18px 40px -10px rgba(24, 25, 30, 0.42); z-index: 30; }
+    .dock-tab { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: rgba(255, 255, 255, 0.62); }
+    .dock-tab.on { background: #FFF; color: var(--ink-900); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16); }
+    .sidenav { display: none; }
+    .sn-label { font-size: 11px; font-weight: 600; line-height: 1; }
+
+    /* 二级页 / 登录：无导航 */
+    .shell.nav-none .dock, .shell.nav-none .sidenav, .shell.nav-wide .dock { display: none !important; }
+    .shell.nav-none .main, .shell.nav-wide .main { padding-bottom: 32px; }
+    .shell.nav-none.is-login .main { padding: 0; }
+    .shell.is-login .wrap { max-width: none; }
+    .shell.is-login .icp-shared { display: none; }
+    .shell.is-quiz .main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+
+    /* ---------- 通用组件 ---------- */
+    .card { background: var(--surface-card); border-radius: 26px; padding: 18px; box-shadow: var(--shadow); }
+    .kicker { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-500); }
+    .h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.25; }
+    .sub { font-size: 13px; color: var(--ink-500); }
+    .sec-title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+    .btn-primary { width: 100%; min-height: 52px; border-radius: 999px; background: var(--ink-900); color: #FFF; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 22px 0 26px; }
+    .btn-primary .arrow { font-size: 18px; }
+    .btn-primary[aria-disabled="true"] { opacity: 0.42; }
+    .btn-ghost { min-height: 52px; border-radius: 999px; background: #FFF; box-shadow: var(--shadow); font-size: 14px; font-weight: 600; padding: 0 20px; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .chip { height: 36px; padding: 0 13px; border-radius: 999px; background: var(--surface-soft); font-size: 12.5px; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .chip.on { background: var(--ink-900); color: #FFF; }
+    .badge { min-height: 44px; padding: 0 16px; border-radius: 999px; background: #FFF; font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: var(--shadow); display: inline-flex; align-items: center; }
+    .icon-btn { width: 44px; height: 44px; border-radius: 50%; display: inline-grid; place-items: center; flex-shrink: 0; font-size: 18px; color: var(--ink-700); }
+    .pill { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--surface-soft); color: var(--ink-700); white-space: nowrap; }
+    .pill.ok { background: var(--ok-bg); color: var(--ok); }
+    .pill.warn { background: var(--warn-bg); color: var(--warn-red); }
+    .pill.sky { background: var(--accent-sky); color: var(--ink-900); }
+    .pill.butter { background: var(--accent-butter); color: var(--ink-900); }
+    .stack > * + * { margin-top: 12px; }
+    .row-link { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 10px; margin: 0 -10px; border-radius: 16px; width: calc(100% + 20px); text-align: left; }
+    .row-main { flex: 1; min-width: 0; }
+    .row-title { font-size: 14px; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+    .row-sub { font-size: 12px; color: var(--ink-500); overflow-wrap: anywhere; }
+    .sn-user .row-title, .sn-user .row-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sn-user > span:last-child { min-width: 0; }
+    .row-sep + .row-sep { border-top: 1px solid var(--hairline); }
+    .stats3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .stat { background: #FFF; border-radius: 20px; padding: 14px 12px; box-shadow: var(--shadow); min-width: 0; }
+    .stat-lbl { font-size: 11.5px; color: var(--ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stat-num { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .stat-num small { font-size: 12px; font-weight: 600; color: var(--ink-500); margin-left: 2px; }
+    .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin: 8px 0 16px; }
+    .page-head .h1 { margin-top: 2px; }
+    .subbar { display: flex; align-items: center; gap: 6px; min-height: 52px; margin-bottom: 4px; }
+    .subbar .title { font-size: 15px; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* 7 日节律条（MOVEPOP 标志组件） */
+    .bars7 { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; align-items: end; height: 112px; margin-top: 12px; }
+    .bar-col { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+    .bar-track { width: 10px; flex: 1; border-radius: 999px; background: var(--surface-soft); position: relative; overflow: hidden; }
+    .bar-fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 999px; background: var(--accent-sky); }
+    .bar-col.today .bar-fill { background: var(--ink-900); }
+    .bar-lbl { font-size: 11px; color: var(--ink-500); height: 22px; min-width: 26px; padding: 0 4px; border-radius: 999px; display: grid; place-items: center; }
+    .bar-col.today .bar-lbl { background: var(--ink-900); color: #FFF; font-weight: 600; }
+
+    /* ---------- 今日（首页） ---------- */
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .greet { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 44px; border-radius: 22px; }
+    .mono { width: 44px; height: 44px; border-radius: 50%; background: var(--accent-butter); display: grid; place-items: center; font-weight: 700; flex-shrink: 0; }
+    .greet-t { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .greet-s { font-size: 12px; color: var(--ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .greet > div { min-width: 0; }
+    .home-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+    .bento { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .tile { min-height: 150px; border-radius: 24px; padding: 16px; display: flex; flex-direction: column; justify-content: space-between; text-align: left; min-width: 0; }
+    .tile.butter { background: var(--accent-butter); }
+    .tile.sky { background: var(--accent-sky); }
+    .tile-top { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 600; }
+    .tile-val { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tile-sub { font-size: 12px; color: var(--ink-700); margin-top: 4px; }
+    .comp-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .comp-tools { display: flex; gap: 8px; }
+    .comp-input { display: block; width: 100%; min-height: 116px; border: 0; resize: none; font: inherit; font-size: 16px; line-height: 1.55; background: transparent; margin: 12px 0; color: var(--ink-900); }
+    .comp-input::placeholder { color: var(--ink-400); }
+    .quick { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 12px; padding: 4px 0; }
+    .quick::-webkit-scrollbar { display: none; }
+    .controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .ds-pill { height: 36px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--hairline); background: var(--surface-soft); color: var(--ink-500); font-size: 12.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .ds-pill[aria-pressed="true"] { border-color: var(--ds-border); background: var(--ds-bg); color: var(--ds-blue); }
+    .seg { display: flex; background: var(--surface-soft); border-radius: 999px; padding: 3px; }
+    .seg button { min-height: 38px; min-width: 50px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--ink-500); }
+    .seg button[aria-checked="true"] { background: #FFF; color: var(--ink-900); box-shadow: 0 2px 8px rgba(20,21,26,.08); }
+    .rhythm-card { display: none; }
+    .rhythm-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+
+    /* ---------- 口袋 ---------- */
+    .strip { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 18px; background: var(--surface-stone); margin-bottom: 14px; font-size: 13px; }
+    .kb-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+    .pockets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .pocket { position: relative; height: 176px; border-radius: 22px; overflow: hidden; text-align: left; padding: 0; display: block; width: 100%; }
+    .pocket .paper { position: absolute; left: 14px; right: 14px; top: 12px; height: 92px; background: #FFF; border-radius: 12px; padding: 10px 12px; transform: rotate(-3deg); box-shadow: 0 4px 12px rgba(20,21,26,.06); font-size: 11px; color: var(--ink-500); }
+    .pocket:nth-child(even) .paper { transform: rotate(3deg); }
+    .pocket .paper b { display: block; font-size: 12px; color: var(--ink-900); margin-bottom: 2px; }
+    .pocket .lip { position: absolute; left: 0; right: 0; bottom: 0; height: 96px; padding: 16px 14px 12px; border-radius: 22px 22px 22px 22px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); background: rgba(255,255,255,.35); border-top: 1px dashed rgba(24,25,30,.2); display: flex; flex-direction: column; justify-content: flex-end; }
+    .pocket.blue { background: var(--pocket-blue); } .pocket.butter { background: var(--pocket-butter); } .pocket.purple { background: var(--pocket-purple); } .pocket.sage { background: var(--pocket-sage); }
+    .pocket-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pocket-meta { font-size: 11.5px; color: var(--ink-700); }
+    .pocket.ghost { background: transparent; border: 1.5px dashed rgba(24,25,30,.2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; padding: 12px; }
+    .pocket.ghost .plus { width: 40px; height: 40px; border-radius: 50%; background: #FFF; display: grid; place-items: center; font-size: 22px; }
+    .doc-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 0; }
+    .ext { width: 44px; height: 44px; border-radius: 14px; background: var(--surface-soft); display: grid; place-items: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .ext.pdf { background: var(--warn-bg); color: var(--warn-red); } .ext.md { background: var(--pocket-sage); color: var(--ok); } .ext.doc { background: var(--pocket-blue); color: var(--accent-sky-deep); }
+    .doc-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .btn-sm { min-height: 44px; padding: 0 14px; border-radius: 999px; background: var(--ink-900); color: #FFF; font-size: 12.5px; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; }
+
+    /* ---------- 曲线 ---------- */
+    .domain-pills { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 14px; padding: 4px 0; }
+    .domain-pills::-webkit-scrollbar { display: none; }
+    .curve-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "stats" "curve" "sched" "week" "diff" "due"; }
+    .a-stats { grid-area: stats; } .a-curve { grid-area: curve; } .a-sched { grid-area: sched; } .a-week { grid-area: week; } .a-diff { grid-area: diff; } .a-due { grid-area: due; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .curve-svg { display: block; width: 100%; height: auto; margin-top: 10px; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-500); margin-top: 8px; }
+    .legend i { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid var(--ink-900); vertical-align: middle; margin-right: 6px; }
+    .legend i.dash { border-top: 2.5px dashed var(--warn-red); }
+    .diff-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 10px; align-items: center; min-height: 32px; font-size: 12.5px; }
+    .diff-track { height: 10px; border-radius: 999px; background: var(--surface-soft); overflow: hidden; }
+    .diff-fill { height: 100%; border-radius: 999px; }
+    .sched-date { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 6px 0 2px; }
+
+    /* ---------- 我的 ---------- */
+    .me-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+    .me-side, .me-main { display: grid; gap: 12px; min-width: 0; grid-template-columns: minmax(0, 1fr); }
+    .hero { display: flex; align-items: center; gap: 14px; }
+    .avatar { width: 64px; height: 64px; border-radius: 50%; background: var(--accent-sky); display: grid; place-items: center; font-size: 24px; font-weight: 700; flex-shrink: 0; position: relative; }
+    .avatar .cam { position: absolute; right: -2px; bottom: -2px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink-900); color: #FFF; font-size: 11px; display: grid; place-items: center; border: 2px solid #FFF; }
+    .hero-info { min-width: 0; flex: 1; }
+    .name-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .name { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+    .edit-pill { min-height: 44px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--ink-500); display: inline-flex; align-items: center; }
+    .stamps { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+    .stamp { min-height: 56px; border-radius: 16px; background: var(--surface-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; color: var(--ink-500); }
+    .stamp b { font-size: 13px; color: var(--ink-900); }
+    .stamp.done { background: var(--accent-sky); }
+    .stamp.today { background: var(--ink-900); color: rgba(255,255,255,.7); }
+    .stamp.today b { color: #FFF; }
+    .due-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+    .due-btns { display: flex; gap: 8px; }
+
+    /* ---------- 答题 ---------- */
+    .quiz-top { position: sticky; top: 0; z-index: 10; background: var(--bg-canvas); margin: -16px -16px 8px; padding: 8px 12px 10px; }
+    .qt-row { display: flex; align-items: center; gap: 8px; }
+    .qt-count { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; flex: 1; white-space: nowrap; }
+    .qdots { display: flex; gap: 6px; padding: 0 4px; margin-top: 4px; }
+    .qdot { flex: 1; height: 6px; border-radius: 999px; background: var(--surface-soft); }
+    .qdot.done { background: var(--ink-900); } .qdot.cur { background: var(--accent-butter); } .qdot.bad { background: var(--warn-red); }
+    .quiz-grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+    .q-kp { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .q-stem { font-family: "Songti SC", "Noto Serif SC", Georgia, serif; font-size: 20px; font-weight: 700; line-height: 1.45; letter-spacing: -0.01em; }
+    .q-illus { margin-top: 14px; height: 140px; border-radius: 22px; background: linear-gradient(135deg, var(--accent-sky), var(--pocket-blue)); position: relative; overflow: hidden; }
+    .q-illus i { position: absolute; border-radius: 14px; }
+    .q-illus i:nth-child(1) { width: 70px; height: 70px; left: 22%; top: 30px; background: rgba(255,255,255,.72); }
+    .q-illus i:nth-child(2) { width: 70px; height: 70px; left: calc(22% + 44px); top: 50px; background: var(--accent-butter); opacity: .9; }
+    .q-illus i:nth-child(3) { width: 16px; height: 16px; border-radius: 50%; right: 24%; top: 56px; background: var(--ink-900); }
+    .opts { display: grid; gap: 10px; }
+    .opt { width: 100%; min-height: 58px; border-radius: 16px; background: #FFF; border: 1.5px solid transparent; display: flex; align-items: center; gap: 12px; padding: 12px 14px; text-align: left; font-size: 15px; box-shadow: var(--shadow); }
+    .opt .key { width: 30px; height: 30px; border-radius: 50%; background: var(--surface-soft); display: grid; place-items: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+    .opt .txt { flex: 1; min-width: 0; }
+    .opt[aria-checked="true"] { border-color: var(--ink-900); }
+    .opt[aria-checked="true"] .key { background: var(--ink-900); color: #FFF; }
+    .opt.ok { background: var(--ok-bg); border-color: var(--ok-border); }
+    .opt.ok .key { background: var(--ok); color: #FFF; }
+    .opt.bad { background: var(--warn-bg); border-color: var(--warn-border); animation: shake 320ms ease-in-out; }
+    .opt.bad .key { background: var(--warn-red); color: #FFF; }
+    .opt[disabled] { cursor: default; }
+    @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+    .explain { display: none; margin-top: 12px; border-radius: 20px; padding: 14px 16px; background: #FFF; box-shadow: var(--shadow); }
+    .explain.show { display: block; }
+    .explain.bad { background: var(--warn-bg); }
+    .explain h4 { font-size: 13px; margin-bottom: 4px; }
+    .explain p { font-size: 13.5px; color: var(--ink-700); line-height: 1.65; }
+    .qfoot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg-canvas) 70%, rgba(246,245,241,0)); }
+    .qfoot-in { display: flex; gap: 10px; max-width: var(--content-max); margin: 0 auto; }
+    .qfoot .btn-primary { flex: 1; }
+    .key-hint { display: none; margin-top: 10px; font-size: 12px; color: var(--ink-500); text-align: center; }
+    @media (hover: hover) and (pointer: fine) { .key-hint { display: block; } }
+
+    /* ---------- 登录（V2.8 宽屏版） ---------- */
+    .login { min-height: 100vh; display: flex; flex-direction: column; padding: 56px 22px 8px; }
+    .login-col { width: 100%; max-width: 440px; margin: 0 auto; flex: 1; display: flex; flex-direction: column; }
+    .login-hero { display: none; }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand-mark { width: 40px; height: 40px; position: relative; flex-shrink: 0; }
+    .brand-mark i { position: absolute; border-radius: 11px; }
+    .brand-mark i:nth-child(1) { inset: 6px 0 0 6px; background: var(--accent-sky); }
+    .brand-mark i:nth-child(2) { inset: 0 6px 6px 0; background: var(--accent-butter); }
+    .brand-mark i:nth-child(3) { width: 12px; height: 12px; right: 8px; bottom: 8px; border-radius: 50%; background: var(--ink-900); }
+    .brand-name { font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
+    .login .h1 { font-size: 28px; margin: 28px 0 6px; }
+    .label { font-size: 12px; font-weight: 600; color: var(--ink-500); margin-bottom: 8px; display: block; }
+    .field { display: flex; align-items: center; min-width: 0; height: 52px; border-radius: 16px; background: var(--bg-canvas); border: 1.5px solid transparent; padding: 0 14px; transition: border-color 140ms ease-out, background-color 140ms ease-out; }
+    .field:focus-within { border-color: rgba(24, 25, 30, 0.28); background: #FFF; }
+    .field input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink-900); font-family: inherit; height: 100%; }
+    .field-err { font-size: 12px; color: var(--warn-red); min-height: 18px; line-height: 18px; margin: 6px 2px 4px; }
+    .code-row { display: flex; gap: 10px; }
+    .code-row .field { flex: 1; }
+    .code-row input { letter-spacing: 0.3em; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .code-row input::placeholder { letter-spacing: 0; font-weight: 400; }
+    .btn-code { flex-shrink: 0; min-width: 112px; height: 52px; border-radius: 16px; background: var(--ink-900); color: #FFF; font-size: 14px; font-weight: 600; white-space: nowrap; padding: 0 14px; }
+    .btn-code[disabled] { background: var(--surface-soft); color: var(--ink-400); cursor: default; }
+    .agree { display: flex; align-items: center; gap: 2px; margin-top: 12px; font-size: 12.5px; color: var(--ink-500); flex-wrap: wrap; }
+    .agree-hit { width: 44px; height: 44px; margin-left: -12px; display: grid; place-items: center; border-radius: 50%; flex-shrink: 0; }
+    .check { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid rgba(24,25,30,.28); display: grid; place-items: center; }
+    .agree-hit[aria-checked="true"] .check { background: var(--ink-900); border-color: var(--ink-900); }
+    .agree-hit[aria-checked="true"] .check::after { content: ""; width: 9px; height: 5px; border-left: 2px solid #FFF; border-bottom: 2px solid #FFF; transform: translateY(-1px) rotate(-45deg); }
+    .agree a { color: var(--ink-900); font-weight: 600; text-decoration: none; padding: 12px 0; }
+    .login-foot { margin-top: 18px; text-align: center; font-size: 12px; color: var(--ink-400); }
+    .value-list { list-style: none; display: grid; gap: 14px; margin-top: 28px; }
+    .value-list li { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; color: var(--ink-700); }
+    .value-list b { display: block; color: var(--ink-900); font-size: 15px; }
+    .value-list .dot { width: 32px; height: 32px; border-radius: 10px; background: rgba(255,255,255,.7); display: grid; place-items: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+
+    /* ---------- 复盘报告 ---------- */
+    .rep-grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "stats" "digest" "curve" "kp" "advice" "quote"; }
+    .r-stats { grid-area: stats; } .r-digest { grid-area: digest; } .r-curve { grid-area: curve; } .r-kp { grid-area: kp; } .r-advice { grid-area: advice; } .r-quote { grid-area: quote; }
+    .digest-row { display: flex; gap: 10px; padding: 8px 0; font-size: 13.5px; color: var(--ink-700); }
+    .digest-row span { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-butter); display: grid; place-items: center; font-size: 11.5px; font-weight: 700; flex-shrink: 0; color: var(--ink-900); }
+    .kp-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .quote { background: var(--ink-900); color: #FFF; border-radius: 24px; padding: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .quote p { font-family: "Songti SC", "Noto Serif SC", Georgia, serif; font-size: 16px; line-height: 1.5; }
+    .quote button { min-height: 44px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,.14); color: #FFF; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+    .rep-foot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 10px; margin-top: 14px; }
+
+    /* ---------- 弹层：手机底部抽屉 → 宽屏居中对话框 ---------- */
+    .overlay { position: fixed; inset: 0; z-index: 50; background: rgba(20, 21, 26, 0.42); display: flex; flex-direction: column; justify-content: flex-end; opacity: 0; pointer-events: none; transition: opacity 180ms ease-out; }
+    .overlay.open { opacity: 1; pointer-events: auto; }
+    .sheet { background: #FFF; border-radius: 28px 28px 0 0; padding: 10px 20px calc(22px + env(safe-area-inset-bottom)); max-height: 80vh; overflow-y: auto; transform: translateY(24px); transition: transform 220ms cubic-bezier(.2,.8,.2,1); width: 100%; }
+    .overlay.open .sheet { transform: none; }
+    .grabber { width: 40px; height: 5px; border-radius: 999px; background: var(--surface-soft); margin: 0 auto 10px; }
+    .sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .sheet-title { font-size: 17px; font-weight: 700; }
+    .sheet-done { min-height: 44px; padding: 0 16px; border-radius: 999px; background: var(--ink-900); color: #FFF; font-size: 13px; font-weight: 600; }
+    .sheet-box { width: 100%; min-height: 110px; border-radius: 16px; background: var(--bg-canvas); border: 1.5px solid transparent; padding: 12px 14px; font: inherit; font-size: 15px; resize: none; color: var(--ink-900); }
+    .sheet-box:focus { border-color: rgba(24,25,30,.28); background: #FFF; outline: none; }
+    .sheet-lbl { font-size: 12px; font-weight: 600; color: var(--ink-500); margin: 14px 0 8px; display: block; }
+    .doc-check { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 4px 0; width: 100%; text-align: left; }
+    .doc-check .check { flex-shrink: 0; }
+    .doc-check[aria-checked="true"] .check { background: var(--ink-900); border-color: var(--ink-900); }
+    .doc-check[aria-checked="true"] .check::after { content: ""; width: 9px; height: 5px; border-left: 2px solid #FFF; border-bottom: 2px solid #FFF; transform: translateY(-1px) rotate(-45deg); }
+    .switch-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 56px; width: 100%; text-align: left; }
+    .switch { width: 48px; height: 28px; border-radius: 999px; background: var(--surface-soft); position: relative; flex-shrink: 0; transition: background-color 160ms; }
+    .switch::after { content: ""; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #FFF; box-shadow: 0 2px 6px rgba(0,0,0,.15); transition: transform 160ms; }
+    [aria-checked="true"] > .switch { background: var(--ink-900); }
+    [aria-checked="true"] > .switch::after { transform: translateX(20px); }
+    .sum-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 16px; }
+    .sum-grid .stat { box-shadow: none; background: var(--bg-canvas); text-align: center; }
+
+    /* ---------- 备案页脚 ---------- */
+    .icp { text-align: center; padding: 28px 0 4px; font-size: 12px; color: var(--ink-400); line-height: 1.6; }
+    .icp a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 999px; text-decoration: none; color: var(--ink-500); }
+
+    /* =========================================================
+       断点 ① 平板竖屏 768–1099：竖向黑曜石胶囊导航 + 内容 720
+       ========================================================= */
+    @media (min-width: 768px) {
+      :root { --content-max: 720px; }
+      .t-up { display: block; } span.t-up, a.t-up { display: inline; }
+      .m-only { display: none !important; }
+      .t-only { display: block; }
+      .dock { display: none; }
+      .main { padding: 28px 32px 24px 128px; }
+      .shell.nav-none .main { padding: 28px 32px 24px; }
+      .shell.nav-wide .main { padding: 28px 32px 24px 128px; }
+      .sidenav { display: flex; position: fixed; left: 20px; top: 50%; transform: translateY(-50%); width: 76px; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; border-radius: 38px; background: var(--ink-900); box-shadow: 0 18px 40px -10px rgba(24, 25, 30, 0.42); z-index: 30; }
+      .sn-brand, .sn-cta, .sn-foot { display: none; }
+      .sn-item { width: 60px; height: 62px; border-radius: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: rgba(255,255,255,.62); }
+      .sn-item.on { background: #FFF; color: var(--ink-900); }
+      .page-head { margin-top: 0; }
+      .h1 { font-size: 28px; }
+      .tile { min-height: 164px; }
+      .comp-input { min-height: 150px; }
+      .rhythm-card { display: block; }
+      .pockets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .curve-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "stats stats" "curve curve" "sched diff" "week week" "due due"; }
+      .hero .avatar { width: 76px; height: 76px; }
+      .quiz-top { margin: -28px -32px 12px; padding: 12px 32px 12px; }
+      .quiz-top .qt-in, .quiz-grid, .qfoot-in { max-width: 680px; margin-left: auto; margin-right: auto; }
+      .quiz-grid { display: grid; }
+      .qfoot { position: sticky; bottom: 0; margin: 16px -32px 0; padding: 14px 32px 18px; }
+      .shell.is-quiz .main { padding-bottom: 0; }
+      .q-stem { font-size: 22px; }
+      .login { justify-content: center; padding: 48px 32px 8px; }
+      .login-col { flex: 0 0 auto; background: #FFF; border-radius: 32px; padding: 32px; box-shadow: 0 24px 60px -24px rgba(20,21,26,.18); margin-top: auto; margin-bottom: auto; }
+      .login-col .card { box-shadow: none; padding: 0; }
+      .login .h1 { margin-top: 22px; }
+      .overlay { justify-content: center; align-items: center; padding: 32px; }
+      .sheet { max-width: 520px; border-radius: 28px; padding: 22px 24px 24px; transform: scale(.96); max-height: 84vh; }
+      .grabber { display: none; }
+      .rep-foot { max-width: 520px; margin-left: auto; }
+    }
+    @media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+      .sn-item:not(.on):hover { background: rgba(255,255,255,.12); color: #FFF; }
+    }
+
+    /* =========================================================
+       断点 ② 宽屏 ≥1100（iPad 横屏 / 电脑）：232px 侧栏 + 内容 1120 + 多栏
+       ========================================================= */
+    @media (min-width: 1100px) {
+      :root { --content-max: 1120px; }
+      .d-up { display: block; } span.d-up { display: inline; }
+      .t-only { display: none !important; }
+      .d-only { display: block; }
+      .main { padding: 32px 40px 24px 272px; }
+      .shell.nav-wide .main { padding: 32px 40px 24px 272px; }
+      .shell.nav-none .main { padding: 32px 40px 24px; }
+      .sidenav { left: 0; top: 0; bottom: 0; transform: none; width: 232px; border-radius: 0; align-items: stretch; gap: 4px; padding: 24px 16px 16px; background: var(--bg-canvas); border-right: 1px solid var(--hairline); box-shadow: none; }
+      .sn-brand { display: flex; margin: 0 6px 22px; }
+      .sn-item { width: auto; height: 48px; flex-direction: row; justify-content: flex-start; gap: 12px; padding: 0 16px; border-radius: 999px; color: var(--ink-700); }
+      .sn-item .sn-label { font-size: 14.5px; }
+      .sn-item.on { background: var(--ink-900); color: #FFF; }
+      .sn-item .sn-count { margin-left: auto; font-size: 11.5px; font-weight: 700; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--accent-butter); color: var(--ink-900); display: grid; place-items: center; }
+      .sn-cta { display: flex; margin-top: 18px; min-height: 48px; border-radius: 999px; background: var(--accent-butter); font-size: 14px; font-weight: 600; align-items: center; justify-content: center; }
+      .sn-foot { display: block; margin-top: auto; padding: 12px 6px 0; border-top: 1px solid var(--hairline); }
+      .sn-user { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 4px 8px; border-radius: 18px; width: 100%; text-align: left; }
+      .sn-user .mono { width: 36px; height: 36px; font-size: 14px; }
+      .h1 { font-size: 30px; }
+
+      /* 今日：左输入舱 7 / 右 bento + 节律 5 */
+      .home-grid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-areas: "comp bento" "comp rhythm"; grid-template-rows: auto 1fr; gap: 20px; align-items: start; }
+      .home-grid .bento { grid-area: bento; } .home-grid .composer { grid-area: comp; } .home-grid .rhythm-card { grid-area: rhythm; }
+      .composer { padding: 24px; }
+      .comp-input { min-height: 230px; font-size: 17px; }
+      .quick { flex-wrap: wrap; overflow: visible; }
+
+      /* 口袋：左口袋 5 / 右文档 7 */
+      .kb-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; align-items: start; }
+      .pockets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+      /* 曲线：左曲线 8 / 右指标+日程 4 */
+      .curve-grid { grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); grid-template-areas: "curve stats" "curve sched" "week diff" "due due"; gap: 16px; align-items: start; }
+      .a-stats.stats3 { grid-template-columns: 1fr; gap: 8px; }
+      .a-stats .stat { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
+      .domain-pills { flex-wrap: wrap; overflow: visible; }
+
+      /* 我的：左资料 4 / 右队列+档案 8 */
+      .me-grid { grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 20px; }
+      .me-side { position: sticky; top: 32px; }
+      .me-side .hero { flex-direction: column; text-align: center; }
+      .me-side .name-row { justify-content: center; }
+      .me-side .stats3 .stat { padding: 12px 8px; text-align: center; }
+      .me-side .stat-num { font-size: 19px; }
+
+      /* 答题：题干 5 / 选项 7 并排，隐藏导航 */
+      .quiz-top { margin: -32px -40px 18px; padding: 14px 40px; }
+      .quiz-top .qt-in, .quiz-grid, .qfoot-in { max-width: 1120px; }
+      .quiz-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 32px; align-items: start; }
+      .q-left { position: sticky; top: 96px; }
+      .q-stem { font-size: 24px; }
+      .q-illus { height: 180px; }
+      .qfoot { position: static; margin: 16px 0 0; padding: 0; background: none; }
+      .qfoot-in { max-width: none; }
+
+      /* 登录：左右分屏 */
+      .login { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 0; min-height: 100vh; }
+      .login-hero { display: flex; flex-direction: column; justify-content: center; padding: 64px clamp(40px, 6vw, 96px); background: var(--accent-sky); position: relative; overflow: hidden; }
+      .login-hero .h1 { font-size: 38px; margin: 40px 0 10px; }
+      .login-hero .geo { position: absolute; right: -60px; bottom: -60px; width: 260px; height: 260px; border-radius: 64px; background: var(--accent-butter); opacity: .85; transform: rotate(14deg); }
+      .login-hero .geo2 { position: absolute; right: 120px; bottom: 120px; width: 48px; height: 48px; border-radius: 50%; background: var(--ink-900); }
+      .login-right { display: flex; flex-direction: column; padding: 40px 40px 8px; }
+      .login-col { max-width: 420px; }
+      .login-col .brand.m-brand { display: none; }
+      .login-hero .brand-mark i:nth-child(1) { background: #FFF; }
+
+      /* 复盘：指标通栏，左总结+知识点，右曲线+建议 */
+      .rep-grid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-areas: "stats stats" "digest curve" "kp advice" "quote quote"; gap: 16px; align-items: start; }
+    }
+    @media (min-width: 1100px) and (hover: hover) and (pointer: fine) {
+      .sn-item:not(.on):hover { background: rgba(24, 25, 30, 0.06); color: var(--ink-900); }
+      .sn-cta:hover { background: #EFC552; }
+      .sn-user:hover { background: rgba(24, 25, 30, 0.05); }
+    }
+    @media (min-width: 1440px) {
+      .main { padding-left: 296px; padding-right: 64px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+    /* =========================================================
+       查看器（顶部切换器 + 断点与改动清单）——仅在直接打开本文件时显示
+       ========================================================= */
+    body:not(.app-mode) { background: #EAE8E1; }
+    .viewer { padding: 20px 16px 60px; }
+    .v-head { max-width: 1480px; margin: 0 auto 14px; }
+    .v-head h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; }
+    .v-head p { font-size: 13px; color: var(--ink-500); margin-top: 6px; max-width: 900px; line-height: 1.6; }
+    .v-bar { position: sticky; top: 0; z-index: 5; max-width: 1480px; margin: 0 auto 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px; border-radius: 22px; background: rgba(255,255,255,.86); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+    .v-seg { display: flex; flex-wrap: wrap; gap: 4px; background: var(--surface-soft); border-radius: 18px; padding: 4px; }
+    .v-seg button { min-height: 40px; padding: 0 12px; border-radius: 14px; font-size: 13px; font-weight: 600; color: var(--ink-500); white-space: nowrap; }
+    .v-seg button[aria-pressed="true"] { background: var(--ink-900); color: #FFF; }
+    .v-seg .sep { width: 1px; background: var(--hairline); margin: 6px 2px; }
+    .v-tools { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+    .v-toggle { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: 14px; font-size: 13px; font-weight: 600; }
+    .v-link { min-height: 40px; padding: 0 12px; border-radius: 14px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none; background: var(--surface-soft); }
+    .v-stage { max-width: 1480px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; }
+    .v-frame { position: relative; overflow: hidden; background: #14151A; border-radius: 22px; box-shadow: 0 30px 60px -20px rgba(20, 21, 26, 0.35); transition: width 200ms ease, height 200ms ease; }
+    .v-frame.phone { border-radius: 44px; }
+    .v-frame iframe { position: absolute; left: 8px; top: 8px; border: 0; background: var(--bg-canvas); transform-origin: 0 0; border-radius: 14px; }
+    .v-frame.phone iframe { border-radius: 36px; }
+    .v-meta { margin-top: 10px; font-size: 12.5px; color: var(--ink-500); font-variant-numeric: tabular-nums; text-align: center; }
+    .v-doc { max-width: 1200px; margin: 36px auto 0; }
+    .v-doc h2 { font-size: 18px; margin: 28px 0 10px; letter-spacing: -0.01em; }
+    .v-doc h3 { font-size: 14.5px; margin: 18px 0 6px; }
+    .v-doc p, .v-doc li { font-size: 13.5px; color: var(--ink-700); line-height: 1.7; }
+    .v-doc ul, .v-doc ol { padding-left: 20px; }
+    .v-doc code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: rgba(24,25,30,.06); padding: 1px 5px; border-radius: 6px; word-break: break-all; }
+    .v-doc .tbl-wrap { overflow-x: auto; background: #FFF; border-radius: 20px; box-shadow: var(--shadow); }
+    .v-doc table { border-collapse: collapse; width: 100%; min-width: 1000px; font-size: 12.5px; }
+    .v-doc th, .v-doc td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--hairline); line-height: 1.6; color: var(--ink-700); }
+    .v-doc th { background: var(--surface-stone); color: var(--ink-900); font-weight: 700; position: sticky; top: 0; white-space: nowrap; }
+    .v-doc td:first-child { font-weight: 700; color: var(--ink-900); white-space: nowrap; }
+    .v-doc td.eff { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .v-doc .tag-sug { display: inline-block; padding: 0 6px; border-radius: 6px; background: var(--accent-butter); color: var(--ink-900); font-size: 11px; font-weight: 700; margin-left: 4px; }
+    .v-doc .choice { background: #FFF; border-radius: 18px; padding: 14px 16px; box-shadow: var(--shadow); margin-top: 10px; }
+    .v-doc .choice b { color: var(--ink-900); }
+  </style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/><path d="M10 19v-4h4v4"/></symbol>
+  <symbol id="i-pocket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9h14v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z"/><path d="M7.5 9V6.5a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2V9"/></symbol>
+  <symbol id="i-bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 19v-6M12 19V5M17 19v-9"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20a7 7 0 0 1 14 0"/></symbol>
+</svg>
+
+<!-- =====================================================================
+     查看器：顶部切换器 + iframe 预览（iframe 内载入本文件 ?app=1，按真实媒体查询响应）
+     ===================================================================== -->
+<div class="viewer">
+  <header class="v-head">
+    <h1>V2.9 · H5 响应式布局原型（手机 / iPad / 电脑）· 待用户确认</h1>
+    <p>只出原型，不改 <code>frontend/</code>。预览框内是同一个页面按真实 CSS 媒体查询排布（不是截图拼接），切换宽度即触发断点；也可「新标签打开」后直接拖动浏览器窗口验证。手机断点与现网 V2.8 保持一致，仅在 ≥768px 改排布。页面底部为「断点与改动清单」。</p>
+  </header>
+  <div class="v-bar" role="toolbar" aria-label="预览设置">
+    <div class="v-seg" id="v-dev" aria-label="设备宽度">
+      <button class="tap" data-w="390" data-h="844" aria-pressed="true">手机 390</button>
+      <button class="tap" data-w="820" data-h="1180" aria-pressed="false">iPad 竖屏 820</button>
+      <button class="tap" data-w="1180" data-h="820" aria-pressed="false">iPad 横屏 1180</button>
+      <button class="tap" data-w="1440" data-h="900" aria-pressed="false">电脑 1440</button>
+      <button class="tap" data-w="fit" aria-pressed="false">跟随窗口</button>
+    </div>
+    <div class="v-seg" id="v-page" aria-label="页面">
+      <button class="tap" data-p="home" aria-pressed="true">今日</button>
+      <button class="tap" data-p="pocket" aria-pressed="false">口袋</button>
+      <button class="tap" data-p="curve" aria-pressed="false">曲线</button>
+      <button class="tap" data-p="me" aria-pressed="false">我的</button>
+      <span class="sep"></span>
+      <button class="tap" data-p="quiz" aria-pressed="false">答题</button>
+      <button class="tap" data-p="report" aria-pressed="false">复盘</button>
+      <button class="tap" data-p="login" aria-pressed="false">登录</button>
+    </div>
+    <div class="v-tools">
+      <label class="v-toggle"><input type="checkbox" id="v-notes" checked /> 显示改动标注</label>
+      <a class="v-link" id="v-open" href="?app=1#home" target="_blank" rel="noopener">新标签打开（真实视口）↗</a>
+    </div>
+  </div>
+  <div class="v-stage" id="v-stage">
+    <div class="v-frame phone" id="v-frame"><iframe id="v-if" title="知行快刷响应式原型预览"></iframe></div>
+    <div class="v-meta" id="v-meta"></div>
+  </div>
+
+  <section class="v-doc" id="doc">
+    <h2>断点定义</h2>
+    <div class="tbl-wrap"><table style="min-width:760px">
+      <thead><tr><th>断点</th><th>宽度</th><th>导航</th><th>内容区</th><th>弹层</th></tr></thead>
+      <tbody>
+        <tr><td>手机</td><td>&lt; 768px（预览 390）</td><td>现有黑曜石悬浮 Dock（不变）</td><td>单栏，左右 16px</td><td>底部抽屉</td></tr>
+        <tr><td>平板竖屏</td><td>768–1099px（预览 820）</td><td>左侧竖向黑曜石胶囊（Dock 竖排，76px，图标 + 短标签）</td><td>单栏为主，max-width 720 居中，局部两栏/三栏</td><td>居中对话框 520</td></tr>
+        <tr><td>宽屏</td><td>≥ 1100px（预览 1180 / 1440）</td><td>232px 浅色侧栏：品牌、4 项导航（选中黑曜石胶囊）、待巩固计数、「+ 发起新测验」、用户</td><td>max-width 1120，两栏 7:5 / 5:7 / 8:4 / 4:8</td><td>居中对话框 520</td></tr>
+        <tr><td>大屏</td><td>≥ 1440px</td><td>同宽屏</td><td>只加大左右留白，不再放大</td><td>同上</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2>断点与改动清单</h2>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>页面 / 模块</th><th>手机 &lt;768</th><th>iPad 竖屏 768–1099</th><th>iPad 横屏 / 电脑 ≥1100</th><th>实现涉及文件</th><th>工作量</th></tr></thead>
+      <tbody>
+        <tr><td>全局外壳与导航</td><td>保持黑曜石悬浮 Dock（<code>FloatingDock</code>），不变</td><td>隐藏 Dock；左侧悬浮竖向黑曜石胶囊（项 60×62，图标 + 短标签）；内容 max-width 720</td><td>232px 固定浅色侧栏：品牌、4 项导航（48px 高，选中黑曜石胶囊）、「今日」项显示待巩固数、「+ 发起新测验」、底部用户；内容 max-width 1120</td><td>新增 <code>src/utils/viewport.ts</code>（<code>tierFromWidth</code> 纯函数 + 单测）、<code>src/hooks/useViewportTier.ts</code>、<code>src/components/SideNav/</code>、<code>src/components/ResponsiveNav/</code>（&lt;768 渲染 FloatingDock，否则 SideNav）；4 个 tab 页把 <code>FloatingDock</code> 换成 <code>ResponsiveNav</code>；<code>app.scss</code> 加页面容器宽屏内边距 / 最大宽度</td><td class="eff">1.5 人日</td></tr>
+        <tr><td>今日（首页）</td><td>不变</td><td>bento 双卡加高到 164；输入舱全宽、输入框 150 高；新增「本周完成题数」卡（复用 <code>SevenDayRhythmBar</code>）</td><td>两栏 7:5：左输入舱（输入框 230 高、示例标签换行全显），右 bento + 本周节律</td><td><code>pages/index/index.tsx</code>（外包一层 grid 容器、引入节律卡）、<code>index.scss</code></td><td class="eff">0.75 人日</td></tr>
+        <tr><td>口袋</td><td>不变（2 列口袋 + 文档列表）</td><td>口袋网格 3 列；文档列表全宽</td><td>两栏 5:7：左 2 列口袋网格，右文档列表；行 hover 高亮</td><td><code>pages/knowledge/index.tsx</code>、<code>index.scss</code>（删除确认沿用 <code>Taro.showModal</code>，H5 本身就是居中弹窗）</td><td class="eff">0.5 人日</td></tr>
+        <tr><td>曲线</td><td>不变</td><td>指标 3 列、曲线通栏，下方「复习日程 | 难度分布」两列，本周完成、待复习通栏；领域标签可横滑</td><td>8:4：左曲线（加高）+ 本周完成；右竖排指标、复习日程、难度分布；待复习清单通栏；领域标签换行全显</td><td><code>pages/mastery/index.tsx</code>、<code>index.scss</code>；<code>components/RetentionCurveCanvas</code> 宽度变化时重算尺寸重绘（H5 用 ResizeObserver，weapp 分支不动）</td><td class="eff">1 人日</td></tr>
+        <tr><td>我的</td><td>不变；页底新增「账号」区（邮箱 + 退出登录，交接清单待办）与备案号</td><td>头像卡加大，单栏</td><td>4:8：左资料卡（竖排）+ 指标 + 本周印章（sticky），右待巩固队列 + 历史档案 + 账号</td><td><code>pages/profile/index.tsx</code>、<code>index.scss</code></td><td class="eff">0.75 人日</td></tr>
+        <tr><td>答题（二级页）</td><td>不变：顶部题号 + 进度点，底部固定操作栏</td><td>无导航专注模式；居中窄栏 680；操作栏 sticky 在栏底</td><td>5:7 并排：左题干 + 知识点 + 配图（sticky），右选项 + 解析 + 操作栏；选项右侧显示 1–4 键位提示</td><td><code>pages/quiz/index.tsx</code>、<code>index.scss</code>；新增 <code>pages/quiz/quizKeys.ts</code>（按键→动作纯函数 + 单测）</td><td class="eff">1 人日</td></tr>
+        <tr><td>登录（V2.8 宽屏版）</td><td>同 V2.8</td><td>表单收进 440 白卡，垂直居中</td><td>左右分屏：左雾天蓝品牌面板（标语 + 3 条价值说明），右表单 420；备案号在页底居中</td><td><code>pages/login/index.tsx</code>（加左侧面板，仅宽屏显示）、<code>index.scss</code></td><td class="eff">0.5 人日</td></tr>
+        <tr><td>复盘报告（二级页）</td><td>不变（无 Dock）</td><td>显示竖向导航；单栏 720</td><td>指标通栏；左三句总结 + 知识点，右保持曲线 + 下一步建议；金句通栏；底部按钮右对齐</td><td><code>pages/report/index.tsx</code>、<code>index.scss</code></td><td class="eff">0.5 人日</td></tr>
+        <tr><td>弹层</td><td>底部抽屉（导入资料 / 出题偏好 / 答题小结）</td><td colspan="2">居中对话框 max-width 520；点遮罩或 Esc 关闭；打开时焦点进入首个控件，关闭后回到触发按钮</td><td><code>pages/index/index.tsx</code> 两个 sheet、<code>pages/quiz</code> 的 <code>instant-summary-modal</code> 样式；新增 <code>src/hooks/useEscClose.ts</code>（仅 H5）</td><td class="eff">0.5 人日</td></tr>
+        <tr><td>备案页脚</td><td>每页内容末尾（在 Dock 留白之上，不遮挡 Dock）；「我的」页、登录页同样有</td><td>内容末尾</td><td>内容末尾；登录页在右栏底部</td><td>新增 <code>src/components/IcpFooter/</code>（仅 <code>TARO_ENV === 'h5'</code> 渲染，链接 <code>https://beian.miit.gov.cn/</code>，新窗口打开），各页面末尾引入</td><td class="eff">0.25 人日</td></tr>
+        <tr><td>点按 / 悬停 / 焦点</td><td>沿用 V2.7：热区 ≥44px（36px 胶囊用伪元素扩到 44）、按下态 ≥90ms</td><td colspan="2">+ <code>:focus-visible</code> 雾天蓝外环；+ <code>@media (hover:hover) and (pointer:fine)</code> 悬停：卡片上浮阴影、按钮加深、列表行底色</td><td><code>app.scss</code> 全局 <code>.zx-press</code> / focus / hover 规则</td><td class="eff">0.5 人日</td></tr>
+        <tr><td>键盘答题 <span class="tag-sug">建议项</span></td><td>—</td><td colspan="2">外接键盘：<b>1–4 / A–D</b> 选择、<b>Enter</b> 提交 / 下一题、<b>←</b> 上一题；仅在有精确指针时显示键位提示</td><td><code>pages/quiz/index.tsx</code>（H5 下 <code>document</code> keydown，输入框聚焦时不拦截）、<code>quizKeys.ts</code></td><td class="eff">0.5 人日</td></tr>
+        <tr><td>验收</td><td colspan="3">Vitest：<code>tierFromWidth</code>、<code>quizKeys</code>；Playwright 在 390 / 820 / 1180 / 1440 四宽度截图 + 断言 <code>scrollWidth ≤ clientWidth</code>（无横向溢出）；<code>build:h5</code> + <code>build:weapp</code> 双构建通过，weapp 产物样式无变化</td><td>e2e 脚本（新增）</td><td class="eff">1 人日</td></tr>
+        <tr><td>合计</td><td colspan="4">约 8–9 人日，可分 3 个 PR：① 外壳导航 + 页脚 + 全局手感（2.25 天）② 四个 tab 页布局（3 天）③ 答题 / 登录 / 复盘 / 弹层 / 键盘 + 验收（3.5 天）</td><td class="eff">≈ 8.75 人日</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2>Taro H5 下的实现方式（不影响 weapp 构建）</h2>
+    <ol>
+      <li><b>纯样式改动用 CSS 媒体查询</b>，写在各页 <code>index.scss</code> 末尾，并用 Taro 样式条件编译注释包住：<code>/* #ifdef h5 */ @media (min-width: 768px) { … } /* #endif */</code>（<code>app.scss</code> 已在用这种写法），weapp 编译时整段剔除，小程序样式零变化。</li>
+      <li><b>尺寸单位</b>：H5 现按 <code>designWidth: 750</code> 转 rem，且 <code>app.scss</code> 里 <code>html { font-size: clamp(16Px, 5.3333vw, 22Px) }</code> 让根字号在宽屏封顶 22px——卡片内部字号、圆角在宽屏保持手机尺寸，这正是想要的。新增的<b>栏宽、侧栏宽度、最大宽度、间距</b>用大写 <code>Px</code>（pxtransform 不转换）写死，如 <code>max-width: 1120Px</code>、<code>width: 232Px</code>。媒体查询条件里的 px 按 pxtransform 默认（<code>mediaQuery: false</code>）不转换，实现时以构建产物核对一次。</li>
+      <li><b>结构性改动用宽度 hook</b>：<code>useViewportTier()</code> 返回 <code>'mobile' | 'tablet' | 'wide'</code>，H5 下用 <code>window.matchMedia('(min-width: 768px)')</code> 与 <code>(min-width: 1100px)</code> 监听；weapp 下直接返回 <code>'mobile'</code>（<code>process.env.TARO_ENV !== 'h5'</code> 分支编译期裁剪）。只用于 CSS 做不到的事：Dock ↔ 侧栏切换、对话框焦点管理与 Esc、答题键盘监听、曲线 Canvas 重绘。</li>
+      <li><b>导航</b>：<code>custom-tab-bar/</code> 只服务 weapp，不改；H5 已隐藏 <code>.taro-tabbar__tabbar</code>，各 tab 页已在 H5 下自行渲染 <code>FloatingDock</code>，改为渲染 <code>ResponsiveNav</code>，跳转仍用 <code>Taro.switchTab</code>，hash 路由与页面清单不变。</li>
+      <li><b>悬停</b>一律放在 <code>@media (hover: hover) and (pointer: fine)</code> 内，避免触屏 iPad 出现粘滞 hover；<b>焦点</b>用 <code>:focus-visible</code>，鼠标点击不出外环。</li>
+      <li><b>不新增依赖、不改路由与接口</b>；手机端视觉以现网为准，只有「我的」页底部新增账号区 + 备案号。</li>
+    </ol>
+
+    <h2>待用户确认的设计选择</h2>
+    <div class="choice"><b>① 平板竖屏（768–1099）导航</b>：A. 左侧竖向黑曜石胶囊（原型默认，延续 Dock 的识别度）；B. 保留底部 Dock 只居中限宽（改动最小，但 820 宽下底部导航离内容远）。</div>
+    <div class="choice"><b>② 答题页宽屏排布</b>：A. ≥1100 题干与选项左右并排（原型默认，长题干 + 配图时一屏看全）；B. 所有宽度都用居中窄栏 680（更专注，实现约省 0.5 天）。</div>
+    <div class="choice"><b>③ 手机端备案号位置</b>：A. 每页内容末尾（原型默认；工信部要求网站首页底部展示，最稳）；B. 只放「我的」页与登录页底部（首页更干净，合规上有被认为“首页未展示”的风险）。</div>
+  </section>
+</div>
+
+<!-- =====================================================================
+     应用本体（?app=1）
+     ===================================================================== -->
+<div class="app-root">
+  <div class="bp-chip" id="bp-chip"></div>
+  <div class="shell" id="shell">
+    <!-- 平板 / 宽屏导航 -->
+    <nav class="sidenav" aria-label="主导航">
+      <div class="sn-brand brand"><div class="brand-mark"><i></i><i></i><i></i></div><div class="brand-name">知行快刷</div></div>
+      <a class="sn-item tap" href="#home" data-nav="home" aria-label="今日"><svg class="ic"><use href="#i-home"/></svg><span class="sn-label">今日</span><span class="sn-count d-up" style="display:none" aria-label="3 题待巩固">3</span></a>
+      <a class="sn-item tap" href="#pocket" data-nav="pocket" aria-label="口袋"><svg class="ic"><use href="#i-pocket"/></svg><span class="sn-label">口袋</span></a>
+      <a class="sn-item tap" href="#curve" data-nav="curve" aria-label="曲线"><svg class="ic"><use href="#i-bars"/></svg><span class="sn-label">曲线</span></a>
+      <a class="sn-item tap" href="#me" data-nav="me" aria-label="我的"><svg class="ic"><use href="#i-user"/></svg><span class="sn-label">我的</span></a>
+      <button class="sn-cta tap" data-go="home" data-focus="comp-input">+ 发起新测验</button>
+      <div class="sn-foot">
+        <a class="sn-user tap" href="#me"><span class="mono">林</span><span><span class="row-title" style="display:block">林同学</span><span class="row-sub" style="display:block">lin@example.com</span></span></a>
+      </div>
+    </nav>
+
+    <main class="main" id="main">
+      <div class="wrap">
+
+        <!-- ============ 今日 ============ -->
+        <section class="page" id="p-home" data-page="home" aria-label="今日">
+          <div class="topbar">
+            <a class="greet tap" href="#me"><span class="mono">林</span><div><div class="greet-t">下午好，林同学</div><div class="greet-s">连续复习 5 天 · 今日 3 题待巩固</div></div></a>
+            <a class="badge tap" href="#curve">曲线日程 ›</a>
+          </div>
+          <div class="anno"><span class="m-only">手机：与现网一致（bento → 输入舱）</span><span class="t-only">平板：Dock 改为左侧竖向胶囊；bento 加高；新增「本周完成题数」卡</span><span class="d-only">宽屏：左输入舱 7 / 右 bento + 节律 5；侧栏「今日」显示待巩固数</span></div>
+          <div class="home-grid">
+            <div class="bento">
+              <button class="tile butter tap lift" data-go="quiz"><div class="tile-top"><span>今日待巩固</span><span>→</span></div><div><div class="tile-val">3 题</div><div class="tile-sub">秒开错题回忆</div></div></button>
+              <button class="tile sky tap lift" data-fill="操作系统 · 进程调度"><div class="tile-top"><span>重点攻坚</span><span>›</span></div><div><div class="tile-val">操作系统</div><div class="tile-sub">正确率 58% · 点此填入</div></div></button>
+            </div>
+            <div class="composer card">
+              <div class="comp-head">
+                <span class="kicker">发起新测验</span>
+                <div class="comp-tools">
+                  <button class="chip hit tap" data-open="sheet-material" id="chip-material">+ 资料/文档</button>
+                  <button class="chip hit tap" data-open="sheet-settings" id="chip-settings">6 题 · 配图</button>
+                </div>
+              </div>
+              <label for="comp-input" class="sr-only" style="position:absolute;left:-9999px">测验主题</label>
+              <textarea class="comp-input" id="comp-input" placeholder="输入想检验的知识主题，或点右上角导入资料/文档..."></textarea>
+              <div class="quick" aria-label="快捷示例">
+                <button class="chip hit tap" data-fill="TCP 三次握手与四次挥手">TCP 三次握手</button>
+                <button class="chip hit tap" data-fill="Redis 持久化 RDB 与 AOF">Redis 持久化</button>
+                <button class="chip hit tap" data-fill="React Hooks 原理与闭包陷阱">React Hooks</button>
+                <button class="chip hit tap" data-fill="MySQL 索引与 B+ 树">MySQL 索引</button>
+              </div>
+              <div class="controls">
+                <button class="ds-pill hit tap" aria-pressed="true" id="ds-pill">◎ 智能搜索</button>
+                <div class="seg" role="radiogroup" aria-label="题量">
+                  <button class="tap" role="radio" aria-checked="false">3 题</button>
+                  <button class="tap" role="radio" aria-checked="true">6 题</button>
+                  <button class="tap" role="radio" aria-checked="false">10 题</button>
+                </div>
+              </div>
+              <button class="btn-primary tap" data-go="quiz"><span>开始测验</span><span class="arrow">→</span></button>
+            </div>
+            <div class="rhythm-card card">
+              <div class="rhythm-head"><span class="sec-title">本周完成题数</span><span class="sub">共 42 题</span></div>
+              <div class="bars7" id="home-bars"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 口袋 ============ -->
+        <section class="page" id="p-pocket" data-page="pocket" aria-label="口袋">
+          <div class="page-head">
+            <div><div class="kicker">知识口袋</div><div class="h1">你的知识口袋</div><div class="sub">支持 PDF / Word / MD 自动切片归档</div></div>
+            <button class="badge tap" style="background:var(--ink-900);color:#FFF">+ 上传文档</button>
+          </div>
+          <div class="strip"><span>4 个口袋 · 9 / 10 篇文档</span><span class="pill">单文件 ≤10MB</span></div>
+          <div class="anno"><span class="m-only">手机：与现网一致</span><span class="t-only">平板：口袋网格 2 → 3 列</span><span class="d-only">宽屏：左口袋 5 / 右文档列表 7</span></div>
+          <div class="kb-grid">
+            <div class="pockets">
+              <button class="pocket blue tap lift"><div class="paper"><b>TCP/IP 详解.pdf</b>第 3 章 传输层…</div><div class="lip"><div class="pocket-name">计算机网络</div><div class="pocket-meta">3 篇 · 保持率 72%</div></div></button>
+              <button class="pocket butter tap lift"><div class="paper"><b>进程与线程.md</b>调度算法对比…</div><div class="lip"><div class="pocket-name">操作系统</div><div class="pocket-meta">2 篇 · 保持率 58%</div></div></button>
+              <button class="pocket purple tap lift"><div class="paper"><b>Hooks 笔记.md</b>useEffect 清理…</div><div class="lip"><div class="pocket-name">前端 React</div><div class="pocket-meta">2 篇 · 保持率 81%</div></div></button>
+              <button class="pocket sage tap lift"><div class="paper"><b>Redis 设计.docx</b>持久化与淘汰…</div><div class="lip"><div class="pocket-name">数据库</div><div class="pocket-meta">2 篇 · 保持率 66%</div></div></button>
+              <button class="pocket ghost tap"><span class="plus">+</span><b>拓展新领域</b><span class="sub" style="font-size:11.5px">上传新主题资料自动新建口袋</span></button>
+            </div>
+            <div class="card">
+              <div class="panel-head"><span class="sec-title">全部文档</span><button class="chip hit tap">全部 ▾</button></div>
+              <div id="doc-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 曲线 ============ -->
+        <section class="page" id="p-curve" data-page="curve" aria-label="曲线">
+          <div class="page-head"><div><div class="kicker">曲线</div><div class="h1">学习记忆曲线与能力图谱</div></div></div>
+          <div class="domain-pills" role="radiogroup" aria-label="知识域">
+            <button class="chip hit tap on" role="radio" aria-checked="true">全部域</button>
+            <button class="chip hit tap" role="radio" aria-checked="false">计算机网络</button>
+            <button class="chip hit tap" role="radio" aria-checked="false">操作系统</button>
+            <button class="chip hit tap" role="radio" aria-checked="false">前端 React</button>
+            <button class="chip hit tap" role="radio" aria-checked="false">数据库</button>
+          </div>
+          <div class="anno"><span class="m-only">手机：与现网一致</span><span class="t-only">平板：指标 3 列，曲线通栏，日程 | 难度 两列</span><span class="d-only">宽屏：左曲线 8 / 右竖排指标 + 日程 4；Canvas 按容器宽度重绘</span></div>
+          <div class="curve-grid">
+            <div class="stats3 a-stats">
+              <div class="stat"><div class="stat-lbl">总体保持率</div><div class="stat-num">68<small>%</small></div></div>
+              <div class="stat"><div class="stat-lbl">当前待复习</div><div class="stat-num">5<small>题</small></div></div>
+              <div class="stat"><div class="stat-lbl">连续复习</div><div class="stat-num">5<small>天</small></div></div>
+            </div>
+            <div class="card a-curve">
+              <div class="panel-head"><span class="sec-title">学习记忆曲线</span><span class="pill warn">约 2 天后跌破 50%</span></div>
+              <svg class="curve-svg" viewBox="0 0 640 250" role="img" aria-label="记忆保持率曲线：今日后若巩固保持在 70% 以上，不巩固约 2 天后跌破 50%">
+                <g font-size="12" fill="#969AA6" font-family="inherit">
+                  <line x1="40" y1="30" x2="630" y2="30" stroke="rgba(20,21,26,.08)"/><text x="4" y="34">100%</text>
+                  <line x1="40" y1="130" x2="630" y2="130" stroke="#D8685A" stroke-dasharray="4 5" opacity=".55"/><text x="8" y="134" fill="#D8685A">50%</text>
+                  <line x1="40" y1="220" x2="630" y2="220" stroke="rgba(20,21,26,.08)"/><text x="18" y="224">0%</text>
+                  <text x="40" y="244">11/18</text><text x="150" y="244">11/21</text><text x="255" y="244">11/23</text><text x="346" y="244" fill="#18191E" font-weight="700">今日</text><text x="590" y="244">12/02</text>
+                </g>
+                <line x1="360" y1="22" x2="360" y2="222" stroke="#18191E" stroke-dasharray="3 4" opacity=".35"/>
+                <path d="M40 50 C80 92,110 104,150 110 L150 58 C200 92,230 102,265 106 L265 52 C300 80,330 96,360 104" fill="none" stroke="#18191E" stroke-width="3" stroke-linecap="round"/>
+                <path d="M360 104 L360 48 C430 66,520 80,620 88" fill="none" stroke="#18191E" stroke-width="3" stroke-linecap="round" opacity=".9"/>
+                <path d="M360 104 C420 128,500 160,620 184" fill="none" stroke="#D8685A" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
+                <g fill="#FFF" stroke="#18191E" stroke-width="2.5"><circle cx="40" cy="50" r="5"/><circle cx="150" cy="58" r="5"/><circle cx="265" cy="52" r="5"/></g>
+                <circle cx="360" cy="104" r="6" fill="#F4D06F" stroke="#18191E" stroke-width="2.5"/>
+              </svg>
+              <div class="legend"><span><i></i>实测与巩固轨迹</span><span><i class="dash"></i>未复习自然遗忘</span></div>
+            </div>
+            <div class="card a-sched">
+              <div class="kicker">下次复习</div>
+              <div class="sched-date">11/27 周五 · 20:00</div>
+              <div class="sub">「操作系统」保持率将降至 52%，提前 1 天巩固可回到 80% 以上。</div>
+            </div>
+            <div class="card a-week">
+              <div class="rhythm-head"><span class="sec-title">本周完成题数</span><span class="sub">点柱子查看当日</span></div>
+              <div class="bars7" id="curve-bars"></div>
+            </div>
+            <div class="card a-diff">
+              <div class="sec-title" style="margin-bottom:8px">难度分布正确率</div>
+              <div class="diff-row"><span>基础</span><div class="diff-track"><div class="diff-fill" style="width:86%;background:var(--accent-sky)"></div></div><span>86%</span></div>
+              <div class="diff-row"><span>中等</span><div class="diff-track"><div class="diff-fill" style="width:64%;background:var(--accent-butter)"></div></div><span>64%</span></div>
+              <div class="diff-row"><span>困难</span><div class="diff-track"><div class="diff-fill" style="width:38%;background:var(--warn-red)"></div></div><span>38%</span></div>
+            </div>
+            <div class="card a-due">
+              <div class="panel-head"><span class="sec-title">待复习清单</span><button class="btn-sm tap" data-go="quiz">秒开 5 题 →</button></div>
+              <div id="due-list-curve"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 我的 ============ -->
+        <section class="page" id="p-me" data-page="me" aria-label="我的">
+          <div class="anno"><span class="m-only">手机：与现网一致；页底新增账号区 + 备案号（不挡 Dock）</span><span class="t-only">平板：单栏 720，头像加大</span><span class="d-only">宽屏：左资料 + 指标 + 印章 4（sticky）/ 右队列 + 档案 8</span></div>
+          <div class="me-grid">
+            <div class="me-side">
+              <div class="card">
+                <div class="hero">
+                  <button class="avatar tap" aria-label="更换头像">林<span class="cam">✎</span></button>
+                  <div class="hero-info">
+                    <div class="name-row"><span class="name">林同学</span><button class="edit-pill tap">修改昵称 ✎</button></div>
+                    <div class="sub">自适应刷题 · 长期抗遗忘闭环</div>
+                  </div>
+                </div>
+              </div>
+              <div class="stats3">
+                <div class="stat"><div class="stat-lbl">连续打卡</div><div class="stat-num">5<small>天</small></div></div>
+                <div class="stat"><div class="stat-lbl">累计答对</div><div class="stat-num">186</div></div>
+                <div class="stat"><div class="stat-lbl">平均正确率</div><div class="stat-num">74<small>%</small></div></div>
+              </div>
+              <div class="card">
+                <div class="rhythm-head"><span class="sec-title">本周学习印章</span><span class="sub">4 / 7</span></div>
+                <div class="stamps" id="stamps"></div>
+              </div>
+            </div>
+            <div class="me-main">
+              <div class="card">
+                <div class="due-head"><span class="sec-title">待今日巩固 · 3</span><div class="due-btns"><button class="chip hit tap">AI 变式</button><button class="chip hit tap on" data-go="quiz">秒开重做</button></div></div>
+                <div id="due-list-me"></div>
+              </div>
+              <div class="card">
+                <div class="panel-head"><span class="sec-title">历史练习档案</span><span class="sub">共 23 次</span></div>
+                <div id="history"></div>
+                <button class="btn-ghost tap" style="width:100%;margin-top:8px;box-shadow:none;background:var(--bg-canvas)">加载更多</button>
+              </div>
+              <div class="card">
+                <div class="sec-title" style="margin-bottom:4px">账号</div>
+                <div class="row-link"><div class="row-main"><div class="row-title">登录邮箱</div><div class="row-sub">lin@example.com</div></div></div>
+                <button class="row-link tap" style="color:var(--warn-red)" data-go="login"><div class="row-main"><div class="row-title">退出登录</div></div><span>›</span></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 答题（二级） ============ -->
+        <section class="page" id="p-quiz" data-page="quiz" aria-label="答题">
+          <div class="quiz-top">
+            <div class="qt-in">
+              <div class="qt-row">
+                <a class="icon-btn tap" href="#home" aria-label="退出答题">‹</a>
+                <span class="qt-count" id="q-count">第 1 / 3 题</span>
+                <span class="pill" id="q-diff">中等</span>
+                <span class="pill sky">自适应</span>
+              </div>
+              <div class="qdots" id="q-dots"></div>
+            </div>
+          </div>
+          <div class="anno" style="max-width:1120px;margin-left:auto;margin-right:auto"><span class="m-only">手机：与现网一致，底部固定操作栏</span><span class="t-only">平板：专注模式无导航，居中窄栏 680</span><span class="d-only">宽屏：左题干 + 配图（sticky）5 / 右选项 + 解析 + 操作 7；1–4 键位提示（建议项）</span></div>
+          <div class="quiz-grid">
+            <div class="q-left">
+              <div class="q-kp" id="q-kp"></div>
+              <h2 class="q-stem" id="q-stem"></h2>
+              <div class="q-illus" aria-hidden="true"><i></i><i></i><i></i></div>
+            </div>
+            <div class="q-right">
+              <div class="opts" role="radiogroup" aria-labelledby="q-stem" id="q-opts"></div>
+              <div class="explain" id="q-explain" aria-live="polite"></div>
+              <div class="qfoot">
+                <div class="qfoot-in">
+                  <button class="btn-ghost tap" id="q-prev">‹ 上一题</button>
+                  <button class="btn-primary tap" id="q-next" aria-disabled="true"><span id="q-next-txt">提交答案</span><span class="arrow">→</span></button>
+                </div>
+                <div class="key-hint">键盘（建议项）：<b>1–4</b> 选择 · <b>Enter</b> 提交 / 下一题 · <b>←</b> 上一题</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 复盘报告（二级） ============ -->
+        <section class="page" id="p-report" data-page="report" aria-label="复盘报告">
+          <div class="subbar"><a class="icon-btn tap" href="#home" aria-label="返回">‹</a><span class="title">复盘报告 · 计算机网络专题</span></div>
+          <div class="anno"><span class="m-only">手机：与现网一致（无 Dock）</span><span class="t-only">平板：显示竖向导航，单栏</span><span class="d-only">宽屏：左总结 + 知识点 7 / 右曲线 + 建议 5</span></div>
+          <div class="rep-grid">
+            <div class="stats3 r-stats">
+              <div class="stat"><div class="stat-lbl">本次准确率</div><div class="stat-num">67<small>%</small></div></div>
+              <div class="stat"><div class="stat-lbl">平均耗时</div><div class="stat-num">18<small>秒</small></div></div>
+              <div class="stat"><div class="stat-lbl">连续复习</div><div class="stat-num">5<small>天</small></div></div>
+            </div>
+            <div class="card r-digest">
+              <div class="sec-title">本次诊断结论</div>
+              <div class="digest-row"><span>1</span>握手与挥手流程掌握稳固，状态机名称记忆准确。</div>
+              <div class="digest-row"><span>2</span>拥塞控制中「快重传」与「快恢复」的触发条件容易混淆。</div>
+              <div class="digest-row"><span>3</span>TIME_WAIT 存在原因需结合可靠关闭理解，而非死记 2MSL。</div>
+            </div>
+            <div class="card r-curve">
+              <div class="panel-head"><span class="sec-title">巩固后保持轨迹</span><span class="pill warn">50% 临界 · 11/27</span></div>
+              <svg class="curve-svg" viewBox="0 0 640 200" aria-hidden="true">
+                <line x1="20" y1="100" x2="630" y2="100" stroke="#D8685A" stroke-dasharray="4 5" opacity=".55"/>
+                <path d="M20 30 C150 60,300 76,620 86" fill="none" stroke="#18191E" stroke-width="3" stroke-linecap="round"/>
+                <path d="M20 30 C120 90,260 140,620 178" fill="none" stroke="#D8685A" stroke-width="3" stroke-dasharray="7 6" stroke-linecap="round"/>
+              </svg>
+              <div class="legend"><span><i></i>巩固后保持轨迹</span><span><i class="dash"></i>未复习遗忘参考</span></div>
+            </div>
+            <div class="card r-kp">
+              <div class="sec-title">复盘小结</div>
+              <div class="sub" style="margin-top:8px">掌握稳固</div>
+              <div class="kp-pills"><span class="pill ok">三次握手</span><span class="pill ok">四次挥手</span><span class="pill ok">滑动窗口</span></div>
+              <div class="sub" style="margin-top:12px">重点加强</div>
+              <div class="kp-pills"><span class="pill warn">快重传 / 快恢复</span><span class="pill warn">TIME_WAIT</span></div>
+            </div>
+            <div class="card r-advice">
+              <div class="sec-title">下一步建议</div>
+              <p class="sub" style="margin-top:6px;line-height:1.7">明晚 20:00 用 AI 变式重练拥塞控制 4 题，再对照 RFC 5681 的状态转移图梳理一次。</p>
+            </div>
+            <div class="r-quote">
+              <div class="quote"><p>少一点题海消耗，把错题练进长期记忆。</p><button class="tap">复制金句</button></div>
+              <div class="rep-foot">
+                <a class="btn-ghost tap" href="#home">返回今日首页</a>
+                <a class="btn-primary tap" href="#curve" style="text-decoration:none"><span>按曲线提醒</span><span class="arrow">→</span></a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ 登录（V2.8 宽屏版） ============ -->
+        <section class="page" id="p-login" data-page="login" aria-label="邮箱登录">
+          <div class="login">
+            <aside class="login-hero" aria-hidden="true">
+              <div class="brand"><div class="brand-mark"><i></i><i></i><i></i></div><div class="brand-name">知行快刷</div></div>
+              <div class="h1">把错题<br />练进长期记忆</div>
+              <div class="sub" style="font-size:15px;color:var(--ink-700)">输入主题或上传笔记，AI 立即出题，按记忆曲线提醒你复习。</div>
+              <ul class="value-list">
+                <li><span class="dot">1</span><span><b>自由主题出题</b>联网补充最新知识，3–10 题即时判分</span></li>
+                <li><span class="dot">2</span><span><b>知识口袋</b>PDF / Word / MD 笔记定向出题</span></li>
+                <li><span class="dot">3</span><span><b>记忆曲线</b>跌破 50% 前提醒巩固</span></li>
+              </ul>
+              <div class="geo"></div><div class="geo2"></div>
+            </aside>
+            <div class="login-right">
+              <div class="login-col">
+                <div class="brand m-brand"><div class="brand-mark"><i></i><i></i><i></i></div><div class="brand-name">知行快刷</div></div>
+                <div class="h1">邮箱登录</div>
+                <div class="sub" style="margin-bottom:22px;line-height:1.55">输入邮箱获取验证码，首次登录将自动创建账号，学习记录跨设备同步。</div>
+                <div class="anno"><span class="m-only">手机：同 V2.8</span><span class="t-only">平板：表单收进 440 白卡并垂直居中</span><span class="d-only">宽屏：左品牌面板 / 右表单 420</span></div>
+                <div class="card">
+                  <label class="label" for="l-email">邮箱</label>
+                  <div class="field"><input id="l-email" type="email" inputmode="email" autocomplete="email" placeholder="name@example.com" /></div>
+                  <div class="field-err" id="l-email-err"></div>
+                  <label class="label" for="l-code">验证码</label>
+                  <div class="code-row">
+                    <div class="field"><input id="l-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位数字" /></div>
+                    <button class="btn-code tap" id="l-send">获取验证码</button>
+                  </div>
+                  <div class="field-err" id="l-code-err"></div>
+                  <div class="agree"><button class="agree-hit tap" id="l-agree" role="checkbox" aria-checked="false" aria-label="同意用户协议和隐私政策"><span class="check"></span></button><span>我已阅读并同意</span><a href="#login">用户协议</a><span>和</span><a href="#login">隐私政策</a></div>
+                  <button class="btn-primary tap" id="l-submit" style="margin-top:14px"><span>登录</span><span class="arrow">→</span></button>
+                </div>
+                <div class="login-foot">收不到邮件？请检查垃圾邮件箱，或 60 秒后重新获取</div>
+              </div>
+              <footer class="icp"><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2026102405号-1</a></footer>
+            </div>
+          </div>
+        </section>
+
+        <!-- 共享备案页脚（每页内容末尾；手机端位于 Dock 留白之上，不遮挡 Dock） -->
+        <footer class="icp icp-shared">
+          <span>知行快刷</span> · <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2026102405号-1</a>
+        </footer>
+      </div>
+    </main>
+
+    <!-- 手机：底部黑曜石悬浮 Dock（与现网 FloatingDock 一致） -->
+    <nav class="dock" aria-label="主导航">
+      <a class="dock-tab tap" href="#home" data-nav="home" aria-label="今日"><svg class="ic"><use href="#i-home"/></svg></a>
+      <a class="dock-tab tap" href="#pocket" data-nav="pocket" aria-label="口袋"><svg class="ic"><use href="#i-pocket"/></svg></a>
+      <a class="dock-tab tap" href="#curve" data-nav="curve" aria-label="曲线"><svg class="ic"><use href="#i-bars"/></svg></a>
+      <a class="dock-tab tap" href="#me" data-nav="me" aria-label="我的"><svg class="ic"><use href="#i-user"/></svg></a>
+    </nav>
+  </div>
+
+  <!-- 弹层：导入资料 -->
+  <div class="overlay" id="sheet-material" aria-hidden="true">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sm-title">
+      <div class="grabber"></div>
+      <div class="sheet-head"><span class="sheet-title" id="sm-title">导入参考资料与知识文档</span><button class="sheet-done tap" data-close>完成</button></div>
+      <label class="sheet-lbl" for="sm-text">粘贴笔记原文 / 错题段落（最多 12000 字）</label>
+      <textarea class="sheet-box" id="sm-text" placeholder="在此粘贴你想让 AI 重点考察的教材原文、代码片段或课程笔记..."></textarea>
+      <span class="sheet-lbl">选用口袋已解析文档（支持多选）</span>
+      <div id="sm-docs"></div>
+    </div>
+  </div>
+  <!-- 弹层：出题偏好 -->
+  <div class="overlay" id="sheet-settings" aria-hidden="true">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ss-title">
+      <div class="grabber"></div>
+      <div class="sheet-head"><span class="sheet-title" id="ss-title">出题偏好设置</span><button class="sheet-done tap" data-close>完成</button></div>
+      <span class="sheet-lbl">限定知识域（影响曲线聚焦与错题过滤）</span>
+      <div class="quick" style="flex-wrap:wrap"><button class="chip hit tap on">全部域</button><button class="chip hit tap">计算机网络</button><button class="chip hit tap">操作系统</button><button class="chip hit tap">数据库</button></div>
+      <span class="sheet-lbl">当前熟悉度自评</span>
+      <div class="seg" role="radiogroup" aria-label="熟悉度" style="width:fit-content"><button class="tap" role="radio" aria-checked="false">入门</button><button class="tap" role="radio" aria-checked="true">熟悉</button><button class="tap" role="radio" aria-checked="false">精通</button></div>
+      <button class="switch-row tap" role="switch" aria-checked="true" style="margin-top:8px"><span><span class="row-title" style="display:block">AI 辅助概念配图</span><span class="row-sub" style="display:block">后台异步绘制不阻塞作答</span></span><span class="switch"></span></button>
+    </div>
+  </div>
+  <!-- 弹层：答题小结 -->
+  <div class="overlay" id="sheet-summary" aria-hidden="true">
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="su-title">
+      <div class="grabber"></div>
+      <div class="kicker">本轮完成</div>
+      <div class="sheet-title" id="su-title" style="font-size:20px;margin-top:4px">本轮错题巩固已结算</div>
+      <div class="sum-grid">
+        <div class="stat"><div class="stat-lbl">回顾题数</div><div class="stat-num">3</div></div>
+        <div class="stat"><div class="stat-lbl">本次答对</div><div class="stat-num" id="su-ok">2</div></div>
+        <div class="stat"><div class="stat-lbl">已毕业出列</div><div class="stat-num">1</div></div>
+      </div>
+      <a class="btn-primary tap" href="#report" data-close style="text-decoration:none"><span>查看复盘报告</span><span class="arrow">→</span></a>
+      <a class="btn-ghost tap" href="#home" data-close style="width:100%;margin-top:10px;box-shadow:none;background:var(--bg-canvas);text-decoration:none">返回今日首页</a>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var isApp = params.has('app');
+  if (isApp) document.body.classList.add('app-mode');
+
+  /* ---------------- 共享：按下态至少保持 90ms ---------------- */
+  document.addEventListener('pointerdown', function (e) {
+    var el = e.target.closest('.tap'); if (!el) return;
+    el.classList.add('is-pressed'); el._t = performance.now();
+  });
+  function release(e) {
+    document.querySelectorAll('.tap.is-pressed').forEach(function (el) {
+      var left = Math.max(0, 90 - (performance.now() - (el._t || 0)));
+      setTimeout(function () { el.classList.remove('is-pressed'); }, left);
+    });
+  }
+  document.addEventListener('pointerup', release);
+  document.addEventListener('pointercancel', release);
+
+  if (!isApp) { initViewer(); } else { initApp(); }
+
+  /* ================= 查看器 ================= */
+  function initViewer() {
+    var frame = document.getElementById('v-frame');
+    var ifr = document.getElementById('v-if');
+    var meta = document.getElementById('v-meta');
+    var stage = document.getElementById('v-stage');
+    var notes = document.getElementById('v-notes');
+    var openLink = document.getElementById('v-open');
+    var state = { w: 390, h: 844, fit: false, page: 'home' };
+    var base = location.pathname;
+    ifr.src = base + '?app=1' + (notes.checked ? '&notes=1' : '') + '#home';
+
+    function bpName(w) { return w < 768 ? '手机 <768' : (w < 1100 ? '平板竖屏 768–1099' : (w < 1440 ? '宽屏 ≥1100' : '大屏 ≥1440')); }
+    function layout() {
+      var avail = stage.clientWidth;
+      var w = state.w, h = state.h;
+      if (state.fit) { w = Math.max(320, avail - 16); h = Math.max(480, window.innerHeight - 200); }
+      var s = Math.min(1, (avail - 16) / w);
+      ifr.style.width = w + 'px'; ifr.style.height = h + 'px';
+      ifr.style.transform = 'scale(' + s + ')';
+      frame.style.width = (w * s + 16) + 'px'; frame.style.height = (h * s + 16) + 'px';
+      frame.classList.toggle('phone', w < 768 && !state.fit);
+      meta.textContent = Math.round(w) + ' × ' + Math.round(h) + ' · 断点：' + bpName(w) + (s < 1 ? ' · 预览缩放 ' + Math.round(s * 100) + '%' : ' · 1:1');
+    }
+    function post(msg) { try { ifr.contentWindow.postMessage(msg, '*'); } catch (e) {} }
+    document.querySelectorAll('#v-dev button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        document.querySelectorAll('#v-dev button').forEach(function (x) { x.setAttribute('aria-pressed', x === b); });
+        if (b.dataset.w === 'fit') { state.fit = true; } else { state.fit = false; state.w = +b.dataset.w; state.h = +b.dataset.h; }
+        layout();
+      });
+    });
+    function setPage(p) {
+      state.page = p;
+      document.querySelectorAll('#v-page button').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.p === p); });
+      openLink.href = '?app=1' + (notes.checked ? '&notes=1' : '') + '#' + p;
+    }
+    document.querySelectorAll('#v-page button').forEach(function (b) {
+      b.addEventListener('click', function () { setPage(b.dataset.p); post({ type: 'go', page: b.dataset.p }); });
+    });
+    notes.addEventListener('change', function () { post({ type: 'notes', on: notes.checked }); setPage(state.page); });
+    window.addEventListener('message', function (e) {
+      var d = e.data || {};
+      if (d.type === 'page' && d.page) setPage(d.page);
+      if (d.type === 'ready') post({ type: 'notes', on: notes.checked });
+    });
+    window.addEventListener('resize', layout);
+    layout();
+  }
+
+  /* ================= 应用 ================= */
+  function initApp() {
+    if (params.has('notes')) document.documentElement.classList.add('notes');
+    var shell = document.getElementById('shell');
+    var chip = document.getElementById('bp-chip');
+    var PAGES = { home: 'tab', pocket: 'tab', curve: 'tab', me: 'tab', quiz: 'none', login: 'none', report: 'wide' };
+
+    function tierFromWidth(w) { return w < 768 ? 'mobile' : (w < 1100 ? 'tablet' : 'wide'); }
+    function updChip() { chip.textContent = window.innerWidth + 'px · ' + tierFromWidth(window.innerWidth); }
+    window.addEventListener('resize', updChip); updChip();
+
+    function route() {
+      var p = (location.hash || '#home').slice(1);
+      if (!PAGES[p]) p = 'home';
+      document.querySelectorAll('.page').forEach(function (s) { s.classList.toggle('on', s.dataset.page === p); });
+      shell.classList.remove('nav-none', 'nav-wide', 'is-login', 'is-quiz');
+      if (PAGES[p] === 'none') shell.classList.add('nav-none');
+      if (PAGES[p] === 'wide') shell.classList.add('nav-wide');
+      if (p === 'login') shell.classList.add('is-login');
+      if (p === 'quiz') { shell.classList.add('is-quiz'); renderQ(); }
+      document.querySelectorAll('[data-nav]').forEach(function (a) {
+        var on = a.dataset.nav === p; a.classList.toggle('on', on);
+        if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+      });
+      document.querySelectorAll('.sn-count').forEach(function (c) { c.style.display = ''; });
+      window.scrollTo(0, 0);
+      try { parent.postMessage({ type: 'page', page: p }, '*'); } catch (e) {}
+    }
+    window.addEventListener('hashchange', route);
+    window.addEventListener('message', function (e) {
+      var d = e.data || {};
+      if (d.type === 'go' && d.page) { closeAll(); location.hash = d.page; }
+      if (d.type === 'notes') document.documentElement.classList.toggle('notes', !!d.on);
+    });
+
+    /* data-go / data-fill / data-focus */
+    document.addEventListener('click', function (e) {
+      var go = e.target.closest('[data-go]');
+      if (go) { location.hash = go.dataset.go; if (go.dataset.focus) setTimeout(function () { var el = document.getElementById(go.dataset.focus); el && el.focus(); }, 60); }
+      var fill = e.target.closest('[data-fill]');
+      if (fill) { var ta = document.getElementById('comp-input'); ta.value = fill.dataset.fill; ta.focus(); }
+      var radio = e.target.closest('[role="radio"]');
+      if (radio) { var g = radio.closest('[role="radiogroup"]'); g.querySelectorAll('[role="radio"]').forEach(function (r) { r.setAttribute('aria-checked', r === radio); r.classList.toggle('on', r === radio && r.classList.contains('chip')); }); }
+      var sw = e.target.closest('[role="switch"]');
+      if (sw) sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') !== 'true');
+    });
+    var ds = document.getElementById('ds-pill');
+    ds.addEventListener('click', function () { ds.setAttribute('aria-pressed', ds.getAttribute('aria-pressed') !== 'true'); });
+
+    /* 数据渲染 */
+    var wk = ['一', '二', '三', '四', '五', '六', '日'], cnt = [8, 0, 12, 6, 16, 0, 0], todayIdx = 2;
+    ['home-bars', 'curve-bars'].forEach(function (id) {
+      document.getElementById(id).innerHTML = wk.map(function (d, i) {
+        var hgt = Math.round((cnt[i] / 16) * 100);
+        return '<div class="bar-col' + (i === todayIdx ? ' today' : '') + '"><span class="sub" style="font-size:11px">' + (cnt[i] || '') + '</span><div class="bar-track"><div class="bar-fill" style="height:' + hgt + '%"></div></div><span class="bar-lbl">' + (i === todayIdx ? '今' : d) + '</span></div>';
+      }).join('');
+    });
+    document.getElementById('stamps').innerHTML = wk.map(function (d, i) {
+      var cls = i === todayIdx ? ' today' : (cnt[i] ? ' done' : '');
+      return '<button class="stamp tap' + cls + '">' + d + '<b>' + (23 + i) + '</b></button>';
+    }).join('');
+    var docs = [['pdf', 'TCP/IP 详解 卷一（第 3–6 章）.pdf', '42 切片 · 计算机网络 · 已就绪'], ['md', '进程与线程调度笔记.md', '12 切片 · 操作系统 · 已就绪'], ['doc', 'Redis 设计与实现摘录.docx', '28 切片 · 数据库 · 已就绪'], ['md', 'React Hooks 原理与闭包陷阱.md', '9 切片 · 前端 React · 解析中…']];
+    document.getElementById('doc-list').innerHTML = docs.map(function (d, i) {
+      var ready = d[2].indexOf('解析中') < 0;
+      return '<div class="doc-row row-sep"><span class="ext ' + d[0] + '">' + d[0].toUpperCase() + '</span><div class="row-main"><div class="row-title">' + d[1] + '</div><div class="row-sub">' + d[2] + '</div></div><div class="doc-actions">' + (ready ? '<button class="btn-sm tap" data-go="quiz">出题 →</button>' : '<span class="pill">解析中</span>') + '<button class="icon-btn tap" aria-label="删除 ' + d[1] + '">✕</button></div></div>';
+    }).join('');
+    document.getElementById('sm-docs').innerHTML = docs.slice(0, 3).map(function (d, i) {
+      return '<button class="doc-check tap row-sep" role="checkbox" aria-checked="' + (i === 0) + '"><span class="check"></span><span class="row-main"><span class="row-title" style="display:block">' + d[1] + '</span><span class="row-sub" style="display:block">' + d[2] + '</span></span></button>';
+    }).join('');
+    document.getElementById('sm-docs').addEventListener('click', function (e) { var b = e.target.closest('.doc-check'); if (b) b.setAttribute('aria-checked', b.getAttribute('aria-checked') !== 'true'); });
+    var dues = [['计算机网络', '第 2 轮', 'TCP 快重传在收到几个重复 ACK 时触发？'], ['操作系统', '第 1 轮', '多级反馈队列调度中，新进程首先进入哪一级队列？'], ['数据库', '第 3 轮', 'Redis AOF 重写期间新写入的命令如何保证不丢失？']];
+    var dueHtml = dues.map(function (d) { return '<button class="row-link tap row-sep" data-go="quiz"><div class="row-main"><div class="row-sub">' + d[0] + ' · ' + d[1] + '</div><div class="row-title">' + d[2] + '</div></div><span>›</span></button>'; }).join('');
+    document.getElementById('due-list-curve').innerHTML = dueHtml;
+    document.getElementById('due-list-me').innerHTML = dueHtml;
+    var hist = [['计算机网络专题 · 6 题', '今日 14:20', '67%'], ['操作系统 · 进程调度 · 6 题', '11/24 21:05', '50%'], ['React Hooks 原理 · 3 题', '11/23 20:40', '100%'], ['MySQL 索引 · 10 题', '11/21 19:12', '80%']];
+    document.getElementById('history').innerHTML = hist.map(function (h) { return '<a class="row-link tap row-sep" href="#report"><div class="row-main"><div class="row-title">' + h[0] + '</div><div class="row-sub">' + h[1] + '</div></div><span class="pill ' + (parseInt(h[2]) >= 60 ? 'ok' : 'warn') + '">' + h[2] + '</span></a>'; }).join('');
+
+    /* 弹层：手机抽屉 / 宽屏对话框；Esc 与遮罩关闭，焦点进出 */
+    var lastTrigger = null;
+    function openSheet(id, trigger) {
+      var ov = document.getElementById(id); lastTrigger = trigger || document.activeElement;
+      ov.classList.add('open'); ov.setAttribute('aria-hidden', 'false');
+      var f = ov.querySelector('textarea, input, button:not([data-close]), a, [data-close]');
+      setTimeout(function () { f && f.focus(); }, 30);
+    }
+    function closeAll() {
+      var any = false;
+      document.querySelectorAll('.overlay.open').forEach(function (ov) { ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true'); any = true; });
+      if (any && lastTrigger && document.contains(lastTrigger)) lastTrigger.focus();
+    }
+    document.addEventListener('click', function (e) {
+      var op = e.target.closest('[data-open]'); if (op) openSheet(op.dataset.open, op);
+      if (e.target.closest('[data-close]')) closeAll();
+      if (e.target.classList.contains('overlay')) closeAll();
+    });
+    document.addEventListener('keydown', function (e) {
+      var open = document.querySelector('.overlay.open');
+      if (!open) return;
+      if (e.key === 'Escape') { closeAll(); e.preventDefault(); return; }
+      if (e.key === 'Tab') { /* 简易焦点陷阱 */
+        var f = Array.prototype.slice.call(open.querySelectorAll('button, a, textarea, input')).filter(function (x) { return x.offsetParent !== null; });
+        if (!f.length) return;
+        if (e.shiftKey && document.activeElement === f[0]) { f[f.length - 1].focus(); e.preventDefault(); }
+        else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { f[0].focus(); e.preventDefault(); }
+      }
+    });
+
+    /* 答题：点击 + 键盘（建议项：1–4/A–D 选择、Enter 提交/下一题、← 上一题） */
+    var QS = [
+      { kp: ['计算机网络', '传输层'], diff: '中等', stem: 'TCP 三次握手中，服务端回复的第二次握手报文同时置位了哪些标志？', opts: ['仅 SYN', '仅 ACK', 'SYN 与 ACK', 'FIN 与 ACK'], ans: 2, why: '第二次握手既要确认客户端的 SYN（ACK=1，ack=x+1），又要发出自己的初始序号（SYN=1，seq=y），所以两个标志同时置位。' },
+      { kp: ['数据库', 'Redis'], diff: '基础', stem: 'Redis 在默认配置下启用的持久化方式是？', opts: ['RDB 快照', 'AOF 追加日志', '不做任何持久化', 'RDB + AOF 混合持久化'], ans: 0, why: '默认配置开启 RDB 快照（save 规则），appendonly 默认为 no；混合持久化需要先开启 AOF 才会生效。' },
+      { kp: ['前端 React', 'Hooks'], diff: '困难', stem: 'useEffect 返回的清理函数会在什么时候执行？', opts: ['每次渲染开始前', '组件卸载时，以及下一次该 effect 执行前', '仅在组件卸载时', '永远不会自动执行'], ans: 1, why: 'React 在依赖变化导致 effect 重新执行之前，会先调用上一次的清理函数；组件卸载时也会调用。' }
+    ];
+    var qi = 0, sel = -1, results = [null, null, null], submitted = [false, false, false], picks = [-1, -1, -1];
+    function renderQ() {
+      var q = QS[qi]; sel = picks[qi];
+      document.getElementById('q-count').textContent = '第 ' + (qi + 1) + ' / ' + QS.length + ' 题';
+      document.getElementById('q-diff').textContent = q.diff;
+      document.getElementById('q-kp').innerHTML = q.kp.map(function (k, i) { return '<span class="pill ' + (i ? '' : 'butter') + '">' + k + '</span>'; }).join('');
+      document.getElementById('q-stem').textContent = q.stem;
+      document.getElementById('q-dots').innerHTML = QS.map(function (_, i) { var c = i === qi ? 'cur' : (results[i] === true ? 'done' : (results[i] === false ? 'bad' : '')); return '<span class="qdot ' + c + '"></span>'; }).join('');
+      var done = submitted[qi];
+      document.getElementById('q-opts').innerHTML = q.opts.map(function (o, i) {
+        var cls = ''; if (done) { if (i === q.ans) cls = ' ok'; else if (i === picks[qi]) cls = ' bad'; }
+        return '<button class="opt tap' + cls + '" role="radio" data-opt="' + i + '" aria-checked="' + (i === sel) + '"' + (done ? ' disabled' : '') + '><span class="key">' + 'ABCD'[i] + '</span><span class="txt">' + o + '</span><span class="kbd" aria-hidden="true">' + (i + 1) + '</span></button>';
+      }).join('');
+      var ex = document.getElementById('q-explain');
+      if (done) { var ok = results[qi]; ex.className = 'explain show' + (ok ? '' : ' bad'); ex.innerHTML = '<h4>' + (ok ? '✓ 回答正确 · 思路复盘' : '💡 避坑笔记 · 为什么选错了') + '</h4><p>' + q.why + '</p>'; }
+      else { ex.className = 'explain'; ex.innerHTML = ''; }
+      var nb = document.getElementById('q-next'); var nt = document.getElementById('q-next-txt');
+      nt.textContent = done ? (qi === QS.length - 1 ? '完成本轮巩固' : '下一题') : '提交答案';
+      nb.setAttribute('aria-disabled', (!done && sel < 0) ? 'true' : 'false');
+      document.getElementById('q-prev').style.visibility = qi === 0 ? 'hidden' : 'visible';
+    }
+    function pick(i) { if (submitted[qi] || i < 0 || i >= QS[qi].opts.length) return; picks[qi] = i; renderQ(); var b = document.querySelector('[data-opt="' + i + '"]'); b && b.focus(); }
+    function next() {
+      if (!submitted[qi]) { if (picks[qi] < 0) return; submitted[qi] = true; results[qi] = picks[qi] === QS[qi].ans; renderQ(); return; }
+      if (qi < QS.length - 1) { qi++; renderQ(); window.scrollTo(0, 0); }
+      else { document.getElementById('su-ok').textContent = results.filter(Boolean).length; openSheet('sheet-summary', document.getElementById('q-next')); }
+    }
+    function prev() { if (qi > 0) { qi--; renderQ(); } }
+    document.getElementById('q-opts').addEventListener('click', function (e) { var b = e.target.closest('[data-opt]'); if (b) pick(+b.dataset.opt); });
+    document.getElementById('q-next').addEventListener('click', next);
+    document.getElementById('q-prev').addEventListener('click', prev);
+    document.addEventListener('keydown', function (e) {
+      if (!shell.classList.contains('is-quiz') || document.querySelector('.overlay.open')) return;
+      if (/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+      var k = e.key.toLowerCase(), map = { '1': 0, '2': 1, '3': 2, '4': 3, a: 0, b: 1, c: 2, d: 3 };
+      if (k in map) { pick(map[k]); e.preventDefault(); }
+      else if (k === 'enter') { next(); e.preventDefault(); }
+      else if (k === 'arrowleft') { prev(); e.preventDefault(); }
+    });
+
+    /* 登录（与 V2.8 交互一致的精简版） */
+    var lEmail = document.getElementById('l-email'), lCode = document.getElementById('l-code'), lSend = document.getElementById('l-send'), lAgree = document.getElementById('l-agree');
+    var timer = null;
+    lSend.addEventListener('click', function () {
+      var ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lEmail.value.trim());
+      document.getElementById('l-email-err').textContent = ok ? '' : '请输入正确的邮箱地址';
+      if (!ok || timer) return;
+      var n = 60; lSend.disabled = true; lSend.textContent = n + 's 后重发';
+      timer = setInterval(function () { n--; lSend.textContent = n + 's 后重发'; if (n <= 0) { clearInterval(timer); timer = null; lSend.disabled = false; lSend.textContent = '重新获取'; } }, 1000);
+      lCode.focus();
+    });
+    lAgree.addEventListener('click', function () { lAgree.setAttribute('aria-checked', lAgree.getAttribute('aria-checked') !== 'true'); });
+    document.getElementById('l-submit').addEventListener('click', function () {
+      var codeOk = /^\d{6}$/.test(lCode.value);
+      document.getElementById('l-code-err').textContent = codeOk ? (lAgree.getAttribute('aria-checked') === 'true' ? '' : '请先勾选同意协议') : '请输入 6 位数字验证码';
+      if (codeOk && lAgree.getAttribute('aria-checked') === 'true') location.hash = 'home';
+    });
+    lCode.addEventListener('keydown', function (e) { if (e.key === 'Enter') document.getElementById('l-submit').click(); });
+
+    route();
+    try { parent.postMessage({ type: 'ready' }, '*'); } catch (e) {}
+  }
+})();
+</script>
+</body>
+</html>
