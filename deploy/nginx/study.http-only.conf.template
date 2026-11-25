@@ -1,0 +1,15 @@
+# 首次签发证书前使用的纯 HTTP 配置（deploy.sh 自动使用；签发成功后替换为 study.conf.template）
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+    server_tokens off;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 404;
+    }
+}
