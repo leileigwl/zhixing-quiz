@@ -1,0 +1,48 @@
+.zx-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 24px 36px;
+}
+
+.zx-empty-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--surface-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.zx-empty-title {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.zx-empty-desc {
+  display: block;
+  margin-top: 10px;
+  font-size: 24px;
+  line-height: 1.6;
+  color: var(--ink-500);
+  max-width: 520px;
+}
+
+.zx-empty-action {
+  margin-top: 24px;
+  min-height: 72px;
+  padding: 0 36px;
+  border-radius: 999px;
+  background: var(--ink-900);
+  color: #ffffff;
+  font-size: 26px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

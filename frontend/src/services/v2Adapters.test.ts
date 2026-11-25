@@ -108,6 +108,37 @@ describe('记忆曲线兜底（回归：曲线每天一样）', () => {
     hist('2026-11-22 09:00:00', 85),
   ]
 
+  it('没有已交卷记录时兜底总览是空的：无 74% 保持率、无示例域、预测全 0', () => {
+    for (const items of [[], [hist('2026-11-20 10:00:00', 90, { is_submitted: false })]]) {
+      const ov = A.buildFallbackMasteryOverview(items, [], new Date(2026, 10, 24))
+      expect(ov.overall_retention).toBe(0)
+      expect(ov.domains).toEqual([])
+      expect(ov.focus_domain).toBeNull()
+      expect(ov.next_plan).toBeNull()
+      expect(ov.streak_days).toBe(0)
+      expect(ov.seven_day_forecast).toEqual([0, 0, 0, 0, 0, 0, 0])
+      expect(A.hasPracticeData(ov)).toBe(false)
+    }
+  })
+
+  it('有交卷记录时兜底总览不编造分难度统计', () => {
+    const ov = A.buildFallbackMasteryOverview([hist('2026-11-22 09:00:00', 80)], [], new Date(2026, 10, 24))
+    expect(A.hasPracticeData(ov)).toBe(true)
+    expect(ov.focus_domain?.difficulty_stats.easy_total).toBe(0)
+    expect(ov.focus_domain?.difficulty_stats.easy_accuracy).toBe(0)
+  })
+
+  it('hasPracticeData / domainHasPractice：优先后端标记，旧后端按难度统计推断', () => {
+    expect(A.hasPracticeData(null)).toBe(false)
+    expect(A.hasPracticeData({ has_practice_data: false, domains: [{ has_practice: true }] } as any)).toBe(false)
+    expect(A.hasPracticeData({ domains: [{ difficulty_stats: { easy_total: 0, medium_total: 2, hard_total: 0 } }] } as any)).toBe(true)
+    expect(A.hasPracticeData({ domains: [], weekly_rhythm: [{ completed_count: 3 }] } as any)).toBe(true)
+    expect(A.hasPracticeData({ domains: [], weekly_rhythm: [] } as any)).toBe(false)
+    expect(A.domainHasPractice(undefined)).toBe(false)
+    expect(A.domainHasPractice({ difficulty_stats: { easy_total: 0, medium_total: 0, hard_total: 0 } } as any)).toBe(false)
+    expect(A.domainHasPractice({ retention_rate: 70 } as any)).toBe(true)
+  })
+
   it('没有任何历史时返回空数组，不再伪造固定曲线', () => {
     expect(A.buildRetentionCurveFromHistory([], new Date(2026, 10, 24))).toEqual([])
     const ov = A.buildFallbackMasteryOverview([], [], new Date(2026, 10, 24))
@@ -227,6 +258,19 @@ describe('其他适配器', () => {
     expect(net.docs).toHaveLength(2)
     expect(net.readyCount).toBe(1)
     expect(pockets.find((p) => p.name === 'RAG 架构')!.retentionPct).toBe(61)
+  })
+
+  it('新用户没有文档：不再预置「计算机网络」「RAG 架构」示例口袋', () => {
+    expect(A.groupDocumentsToPockets([], null)).toEqual([])
+  })
+
+  it('口袋所在域还没答过题：保持率为 null（显示「未练习」），不再编造 58–86%', () => {
+    const docs = [{ doc_id: 'd1', file_name: '操作系统.pdf', file_type: 'pdf', status: 'ready', chunk_count: 3, domain_name: '操作系统' }] as unknown as KnowledgeDocumentItem[]
+    const unpracticed = A.groupDocumentsToPockets(docs, {
+      domains: [{ name: '操作系统', retention_rate: 0, has_practice: false, color_token: 'sage' }],
+    } as any)
+    expect(unpracticed[0].retentionPct).toBeNull()
+    expect(A.groupDocumentsToPockets(docs, null)[0].retentionPct).toBeNull()
   })
 
   it('buildEmptyDueReviews', () => {

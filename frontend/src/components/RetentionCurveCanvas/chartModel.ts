@@ -52,6 +52,11 @@ export function buildRecoveryLabel(recovery: RetentionCurvePoint, pre: Retention
     : `保持 ${Math.round(recovery.retention_pct)}%`
 }
 
+/** 少于 2 个真实点时不画任何示意曲线（新用户空状态由页面负责，组件只兜底一行说明） */
+export function hasDrawableCurve(points: RetentionCurvePoint[] | null | undefined): boolean {
+  return Array.isArray(points) && points.length >= 2
+}
+
 export function prepareRetentionChart(
   points: RetentionCurvePoint[],
   width: number,

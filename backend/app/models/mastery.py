@@ -31,6 +31,8 @@ class DomainMasterySummary(BaseModel):
     next_recommended_difficulty: str = "中等进阶"
     schedule_reason: str = ""
     difficulty_stats: DifficultyMatrixStats = Field(default_factory=DifficultyMatrixStats)
+    # 该域是否已有真实答题（只建了域 / 只上传了文档 / 只出了题未作答 → False，前端显示「未练习」）
+    has_practice: bool = False
 
 
 class RetentionCurvePoint(BaseModel):
@@ -85,6 +87,8 @@ class MasteryOverviewResponse(BaseModel):
     retention_curve: list[RetentionCurvePoint] = Field(default_factory=list)
     weekly_rhythm: list[WeeklyRhythmDay] = Field(default_factory=list)
     seven_day_forecast: list[int] = Field(default_factory=lambda: [0, 0, 0, 0, 0, 0, 0])
+    # 用户是否有任何真实答题数据；False 时保持率 / 曲线 / 下次复习计划均为空，前端显示空状态
+    has_practice_data: bool = False
 
 
 class DueReviewCardItem(BaseModel):

@@ -1,5 +1,6 @@
 import Taro from '@tarojs/taro'
 import type {
+  DomainMasterySummary,
   DueReviewCardItem,
   DueReviewsResponse,
   KnowledgeDocumentItem,
@@ -218,7 +219,8 @@ export interface PocketBucket {
   theme: PocketTheme
   docs: KnowledgeDocumentItem[]
   readyCount: number
-  retentionPct: number
+  /** 该域真实保持率；还没答过题为 null（显示「未练习」） */
+  retentionPct: number | null
   previewTitle: string
   previewSnippet: string
 }
@@ -236,28 +238,8 @@ export function groupDocumentsToPockets(
     domainMap.set(label, existing)
   }
 
-  if (domainMap.size === 0) {
-    return [
-      {
-        name: '计算机网络',
-        theme: 'blue',
-        docs: [],
-        readyCount: 0,
-        retentionPct: 46,
-        previewTitle: '待装入口袋',
-        previewSnippet: '上传 PDF / MD / Word 后自动归档切片',
-      },
-      {
-        name: 'RAG 架构',
-        theme: 'butter',
-        docs: [],
-        readyCount: 0,
-        retentionPct: 78,
-        previewTitle: '待装入口袋',
-        previewSnippet: '支持多文档按主题智能归类整理',
-      },
-    ]
-  }
+  // 新用户没有任何文档：不再预置「计算机网络」「RAG 架构」等示例口袋，页面显示空状态
+  if (domainMap.size === 0) return []
 
   const buckets: PocketBucket[] = []
   let idx = 0
@@ -272,7 +254,7 @@ export function groupDocumentsToPockets(
       theme,
       docs: groupDocs,
       readyCount,
-      retentionPct: matchedDomain ? Math.round(matchedDomain.retention_rate) : Math.max(58, 86 - idx * 12),
+      retentionPct: matchedDomain && domainHasPractice(matchedDomain) ? Math.round(matchedDomain.retention_rate) : null,
       previewTitle: first.file_name.replace(/\.[^.]+$/, '').slice(0, 14),
       previewSnippet: `${first.file_type.toUpperCase()} · ${first.chunk_count || 1} 知识片段`,
     })
@@ -378,28 +360,63 @@ export function buildWeeklyCountsFromHistory(historyItems: QuizHistoryItem[], no
   return counts
 }
 
+/** 某个知识域是否已有真实答题（优先用后端 has_practice；旧后端按难度统计 / 保持率推断） */
+export function domainHasPractice(d: Partial<DomainMasterySummary> | null | undefined): boolean {
+  if (!d) return false
+  if (typeof d.has_practice === 'boolean') return d.has_practice
+  const st = d.difficulty_stats
+  if (st) return (st.easy_total || 0) + (st.medium_total || 0) + (st.hard_total || 0) > 0
+  return (d.retention_rate || 0) > 0
+}
+
+/** 用户是否有任何真实答题数据：没有时「总体保持率 / 记忆曲线 / 下次复习」都显示空状态 */
+export function hasPracticeData(ov: MasteryOverviewResponse | null | undefined): boolean {
+  if (!ov) return false
+  if (typeof ov.has_practice_data === 'boolean') return ov.has_practice_data
+  if ((ov.domains || []).some((d) => domainHasPractice(d))) return true
+  return (ov.weekly_rhythm || []).some((d) => (d.completed_count || 0) > 0)
+}
+
+/** 空总览：新用户 / 接口不可用且无历史时使用，所有数值为 0、列表为空，不伪造任何示例数据 */
+export function buildEmptyMasteryOverview(now: Date = new Date()): MasteryOverviewResponse {
+  return {
+    streak_days: 0,
+    overall_retention: 0,
+    due_review_total: 0,
+    subscribe_remaining: 0,
+    next_plan: null,
+    focus_domain: null,
+    domains: [],
+    retention_curve: [],
+    weekly_rhythm: buildRealCalendarStrip(undefined, now),
+    seven_day_forecast: [0, 0, 0, 0, 0, 0, 0],
+    has_practice_data: false,
+  }
+}
+
 /** 从 V1 历史记录组装兼容展示总览（仅当后端 V2 /mastery/overview 不可用时兜底；曲线与节律均来自真实历史） */
 export function buildFallbackMasteryOverview(
   historyItems: QuizHistoryItem[],
   docs: KnowledgeDocumentItem[],
   now: Date = new Date(),
 ): MasteryOverviewResponse {
-  const latestAcc =
-    historyItems.length > 0
-      ? Math.round(historyItems.reduce((sum, item) => sum + item.accuracy, 0) / historyItems.length)
-      : 74
+  const submitted = historyItems.filter((h) => h.is_submitted !== false && typeof h.accuracy === 'number')
+  // 没有任何已交卷记录：返回空总览（不再兜底 74% / 「RAG 架构」示例域）
+  if (submitted.length === 0) return buildEmptyMasteryOverview(now)
+  const latestAcc = Math.round(submitted.reduce((sum, item) => sum + item.accuracy, 0) / submitted.length)
 
   const focusName =
-    historyItems[0]?.domain_name ||
-    (historyItems[0]?.title ? inferDomainFromText(historyItems[0].title).name : 'RAG 架构')
+    submitted[0]?.domain_name ||
+    (submitted[0]?.title ? inferDomainFromText(submitted[0].title).name : '综合知识域')
 
   const retentionCurve = buildRetentionCurveFromHistory(historyItems, now)
   const calendar = buildRealCalendarStrip(buildWeeklyCountsFromHistory(historyItems, now), now)
 
   return {
-    streak_days: Math.max(1, historyItems.length),
+    streak_days: 0,
     overall_retention: latestAcc,
-    due_review_total: historyItems.filter((h) => h.accuracy < 80).length,
+    due_review_total: 0,
+    has_practice_data: true,
     subscribe_remaining: 0,
     next_plan: {
       domain_id: 1,
@@ -421,13 +438,15 @@ export function buildFallbackMasteryOverview(
       due_review_count: 0,
       recommended_count: computeRecommendedCount('familiar', latestAcc),
       below_threshold: latestAcc < 50,
+      has_practice: true,
       difficulty_stats: {
-        easy_accuracy: Math.min(100, latestAcc + 12),
-        medium_accuracy: latestAcc,
-        hard_accuracy: Math.max(40, latestAcc - 14),
-        easy_total: 4,
-        medium_total: 4,
-        hard_total: 2,
+        // 兜底路径拿不到分难度统计：全部置 0，难度卡片不显示（不再按正确率 ±12 编造）
+        easy_accuracy: 0,
+        medium_accuracy: 0,
+        hard_accuracy: 0,
+        easy_total: 0,
+        medium_total: 0,
+        hard_total: 0,
       },
     },
     domains: [
@@ -435,26 +454,27 @@ export function buildFallbackMasteryOverview(
         domain_id: 1,
         name: focusName,
         color_token: 'sky',
-        doc_count: Math.max(1, docs.length),
+        doc_count: docs.length,
         mastery_score: latestAcc,
         retention_rate: latestAcc,
         stability_days: 7,
         due_review_count: 0,
         recommended_count: computeRecommendedCount('familiar', latestAcc),
         below_threshold: latestAcc < 50,
+        has_practice: true,
         difficulty_stats: {
-          easy_accuracy: Math.min(100, latestAcc + 12),
-          medium_accuracy: latestAcc,
-          hard_accuracy: Math.max(40, latestAcc - 14),
-          easy_total: 4,
-          medium_total: 4,
-          hard_total: 2,
+          easy_accuracy: 0,
+          medium_accuracy: 0,
+          hard_accuracy: 0,
+          easy_total: 0,
+          medium_total: 0,
+          hard_total: 0,
         },
       },
     ],
     retention_curve: retentionCurve,
     weekly_rhythm: calendar,
-    seven_day_forecast: [2, 1, 3, 2, 1, 0, 2],
+    seven_day_forecast: [0, 0, 0, 0, 0, 0, 0],
   }
 }
 

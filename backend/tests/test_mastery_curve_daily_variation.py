@@ -139,4 +139,56 @@ class TestOverviewCurveChangesDayToDay:
         history = AsyncMock(return_value=[])
         res = await _overview_with([], history)
         assert history.await_args.kwargs["domain_id"] is None
+        # 新用户没有任何答题：不再画示意曲线、不给 85% 默认保持率
+        assert res.retention_curve == []
+        assert res.overall_retention == 0.0
+        assert res.next_plan is None
+        assert res.has_practice_data is False
+
+
+def _unpracticed_row(domain_id=9, name="操作系统"):
+    row = _row(None)
+    row.update(
+        domain_id=domain_id,
+        name=name,
+        mastery_score=50.0,
+        easy_correct=0,
+        easy_total=0,
+        medium_correct=0,
+        medium_total=0,
+        hard_correct=0,
+        hard_total=0,
+        retention_rate=85.0,
+        last_practiced_at=None,
+    )
+    return row
+
+
+@pytest.mark.asyncio
+class TestOverviewEmptyStateWithoutAnswers:
+    async def test_domain_without_answers_has_no_retention(self):
+        """只上传了资料 / 只出了题未作答：域存在，但没有保持率、曲线与计划。"""
+        res = await _overview_with([_unpracticed_row()], AsyncMock(return_value=[]))
+        assert res.has_practice_data is False
+        assert res.overall_retention == 0.0
+        assert res.retention_curve == []
+        assert res.next_plan is None
+        assert res.focus_domain is None
+        assert len(res.domains) == 1
+        dom = res.domains[0]
+        assert dom.has_practice is False
+        assert dom.retention_rate == 0.0 and dom.mastery_score == 0.0
+        assert dom.below_threshold is False
+
+    async def test_practiced_domain_wins_focus_and_overall(self):
+        rows = [_unpracticed_row(), _row(datetime.now() - timedelta(days=1))]
+        res = await _overview_with(rows, AsyncMock(return_value=[]))
+        assert res.has_practice_data is True
+        assert res.focus_domain is not None and res.focus_domain.domain_id == 7
+        assert res.overall_retention == res.focus_domain.retention_rate
         assert len(res.retention_curve) >= 5
+        assert res.next_plan is not None
+
+    async def test_streak_is_not_inflated(self):
+        res = await _overview_with([_unpracticed_row()], AsyncMock(return_value=[]))
+        assert res.streak_days == 2  # 取用户真实连续天数，不再 max(1, …)

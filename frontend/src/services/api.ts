@@ -1031,6 +1031,8 @@ export interface DomainMasterySummary {
   next_recommended_difficulty?: string
   schedule_reason?: string
   difficulty_stats: DifficultyMatrixStats
+  /** 该域是否已有真实答题（后端 2026-11-25 起返回；旧后端缺省时按难度统计推断） */
+  has_practice?: boolean
 }
 
 export interface RetentionCurvePoint {
@@ -1085,6 +1087,8 @@ export interface MasteryOverviewResponse {
   retention_curve: RetentionCurvePoint[]
   weekly_rhythm: WeeklyRhythmDay[]
   seven_day_forecast: number[]
+  /** 用户是否有任何真实答题数据；false 时各页显示空状态 */
+  has_practice_data?: boolean
 }
 
 export interface DueReviewCardItem {
