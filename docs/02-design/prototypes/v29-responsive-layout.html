@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>zhixing-quiz V2.9 原型 · H5 响应式布局（手机 / iPad / 电脑，待用户确认）</title>
+  <title>zhixing-quiz V2.9 原型 · H5 响应式布局（手机 / iPad / 电脑，2026-11-25 已确认）</title>
   <style>
     /* 方案 B · MOVEPOP 暖石膏 Token（docs/02-design/v2-ui-design-system.md §2，与 frontend/src/app.scss 一致） */
     :root {
@@ -82,7 +82,7 @@
     html.notes .bp-chip { display: block; }
 
     /* =========================================================
-       外壳：手机 = 底部黑曜石 Dock；平板 = 左侧竖向黑曜石胶囊；宽屏 = 232px 浅色侧栏
+       外壳：手机 = 底部黑曜石 Dock；平板竖屏 = 仍用底部 Dock（2026-11-25 用户确认：竖屏导航不放左边），内容加宽居中 720；宽屏 = 232px 浅色侧栏
        ========================================================= */
     .main { min-height: 100vh; padding: 16px 16px calc(var(--dock-h) + 16px + 24px + env(safe-area-inset-bottom)); }
     .wrap { max-width: var(--content-max); margin: 0 auto; }
@@ -347,21 +347,18 @@
     .icp a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 999px; text-decoration: none; color: var(--ink-500); }
 
     /* =========================================================
-       断点 ① 平板竖屏 768–1099：竖向黑曜石胶囊导航 + 内容 720
+       断点 ① 平板竖屏 768–1099：保留底部黑曜石 Dock，内容加宽居中（最大宽 720）
        ========================================================= */
     @media (min-width: 768px) {
       :root { --content-max: 720px; }
       .t-up { display: block; } span.t-up, a.t-up { display: inline; }
       .m-only { display: none !important; }
       .t-only { display: block; }
-      .dock { display: none; }
-      .main { padding: 28px 32px 24px 128px; }
+      /* 2026-11-25 用户确认：竖屏不把导航放左边，保留底部 Dock，只把内容加宽居中 */
+      .main { padding: 28px 32px calc(var(--dock-h) + 16px + 24px + env(safe-area-inset-bottom)); }
       .shell.nav-none .main { padding: 28px 32px 24px; }
-      .shell.nav-wide .main { padding: 28px 32px 24px 128px; }
-      .sidenav { display: flex; position: fixed; left: 20px; top: 50%; transform: translateY(-50%); width: 76px; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; border-radius: 38px; background: var(--ink-900); box-shadow: 0 18px 40px -10px rgba(24, 25, 30, 0.42); z-index: 30; }
-      .sn-brand, .sn-cta, .sn-foot { display: none; }
-      .sn-item { width: 60px; height: 62px; border-radius: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: rgba(255,255,255,.62); }
-      .sn-item.on { background: #FFF; color: var(--ink-900); }
+      .shell.nav-wide .main { padding: 28px 32px 24px; }
+      .sidenav { display: none; }
       .page-head { margin-top: 0; }
       .h1 { font-size: 28px; }
       .tile { min-height: 164px; }
@@ -386,7 +383,7 @@
       .rep-foot { max-width: 520px; margin-left: auto; }
     }
     @media (min-width: 768px) and (hover: hover) and (pointer: fine) {
-      .sn-item:not(.on):hover { background: rgba(255,255,255,.12); color: #FFF; }
+      .dock-tab:not(.on):hover { background: rgba(255,255,255,.12); color: #FFF; }
     }
 
     /* =========================================================
@@ -400,7 +397,8 @@
       .main { padding: 32px 40px 24px 272px; }
       .shell.nav-wide .main { padding: 32px 40px 24px 272px; }
       .shell.nav-none .main { padding: 32px 40px 24px; }
-      .sidenav { left: 0; top: 0; bottom: 0; transform: none; width: 232px; border-radius: 0; align-items: stretch; gap: 4px; padding: 24px 16px 16px; background: var(--bg-canvas); border-right: 1px solid var(--hairline); box-shadow: none; }
+      .dock { display: none; }
+      .sidenav { display: flex; flex-direction: column; position: fixed; z-index: 30; left: 0; top: 0; bottom: 0; transform: none; width: 232px; border-radius: 0; align-items: stretch; gap: 4px; padding: 24px 16px 16px; background: var(--bg-canvas); border-right: 1px solid var(--hairline); box-shadow: none; }
       .sn-brand { display: flex; margin: 0 6px 22px; }
       .sn-item { width: auto; height: 48px; flex-direction: row; justify-content: flex-start; gap: 12px; padding: 0 16px; border-radius: 999px; color: var(--ink-700); }
       .sn-item .sn-label { font-size: 14.5px; }
@@ -523,7 +521,7 @@
      ===================================================================== -->
 <div class="viewer">
   <header class="v-head">
-    <h1>V2.9 · H5 响应式布局原型（手机 / iPad / 电脑）· 待用户确认</h1>
+    <h1>V2.9 · H5 响应式布局原型（手机 / iPad / 电脑）· 2026-11-25 已确认</h1>
     <p>只出原型，不改 <code>frontend/</code>。预览框内是同一个页面按真实 CSS 媒体查询排布（不是截图拼接），切换宽度即触发断点；也可「新标签打开」后直接拖动浏览器窗口验证。手机断点与现网 V2.8 保持一致，仅在 ≥768px 改排布。页面底部为「断点与改动清单」。</p>
   </header>
   <div class="v-bar" role="toolbar" aria-label="预览设置">
@@ -560,7 +558,7 @@
       <thead><tr><th>断点</th><th>宽度</th><th>导航</th><th>内容区</th><th>弹层</th></tr></thead>
       <tbody>
         <tr><td>手机</td><td>&lt; 768px（预览 390）</td><td>现有黑曜石悬浮 Dock（不变）</td><td>单栏，左右 16px</td><td>底部抽屉</td></tr>
-        <tr><td>平板竖屏</td><td>768–1099px（预览 820）</td><td>左侧竖向黑曜石胶囊（Dock 竖排，76px，图标 + 短标签）</td><td>单栏为主，max-width 720 居中，局部两栏/三栏</td><td>居中对话框 520</td></tr>
+        <tr><td>平板竖屏</td><td>768–1099px（预览 820）</td><td>保留底部黑曜石悬浮 Dock（与手机相同；2026-11-25 用户确认竖屏导航不放左边）</td><td>单栏为主，max-width 720 居中，局部两栏/三栏</td><td>居中对话框 520</td></tr>
         <tr><td>宽屏</td><td>≥ 1100px（预览 1180 / 1440）</td><td>232px 浅色侧栏：品牌、4 项导航（选中黑曜石胶囊）、待巩固计数、「+ 发起新测验」、用户</td><td>max-width 1120，两栏 7:5 / 5:7 / 8:4 / 4:8</td><td>居中对话框 520</td></tr>
         <tr><td>大屏</td><td>≥ 1440px</td><td>同宽屏</td><td>只加大左右留白，不再放大</td><td>同上</td></tr>
       </tbody>
@@ -570,14 +568,14 @@
     <div class="tbl-wrap"><table>
       <thead><tr><th>页面 / 模块</th><th>手机 &lt;768</th><th>iPad 竖屏 768–1099</th><th>iPad 横屏 / 电脑 ≥1100</th><th>实现涉及文件</th><th>工作量</th></tr></thead>
       <tbody>
-        <tr><td>全局外壳与导航</td><td>保持黑曜石悬浮 Dock（<code>FloatingDock</code>），不变</td><td>隐藏 Dock；左侧悬浮竖向黑曜石胶囊（项 60×62，图标 + 短标签）；内容 max-width 720</td><td>232px 固定浅色侧栏：品牌、4 项导航（48px 高，选中黑曜石胶囊）、「今日」项显示待巩固数、「+ 发起新测验」、底部用户；内容 max-width 1120</td><td>新增 <code>src/utils/viewport.ts</code>（<code>tierFromWidth</code> 纯函数 + 单测）、<code>src/hooks/useViewportTier.ts</code>、<code>src/components/SideNav/</code>、<code>src/components/ResponsiveNav/</code>（&lt;768 渲染 FloatingDock，否则 SideNav）；4 个 tab 页把 <code>FloatingDock</code> 换成 <code>ResponsiveNav</code>；<code>app.scss</code> 加页面容器宽屏内边距 / 最大宽度</td><td class="eff">1.5 人日</td></tr>
+        <tr><td>全局外壳与导航</td><td>保持黑曜石悬浮 Dock（<code>FloatingDock</code>），不变</td><td>保留底部黑曜石 Dock（不放左边）；内容加宽居中 max-width 720</td><td>232px 固定浅色侧栏：品牌、4 项导航（48px 高，选中黑曜石胶囊）、「今日」项显示待巩固数、「+ 发起新测验」、底部用户；内容 max-width 1120</td><td>新增 <code>src/utils/viewport.ts</code>（<code>tierFromWidth</code> 纯函数 + 单测）、<code>src/hooks/useViewportTier.ts</code>、<code>src/components/SideNav/</code>、<code>src/components/ResponsiveNav/</code>（&lt;1100 渲染 FloatingDock，≥1100 渲染 SideNav）；4 个 tab 页把 <code>FloatingDock</code> 换成 <code>ResponsiveNav</code>；<code>app.scss</code> 加页面容器宽屏内边距 / 最大宽度</td><td class="eff">1.5 人日</td></tr>
         <tr><td>今日（首页）</td><td>不变</td><td>bento 双卡加高到 164；输入舱全宽、输入框 150 高；新增「本周完成题数」卡（复用 <code>SevenDayRhythmBar</code>）</td><td>两栏 7:5：左输入舱（输入框 230 高、示例标签换行全显），右 bento + 本周节律</td><td><code>pages/index/index.tsx</code>（外包一层 grid 容器、引入节律卡）、<code>index.scss</code></td><td class="eff">0.75 人日</td></tr>
         <tr><td>口袋</td><td>不变（2 列口袋 + 文档列表）</td><td>口袋网格 3 列；文档列表全宽</td><td>两栏 5:7：左 2 列口袋网格，右文档列表；行 hover 高亮</td><td><code>pages/knowledge/index.tsx</code>、<code>index.scss</code>（删除确认沿用 <code>Taro.showModal</code>，H5 本身就是居中弹窗）</td><td class="eff">0.5 人日</td></tr>
         <tr><td>曲线</td><td>不变</td><td>指标 3 列、曲线通栏，下方「复习日程 | 难度分布」两列，本周完成、待复习通栏；领域标签可横滑</td><td>8:4：左曲线（加高）+ 本周完成；右竖排指标、复习日程、难度分布；待复习清单通栏；领域标签换行全显</td><td><code>pages/mastery/index.tsx</code>、<code>index.scss</code>；<code>components/RetentionCurveCanvas</code> 宽度变化时重算尺寸重绘（H5 用 ResizeObserver，weapp 分支不动）</td><td class="eff">1 人日</td></tr>
         <tr><td>我的</td><td>不变；页底新增「账号」区（邮箱 + 退出登录，交接清单待办）与备案号</td><td>头像卡加大，单栏</td><td>4:8：左资料卡（竖排）+ 指标 + 本周印章（sticky），右待巩固队列 + 历史档案 + 账号</td><td><code>pages/profile/index.tsx</code>、<code>index.scss</code></td><td class="eff">0.75 人日</td></tr>
         <tr><td>答题（二级页）</td><td>不变：顶部题号 + 进度点，底部固定操作栏</td><td>无导航专注模式；居中窄栏 680；操作栏 sticky 在栏底</td><td>5:7 并排：左题干 + 知识点 + 配图（sticky），右选项 + 解析 + 操作栏；选项右侧显示 1–4 键位提示</td><td><code>pages/quiz/index.tsx</code>、<code>index.scss</code>；新增 <code>pages/quiz/quizKeys.ts</code>（按键→动作纯函数 + 单测）</td><td class="eff">1 人日</td></tr>
         <tr><td>登录（V2.8 宽屏版）</td><td>同 V2.8</td><td>表单收进 440 白卡，垂直居中</td><td>左右分屏：左雾天蓝品牌面板（标语 + 3 条价值说明），右表单 420；备案号在页底居中</td><td><code>pages/login/index.tsx</code>（加左侧面板，仅宽屏显示）、<code>index.scss</code></td><td class="eff">0.5 人日</td></tr>
-        <tr><td>复盘报告（二级页）</td><td>不变（无 Dock）</td><td>显示竖向导航；单栏 720</td><td>指标通栏；左三句总结 + 知识点，右保持曲线 + 下一步建议；金句通栏；底部按钮右对齐</td><td><code>pages/report/index.tsx</code>、<code>index.scss</code></td><td class="eff">0.5 人日</td></tr>
+        <tr><td>复盘报告（二级页）</td><td>不变（无 Dock）</td><td>无导航（同手机），单栏 720 居中</td><td>指标通栏；左三句总结 + 知识点，右保持曲线 + 下一步建议；金句通栏；底部按钮右对齐</td><td><code>pages/report/index.tsx</code>、<code>index.scss</code></td><td class="eff">0.5 人日</td></tr>
         <tr><td>弹层</td><td>底部抽屉（导入资料 / 出题偏好 / 答题小结）</td><td colspan="2">居中对话框 max-width 520；点遮罩或 Esc 关闭；打开时焦点进入首个控件，关闭后回到触发按钮</td><td><code>pages/index/index.tsx</code> 两个 sheet、<code>pages/quiz</code> 的 <code>instant-summary-modal</code> 样式；新增 <code>src/hooks/useEscClose.ts</code>（仅 H5）</td><td class="eff">0.5 人日</td></tr>
         <tr><td>备案页脚</td><td>每页内容末尾（在 Dock 留白之上，不遮挡 Dock）；「我的」页、登录页同样有</td><td>内容末尾</td><td>内容末尾；登录页在右栏底部</td><td>新增 <code>src/components/IcpFooter/</code>（仅 <code>TARO_ENV === 'h5'</code> 渲染，链接 <code>https://beian.miit.gov.cn/</code>，新窗口打开），各页面末尾引入</td><td class="eff">0.25 人日</td></tr>
         <tr><td>点按 / 悬停 / 焦点</td><td>沿用 V2.7：热区 ≥44px（36px 胶囊用伪元素扩到 44）、按下态 ≥90ms</td><td colspan="2">+ <code>:focus-visible</code> 雾天蓝外环；+ <code>@media (hover:hover) and (pointer:fine)</code> 悬停：卡片上浮阴影、按钮加深、列表行底色</td><td><code>app.scss</code> 全局 <code>.zx-press</code> / focus / hover 规则</td><td class="eff">0.5 人日</td></tr>
@@ -597,10 +595,10 @@
       <li><b>不新增依赖、不改路由与接口</b>；手机端视觉以现网为准，只有「我的」页底部新增账号区 + 备案号。</li>
     </ol>
 
-    <h2>待用户确认的设计选择</h2>
-    <div class="choice"><b>① 平板竖屏（768–1099）导航</b>：A. 左侧竖向黑曜石胶囊（原型默认，延续 Dock 的识别度）；B. 保留底部 Dock 只居中限宽（改动最小，但 820 宽下底部导航离内容远）。</div>
-    <div class="choice"><b>② 答题页宽屏排布</b>：A. ≥1100 题干与选项左右并排（原型默认，长题干 + 配图时一屏看全）；B. 所有宽度都用居中窄栏 680（更专注，实现约省 0.5 天）。</div>
-    <div class="choice"><b>③ 手机端备案号位置</b>：A. 每页内容末尾（原型默认；工信部要求网站首页底部展示，最稳）；B. 只放「我的」页与登录页底部（首页更干净，合规上有被认为“首页未展示”的风险）。</div>
+    <h2>设计选择（2026-11-25 用户已确认）</h2>
+    <div class="choice"><b>① 平板竖屏（768–1099）导航</b>：<b>已定（2026-11-25）</b>：保留底部 Dock，内容加宽居中（最大宽 720），导航不放左边。</div>
+    <div class="choice"><b>② 答题页宽屏排布</b>：<b>已定：A</b>。A. ≥1100 题干与选项左右并排（原型默认，长题干 + 配图时一屏看全）；B. 所有宽度都用居中窄栏 680（更专注，实现约省 0.5 天）。</div>
+    <div class="choice"><b>③ 手机端备案号位置</b>：<b>已定：A</b>。A. 每页内容末尾（原型默认；工信部要求网站首页底部展示，最稳）；B. 只放「我的」页与登录页底部（首页更干净，合规上有被认为“首页未展示”的风险）。</div>
   </section>
 </div>
 
@@ -632,7 +630,7 @@
             <a class="greet tap" href="#me"><span class="mono">林</span><div><div class="greet-t">下午好，林同学</div><div class="greet-s">连续复习 5 天 · 今日 3 题待巩固</div></div></a>
             <a class="badge tap" href="#curve">曲线日程 ›</a>
           </div>
-          <div class="anno"><span class="m-only">手机：与现网一致（bento → 输入舱）</span><span class="t-only">平板：Dock 改为左侧竖向胶囊；bento 加高；新增「本周完成题数」卡</span><span class="d-only">宽屏：左输入舱 7 / 右 bento + 节律 5；侧栏「今日」显示待巩固数</span></div>
+          <div class="anno"><span class="m-only">手机：与现网一致（bento → 输入舱）</span><span class="t-only">平板：保留底部 Dock、内容居中 720；bento 加高；新增「本周完成题数」卡</span><span class="d-only">宽屏：左输入舱 7 / 右 bento + 节律 5；侧栏「今日」显示待巩固数</span></div>
           <div class="home-grid">
             <div class="bento">
               <button class="tile butter tap lift" data-go="quiz"><div class="tile-top"><span>今日待巩固</span><span>→</span></div><div><div class="tile-val">3 题</div><div class="tile-sub">秒开错题回忆</div></div></button>
@@ -831,7 +829,7 @@
         <!-- ============ 复盘报告（二级） ============ -->
         <section class="page" id="p-report" data-page="report" aria-label="复盘报告">
           <div class="subbar"><a class="icon-btn tap" href="#home" aria-label="返回">‹</a><span class="title">复盘报告 · 计算机网络专题</span></div>
-          <div class="anno"><span class="m-only">手机：与现网一致（无 Dock）</span><span class="t-only">平板：显示竖向导航，单栏</span><span class="d-only">宽屏：左总结 + 知识点 7 / 右曲线 + 建议 5</span></div>
+          <div class="anno"><span class="m-only">手机：与现网一致（无 Dock）</span><span class="t-only">平板：无导航（同手机），单栏 720 居中</span><span class="d-only">宽屏：左总结 + 知识点 7 / 右曲线 + 建议 5</span></div>
           <div class="rep-grid">
             <div class="stats3 r-stats">
               <div class="stat"><div class="stat-lbl">本次准确率</div><div class="stat-num">67<small>%</small></div></div>
