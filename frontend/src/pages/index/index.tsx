@@ -31,7 +31,10 @@ import {
   subscribeBackgroundQuiz,
   type BackgroundQuizState,
 } from '../../services/backgroundQuizManager'
-import FloatingDock from '../../components/FloatingDock'
+import ResponsiveNav from '../../components/ResponsiveNav'
+import IcpFooter from '../../components/IcpFooter'
+import { FOCUS_COMPOSER_EVENT } from '../../components/SideNav'
+import { setNavDueCount } from '../../components/SideNav/navBadge'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
@@ -74,6 +77,7 @@ export default function IndexPage() {
   const [showMaterialSheet, setShowMaterialSheet] = useState(false)
   const [showSettingsSheet, setShowSettingsSheet] = useState(false)
   const [dockVisible, setDockVisible] = useState(true)
+  const [composerFocus, setComposerFocus] = useState(false)
   const [bgQuiz, setBgQuiz] = useState<BackgroundQuizState>(() => getBackgroundQuizState())
 
   const [user, setUser] = useState<UserBrief | null>(() => getCachedUser())
@@ -168,6 +172,23 @@ export default function IndexPage() {
   const dueCount = selectedDomainId
     ? (dueReviews.total_due ?? 0)
     : (dueReviews.total_due ?? effectiveOverview.due_review_total ?? 0)
+  // 宽屏侧栏「今日」徽标：只同步「全部域」的待巩固总数
+  useEffect(() => {
+    if (!selectedDomainId) setNavDueCount(dueCount)
+  }, [dueCount, selectedDomainId])
+
+  // 宽屏侧栏「+ 发起新测验」：聚焦输入舱
+  useEffect(() => {
+    const onFocus = () => {
+      setComposerFocus(false)
+      setTimeout(() => setComposerFocus(true), 0)
+    }
+    Taro.eventCenter.on(FOCUS_COMPOSER_EVENT, onFocus)
+    return () => {
+      Taro.eventCenter.off(FOCUS_COMPOSER_EVENT, onFocus)
+    }
+  }, [])
+
   const streakDays = user?.streak_days ?? effectiveOverview.streak_days ?? 1
   const todayCompleted = useMemo(() => {
     const todayBar = effectiveOverview.weekly_rhythm?.find((d) => d.is_today)
@@ -297,7 +318,7 @@ export default function IndexPage() {
   const primaryCountKey: 'fast3' | 'adaptive' = questionChoice === 3 ? 'fast3' : 'adaptive'
 
   return (
-    <View className={`index-page ${showHomePill ? 'has-bg-pill' : ''}`}>
+    <View className={`index-page zx-rpage zx-with-sidenav ${showHomePill ? 'has-bg-pill' : ''}`}>
       {/* 1. 顶部紧致状态栏（防右侧小屏裁切） */}
       <View className='home-topbar'>
         <View
@@ -406,6 +427,8 @@ export default function IndexPage() {
           placeholderClass='composer-placeholder'
           value={inputValue}
           onInput={(e) => setInputValue(e.detail.value)}
+          focus={composerFocus}
+          onBlur={() => setComposerFocus(false)}
           maxlength={500}
           autoHeight={false}
         />
@@ -630,9 +653,11 @@ export default function IndexPage() {
         </View>
       )}
 
+      <IcpFooter />
+
       <BackgroundTaskPill visible={dockVisible && showHomePill} />
 
-      {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='index' />}
+      {process.env.TARO_ENV === 'h5' && dockVisible && <ResponsiveNav activeKey='index' />}
     </View>
   )
 }

@@ -20,7 +20,8 @@ import {
   subscribeBackgroundQuiz,
   type BackgroundQuizState,
 } from '../../services/backgroundQuizManager'
-import FloatingDock from '../../components/FloatingDock'
+import ResponsiveNav from '../../components/ResponsiveNav'
+import IcpFooter from '../../components/IcpFooter'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
@@ -262,7 +263,7 @@ export default function KnowledgePage() {
   }
 
   return (
-    <View className={`knowledge-page ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
+    <View className={`knowledge-page zx-rpage zx-with-sidenav ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
       <View className='kb-header'>
         <View>
           <Text className='kb-kicker'>PRIVATE LIBRARY</Text>
@@ -385,9 +386,11 @@ export default function KnowledgePage() {
         </View>
       )}
 
+      <IcpFooter />
+
       <BackgroundTaskPill visible={dockVisible} />
 
-      {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='knowledge' />}
+      {process.env.TARO_ENV === 'h5' && dockVisible && <ResponsiveNav activeKey='knowledge' />}
     </View>
   )
 }

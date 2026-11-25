@@ -30,7 +30,9 @@ import {
 } from '../../services/backgroundQuizManager'
 import RetentionCurveCanvas from '../../components/RetentionCurveCanvas'
 import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
-import FloatingDock from '../../components/FloatingDock'
+import ResponsiveNav from '../../components/ResponsiveNav'
+import IcpFooter from '../../components/IcpFooter'
+import { setNavDueCount } from '../../components/SideNav/navBadge'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
@@ -48,6 +50,10 @@ export default function MasteryPage() {
   const [expandedCardId, setExpandedCardId] = useState<number | null>(null)
   const [bgQuiz, setBgQuiz] = useState<BackgroundQuizState>(() => getBackgroundQuizState())
   const [dockVisible, setDockVisible] = useState(true)
+
+  useEffect(() => {
+    if (!selectedDomainId) setNavDueCount(dueReviews.total_due)
+  }, [dueReviews.total_due, selectedDomainId])
 
   const loadData = useCallback(async () => {
     await waitForLogin()
@@ -156,7 +162,7 @@ export default function MasteryPage() {
   }
 
   return (
-    <View className={`mastery-page ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
+    <View className={`mastery-page zx-rpage zx-with-sidenav ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
       <View className='mastery-header'>
         <Text className='mastery-kicker'>MEMORY RETENTION</Text>
         <Text className='mastery-title'>学习记忆曲线与能力图谱</Text>
@@ -397,9 +403,11 @@ export default function MasteryPage() {
         </View>
       )}
 
+      <IcpFooter />
+
       <BackgroundTaskPill visible={dockVisible} />
 
-      {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='mastery' />}
+      {process.env.TARO_ENV === 'h5' && dockVisible && <ResponsiveNav activeKey='mastery' />}
     </View>
   )
 }

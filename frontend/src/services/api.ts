@@ -6,6 +6,7 @@ declare const API_BASE_URL: string
 const BASE_URL = API_BASE_URL
 const TOKEN_KEY = 'zx_token'
 const USER_KEY = 'zx_user_info'
+const LOGIN_EMAIL_KEY = 'zx_login_email'
 
 let _loginResolve: (() => void) | null = null
 const _loginReady = new Promise<void>((resolve) => {
@@ -52,6 +53,12 @@ export function getCachedUser(): UserBrief | null {
 
 export function setCachedUser(user: UserBrief) {
   Taro.setStorageSync(USER_KEY, user)
+}
+
+/** H5 邮箱登录时记录的登录邮箱（只存本机，用于侧栏 / 「我的」账号区展示） */
+export function getLoginEmail(): string {
+  const raw = Taro.getStorageSync(LOGIN_EMAIL_KEY)
+  return typeof raw === 'string' ? raw : ''
 }
 
 /** 通用底层请求（不自动处理 4010 重试，供登录接口本身调用） */
@@ -248,9 +255,21 @@ export async function verifyEmailCode(email: string, code: string): Promise<Logi
   }
   setToken(data.token)
   setCachedUser(data.user)
+  Taro.setStorageSync(LOGIN_EMAIL_KEY, email.trim().toLowerCase())
   _lastLoginFailAt = 0
   resolveLogin()
   return data
+}
+
+/**
+ * 退出登录（H5「我的」页）：清掉本机 token / 用户缓存 / 登录邮箱，回到登录页。
+ * JWT 无服务端会话，清本地即失效于本机；weapp 无退出入口。
+ */
+export function logout() {
+  clearToken()
+  Taro.removeStorageSync(LOGIN_EMAIL_KEY)
+  _lastRedirectAt = 0
+  void Promise.resolve(Taro.reLaunch({ url: LOGIN_PAGE_URL })).catch(() => undefined)
 }
 
 async function ensureAuthToken(): Promise<string> {

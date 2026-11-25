@@ -1,0 +1,29 @@
+/* 仅 H5：weapp 编译时整段剔除，小程序样式零变化 */
+/* #ifdef h5 */
+.zx-icp {
+  display: flex;
+  justify-content: center;
+  padding: 28Px 0 4Px;
+  font-size: 12Px;
+  line-height: 1.6;
+  color: var(--ink-400);
+}
+
+.zx-icp-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44Px;
+  padding: 0 12Px;
+  border-radius: 999Px;
+  color: var(--ink-500);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .zx-icp-link:hover {
+    color: var(--ink-900);
+    text-decoration: underline;
+  }
+}
+/* #endif */

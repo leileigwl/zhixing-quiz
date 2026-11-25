@@ -134,3 +134,28 @@ describe('redirectToLogin', () => {
     expect(api.redirectToLogin()).toBe(true)
   })
 })
+
+describe('登录邮箱记录与退出登录（V2.9「我的」账号区）', () => {
+  it('verify 成功后记录规范化的登录邮箱', async () => {
+    const api = await loadApi()
+    expect(api.getLoginEmail()).toBe('')
+    requestMock().mockResolvedValueOnce(
+      ok({ token: 'jwt-1', user: { id: 1, nickname: '学习者', avatar_url: '', total_xp: 0 } }) as any,
+    )
+    await api.verifyEmailCode(' Julia@163.COM ', '123456')
+    expect(api.getLoginEmail()).toBe('julia@163.com')
+  })
+
+  it('logout 清除 token / 用户缓存 / 登录邮箱并回到登录页', async () => {
+    Taro.setStorageSync('zx_token', 'jwt-1')
+    Taro.setStorageSync('zx_user_info', { id: 1, nickname: 'x' })
+    Taro.setStorageSync('zx_login_email', 'a@qq.com')
+    __setCurrentPages([{ route: 'pages/profile/index' }])
+    const api = await loadApi()
+    api.logout()
+    expect(api.getToken()).toBe('')
+    expect(api.getCachedUser()).toBeNull()
+    expect(api.getLoginEmail()).toBe('')
+    expect(Taro.reLaunch).toHaveBeenCalledWith({ url: '/pages/login/index' })
+  })
+})

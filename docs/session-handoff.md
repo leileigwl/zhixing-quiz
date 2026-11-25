@@ -1,6 +1,30 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-24（分支 `feat/email-otp-login`，基于 `chore/phase0-ci-and-frontend-tests`，仅本地提交，未 push）
+> 最后更新：2026-11-25（V2.9 响应式改版进行中，见下方「当前进度」）
+
+## 当前进度（V2.9 响应式改版 · 2026-11-25 · 进行中）
+
+> 用户 2026-11-25 20:19 确认 V2.9 原型，唯一改动：**iPad 竖屏 768–1099 保留底部 Dock，只把内容加宽居中（最大宽 720），导航不放左边**；其余按原型默认。授权 agent 自行判断细节、CI 全绿后自行合并 PR 并上线 https://study.leileigwl.cn 。
+
+- [x] PR #3（部署文件）已合并到 main（`dc3a060`）。
+- [ ] PR ①（分支 `feat/v29-responsive`）：导航外壳（`ResponsiveNav` = 手机/竖屏底部 Dock、≥1100 `SideNav` 侧栏）+ 备案页脚 `IcpFooter`（4 个 tab 页）+ 全局手感（focus-visible / hover / `.zx-hit` 44px 热区 / 内容容器 720·1120）+ `useViewportTier` / `tierFromWidth` + **修复「未登录时地址是登录页、画面是首页」**（`services/authGuard.ts`，路由初始化前同步切到登录页）+ 登录邮箱记录与 `logout()`；原型与改动清单已按竖屏决定同步修改。
+- [ ] PR ②：四个 tab 页宽屏多栏布局 +「我的」页账号区（邮箱 + 退出登录）。
+- [ ] PR ③：答题（5:7 并排 + 键盘 1–4/A–D、Enter、←）/ 登录分屏 / 复盘双栏 / 弹层居中对话框（Esc）/ 其余页面备案号。
+- [ ] 上线：`TARO_APP_API_BASE_URL=https://study.leileigwl.cn/api/v1 pnpm build:h5` → 备份 `/var/www/zhixing-quiz/h5` 为 `h5.bak-<日期>` → 上传替换；服务器 `/opt/zhixing-quiz` 拉最新 main（后端无改动则不重建）。
+
+**下一步**：看上面第一个未勾选项。截图脚本与假后端数据在项目工作区 `work/shot_v29_app.py`、`work/mockapi.py`（不入库），截图存 `v29-screens/`。
+
+**未实机验证**：iOS Safari / iPad 真机 / 微信内置浏览器未测；weapp 仅确认编译产物 wxss 与改动前逐字节一致，未在微信开发者工具里打开。
+
+---
+
+## 本轮（2026-11-25）· V2.9 H5 响应式布局原型（分支 `design/v29-responsive`，仅本地提交）
+
+- 只出原型、未改 `frontend/`：[`v29-responsive-layout.html`](02-design/prototypes/v29-responsive-layout.html)（**待用户确认**），覆盖 4 个 tab 页 + 答题 / 复盘 / 登录（V2.8 宽屏版），断点 `<768` / `768–1099` / `≥1100`，页底备案号「浙ICP备2026102405号-1」；文件内附断点与改动清单、工作量与 Taro H5 实现方式。索引已更新。
+- 校验：Playwright 在 390 / 820 / 1180 / 1440 四宽度打开原型逐页检查，无横向溢出、无文字截断、无 JS 错误；首页截图存于项目工作区 `proto-screens/`（不入库）。未跑前端闸门（无代码改动）。
+- 待决：用户确认原型及 3 个设计选择（平板导航形态 / 答题宽屏并排 / 手机端备案号位置）后再按清单分 3 个 PR 实现。
+
+---
 
 ## 本轮（2026-11-24 · 下午）· H5 邮箱验证码登录
 
