@@ -978,6 +978,10 @@
     flex-direction: column;
   }
 
+  .home-rhythm-card .zx-bars-7 {
+    height: 214Px;
+  }
+
   .home-rhythm-card .zx-bar-track {
     height: 150Px;
     width: 26Px;
@@ -1026,6 +1030,18 @@
 
   .home-grid .home-overview-card {
     padding: 18Px 20Px;
+  }
+
+  /* 宽屏：左侧发起测验卡与右列等高，输入框吃掉剩余高度，避免卡片下方大块空白 */
+  .home-grid .composer-card {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .home-grid .composer-textarea {
+    flex: 1;
+    min-height: 230Px;
   }
 
   .home-overview-body {
