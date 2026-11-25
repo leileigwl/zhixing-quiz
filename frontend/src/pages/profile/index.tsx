@@ -31,7 +31,8 @@ import {
   subscribeBackgroundQuiz,
   type BackgroundQuizState,
 } from '../../services/backgroundQuizManager'
-import FloatingDock from '../../components/FloatingDock'
+import ResponsiveNav from '../../components/ResponsiveNav'
+import IcpFooter from '../../components/IcpFooter'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
@@ -265,7 +266,7 @@ export default function ProfilePage() {
   const streakDays = profile?.streak_days ?? Math.max(1, historyItems.length)
 
   return (
-    <View className={`profile-page ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
+    <View className={`profile-page zx-rpage zx-with-sidenav ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
       {/* 个人档案头部卡 */}
       <View className='zx-card profile-hero'>
         <View className='avatar-wrap'>
@@ -603,9 +604,11 @@ export default function ProfilePage() {
         </View>
       )}
 
+      <IcpFooter />
+
       <BackgroundTaskPill visible={dockVisible} />
 
-      {process.env.TARO_ENV === 'h5' && dockVisible && <FloatingDock activeKey='profile' />}
+      {process.env.TARO_ENV === 'h5' && dockVisible && <ResponsiveNav activeKey='profile' />}
     </View>
   )
 }

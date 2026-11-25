@@ -9,14 +9,14 @@ interface FloatingDockProps {
   onSwitch?: (key: DockTabKey, path: string) => void
 }
 
-const TABS: Array<{ key: DockTabKey; label: string; url: string }> = [
+export const DOCK_TABS: Array<{ key: DockTabKey; label: string; url: string }> = [
   { key: 'index', label: '今日', url: '/pages/index/index' },
   { key: 'knowledge', label: '口袋', url: '/pages/knowledge/index' },
   { key: 'mastery', label: '曲线', url: '/pages/mastery/index' },
   { key: 'profile', label: '我的', url: '/pages/profile/index' },
 ]
 
-function DockGlyph({ kind, active }: { kind: DockTabKey; active: boolean }) {
+export function DockGlyph({ kind, active }: { kind: DockTabKey; active: boolean }) {
   const toneClass = active ? 'is-dark' : 'is-light'
 
   if (kind === 'index') {
@@ -55,7 +55,7 @@ function DockGlyph({ kind, active }: { kind: DockTabKey; active: boolean }) {
 }
 
 export default function FloatingDock({ activeKey, onSwitch }: FloatingDockProps) {
-  const handleTap = (item: (typeof TABS)[number]) => {
+  const handleTap = (item: (typeof DOCK_TABS)[number]) => {
     if (onSwitch) {
       onSwitch(item.key, item.url)
       return
@@ -67,7 +67,7 @@ export default function FloatingDock({ activeKey, onSwitch }: FloatingDockProps)
   return (
     <View className='zx-dock-wrap'>
       <View className='zx-dock-pill'>
-        {TABS.map((item) => {
+        {DOCK_TABS.map((item) => {
           const isActive = item.key === activeKey
           return (
             <View
