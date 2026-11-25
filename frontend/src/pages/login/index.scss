@@ -585,3 +585,135 @@
   }
 }
 /* #endif */
+
+/* =========================================================
+   V3.0 色彩层（2026-11-26）：品牌渐变按钮 / 彩色背景 / 品牌标 / 返回门头页
+   ========================================================= */
+.brand-mark-sky {
+  background: #b9b0ff;
+}
+
+.brand-mark-butter {
+  background: var(--butter-500);
+}
+
+.brand-mark-dot {
+  background: var(--brand-600);
+}
+
+.btn-login {
+  background: var(--grad-brand);
+  box-shadow: 0 16px 34px -14px rgba(91, 76, 240, 0.6);
+
+  &.is-pressed {
+    background: linear-gradient(135deg, #4a3ad8 0%, #6d28d9 100%);
+  }
+
+  &.is-disabled {
+    opacity: 0.45;
+    box-shadow: none;
+  }
+}
+
+.btn-code {
+  background: var(--brand-50);
+  color: var(--brand-700);
+
+  &.is-pressed {
+    background: var(--brand-100);
+  }
+}
+
+.agree-check.is-on {
+  background: var(--brand-600);
+  border-color: var(--brand-600);
+}
+
+.agree-link {
+  color: var(--brand-700);
+}
+
+.sent-tip {
+  background: var(--mint-50);
+  color: var(--mint-700);
+}
+
+/* #ifdef h5 */
+.login-page {
+  background:
+    radial-gradient(60% 40% at 0% 0%, rgba(185, 176, 255, 0.55) 0%, rgba(185, 176, 255, 0) 70%),
+    radial-gradient(50% 35% at 100% 10%, rgba(255, 194, 217, 0.55) 0%, rgba(255, 194, 217, 0) 70%),
+    var(--bg-canvas);
+}
+
+.login-back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44Px;
+  padding: 0 14Px;
+  margin-bottom: 8Px;
+  border-radius: 999Px;
+  font-size: 14Px;
+  font-weight: 600;
+  color: var(--brand-700);
+  background: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+@media (min-width: 768px) {
+  .login-right {
+    position: relative;
+  }
+
+  .login-col {
+    max-width: 480Px;
+  }
+
+  .login-back {
+    position: absolute;
+    left: 32Px;
+    top: 24Px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .login-hero {
+    background: var(--grad-hero);
+    color: #ffffff;
+  }
+
+  .login-hero .brand-name,
+  .hero-title,
+  .hero-value-title {
+    color: #ffffff;
+  }
+
+  .hero-sub,
+  .hero-value-sub {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .hero-dot {
+    background: #ffffff;
+    color: var(--brand-700);
+  }
+
+  .hero-geo {
+    background: rgba(255, 209, 102, 0.9);
+  }
+
+  .hero-geo2 {
+    background: rgba(255, 255, 255, 0.9);
+  }
+
+  .login-back {
+    left: auto;
+    right: 40Px;
+  }
+
+  .login-col {
+    max-width: 440Px;
+  }
+}
+/* #endif */

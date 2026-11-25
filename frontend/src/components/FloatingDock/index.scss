@@ -160,3 +160,22 @@
   border-top-left-radius: 14px;
   border-top-right-radius: 14px;
 }
+
+/* V3.0 色彩层：Dock 底色改为深靛，选中项品牌渐变圆 + 白色图标 */
+.zx-dock-pill {
+  background: #1d1a3a;
+  box-shadow: 0 22px 48px -12px rgba(58, 43, 181, 0.45);
+}
+
+.zx-dock-tab.is-active {
+  background: var(--grad-brand);
+  box-shadow: 0 6px 16px rgba(91, 76, 240, 0.5);
+}
+
+.dock-glyph.is-dark {
+  color: #ffffff;
+}
+
+.dock-glyph.is-light {
+  color: rgba(255, 255, 255, 0.72);
+}

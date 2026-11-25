@@ -1,0 +1,993 @@
+{
+ "withData": {
+  "overview": {
+   "streak_days": 5,
+   "overall_retention": 68,
+   "due_review_total": 5,
+   "subscribe_remaining": 3,
+   "focus_domain": {
+    "domain_id": 2,
+    "name": "操作系统",
+    "color_token": "butter",
+    "doc_count": 1,
+    "mastery_score": 54,
+    "retention_rate": 58,
+    "stability_days": 2.8,
+    "due_review_count": 2,
+    "recommended_count": 4,
+    "below_threshold": true,
+    "next_review_day_label": "今天",
+    "next_recommended_difficulty": "easy",
+    "schedule_reason": "已低于阈值",
+    "difficulty_stats": {
+     "easy_accuracy": 90,
+     "medium_accuracy": 72,
+     "hard_accuracy": 48,
+     "easy_total": 12,
+     "medium_total": 18,
+     "hard_total": 9
+    }
+   },
+   "next_plan": {
+    "domain_id": 2,
+    "domain_name": "操作系统",
+    "when_label": "今天 20:00",
+    "recommended_count": 4,
+    "focus_difficulty": "easy",
+    "critical_days": 1,
+    "reason": "保持率已低于 60%"
+   },
+   "domains": [
+    {
+     "domain_id": 1,
+     "name": "计算机网络",
+     "color_token": "sky",
+     "doc_count": 2,
+     "mastery_score": 68,
+     "retention_rate": 71,
+     "stability_days": 4.2,
+     "due_review_count": 3,
+     "recommended_count": 5,
+     "below_threshold": false,
+     "next_review_day_label": "明天",
+     "next_recommended_difficulty": "medium",
+     "schedule_reason": "保持率将在 2 天后跌破 50%",
+     "difficulty_stats": {
+      "easy_accuracy": 90,
+      "medium_accuracy": 72,
+      "hard_accuracy": 48,
+      "easy_total": 12,
+      "medium_total": 18,
+      "hard_total": 9
+     }
+    },
+    {
+     "domain_id": 2,
+     "name": "操作系统",
+     "color_token": "butter",
+     "doc_count": 1,
+     "mastery_score": 54,
+     "retention_rate": 58,
+     "stability_days": 2.8,
+     "due_review_count": 2,
+     "recommended_count": 4,
+     "below_threshold": true,
+     "next_review_day_label": "今天",
+     "next_recommended_difficulty": "easy",
+     "schedule_reason": "已低于阈值",
+     "difficulty_stats": {
+      "easy_accuracy": 90,
+      "medium_accuracy": 72,
+      "hard_accuracy": 48,
+      "easy_total": 12,
+      "medium_total": 18,
+      "hard_total": 9
+     }
+    },
+    {
+     "domain_id": 3,
+     "name": "数据库 Redis",
+     "color_token": "purple",
+     "doc_count": 1,
+     "mastery_score": 77,
+     "retention_rate": 80,
+     "stability_days": 6.5,
+     "due_review_count": 0,
+     "recommended_count": 3,
+     "below_threshold": false,
+     "next_review_day_label": "后天",
+     "next_recommended_difficulty": "hard",
+     "schedule_reason": "稳定",
+     "difficulty_stats": {
+      "easy_accuracy": 90,
+      "medium_accuracy": 72,
+      "hard_accuracy": 48,
+      "easy_total": 12,
+      "medium_total": 18,
+      "hard_total": 9
+     }
+    }
+   ],
+   "retention_curve": [
+    {
+     "day_label": "11-20",
+     "retention_pct": 92,
+     "is_actual": true,
+     "quiz_title": "TCP 三次握手"
+    },
+    {
+     "day_label": "11-21",
+     "retention_pct": 74
+    },
+    {
+     "day_label": "11-23",
+     "retention_pct": 85,
+     "is_actual": true,
+     "quiz_title": "进程调度"
+    },
+    {
+     "day_label": "11-24",
+     "retention_pct": 70
+    },
+    {
+     "day_label": "今天",
+     "retention_pct": 62,
+     "is_today": true
+    },
+    {
+     "day_label": "+1",
+     "retention_pct": 80,
+     "baseline_pct": 52,
+     "is_recovery": true
+    },
+    {
+     "day_label": "+3",
+     "retention_pct": 72,
+     "baseline_pct": 41,
+     "is_recovery": true
+    },
+    {
+     "day_label": "+7",
+     "retention_pct": 64,
+     "baseline_pct": 30,
+     "is_recovery": true
+    },
+    {
+     "day_label": "+14",
+     "retention_pct": 58,
+     "baseline_pct": 22,
+     "is_recovery": true
+    }
+   ],
+   "weekly_rhythm": [
+    {
+     "day_label": "一",
+     "date_num": "23",
+     "date_str": "2026-11-23",
+     "completed_count": 8,
+     "quiz_count": 1,
+     "avg_accuracy": 75,
+     "is_today": false,
+     "active": true,
+     "sessions": [
+      {
+       "quiz_id": "q1",
+       "title": "TCP 三次握手与四次挥手",
+       "domain_name": "计算机网络",
+       "question_count": 8,
+       "accuracy": 75,
+       "weak_points": [
+        "TIME_WAIT 作用"
+       ]
+      }
+     ]
+    },
+    {
+     "day_label": "二",
+     "date_num": "24",
+     "date_str": "2026-11-24",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    },
+    {
+     "day_label": "三",
+     "date_num": "25",
+     "date_str": "2026-11-25",
+     "completed_count": 12,
+     "quiz_count": 1,
+     "avg_accuracy": 75,
+     "is_today": true,
+     "active": true,
+     "sessions": [
+      {
+       "quiz_id": "q1",
+       "title": "TCP 三次握手与四次挥手",
+       "domain_name": "计算机网络",
+       "question_count": 12,
+       "accuracy": 75,
+       "weak_points": [
+        "TIME_WAIT 作用"
+       ]
+      }
+     ]
+    },
+    {
+     "day_label": "四",
+     "date_num": "26",
+     "date_str": "2026-11-26",
+     "completed_count": 6,
+     "quiz_count": 1,
+     "avg_accuracy": 75,
+     "is_today": false,
+     "active": true,
+     "sessions": [
+      {
+       "quiz_id": "q1",
+       "title": "TCP 三次握手与四次挥手",
+       "domain_name": "计算机网络",
+       "question_count": 6,
+       "accuracy": 75,
+       "weak_points": [
+        "TIME_WAIT 作用"
+       ]
+      }
+     ]
+    },
+    {
+     "day_label": "五",
+     "date_num": "27",
+     "date_str": "2026-11-27",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    },
+    {
+     "day_label": "六",
+     "date_num": "28",
+     "date_str": "2026-11-28",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    },
+    {
+     "day_label": "日",
+     "date_num": "29",
+     "date_str": "2026-11-29",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    }
+   ],
+   "seven_day_forecast": [
+    5,
+    2,
+    3,
+    0,
+    4,
+    1,
+    2
+   ]
+  },
+  "due": {
+   "total_due": 5,
+   "unresolved_total": 5,
+   "items": [
+    {
+     "card_id": 1,
+     "question_id": "dq0",
+     "quiz_id": "q1",
+     "domain_id": 1,
+     "domain_name": "计算机网络",
+     "q_type": "single",
+     "stem": "TCP 四次挥手中，主动关闭方进入 TIME_WAIT 状态的主要目的是什么？",
+     "options": [
+      {
+       "key": "A",
+       "text": "等待对端重传的 FIN"
+      },
+      {
+       "key": "B",
+       "text": "立即释放端口"
+      },
+      {
+       "key": "C",
+       "text": "发送 RST"
+      },
+      {
+       "key": "D",
+       "text": "重置拥塞窗口"
+      }
+     ],
+     "answer": [
+      "A"
+     ],
+     "explanation": "TIME_WAIT 持续 2MSL，保证最后一个 ACK 可达并让旧报文失效。",
+     "user_selected": [
+      "B"
+     ],
+     "knowledge_point": "TIME_WAIT",
+     "difficulty": "medium",
+     "repetitions": 1,
+     "interval_days": 1,
+     "status": "due",
+     "next_review_at": "2026-11-25T08:00:00"
+    },
+    {
+     "card_id": 2,
+     "question_id": "dq1",
+     "quiz_id": "q1",
+     "domain_id": 1,
+     "domain_name": "计算机网络",
+     "q_type": "single",
+     "stem": "Linux CFS 调度器用什么数据结构维护可运行进程？",
+     "options": [
+      {
+       "key": "A",
+       "text": "等待对端重传的 FIN"
+      },
+      {
+       "key": "B",
+       "text": "立即释放端口"
+      },
+      {
+       "key": "C",
+       "text": "发送 RST"
+      },
+      {
+       "key": "D",
+       "text": "重置拥塞窗口"
+      }
+     ],
+     "answer": [
+      "A"
+     ],
+     "explanation": "TIME_WAIT 持续 2MSL，保证最后一个 ACK 可达并让旧报文失效。",
+     "user_selected": [
+      "B"
+     ],
+     "knowledge_point": "CFS 红黑树",
+     "difficulty": "medium",
+     "repetitions": 1,
+     "interval_days": 1,
+     "status": "due",
+     "next_review_at": "2026-11-25T08:00:00"
+    },
+    {
+     "card_id": 3,
+     "question_id": "dq2",
+     "quiz_id": "q1",
+     "domain_id": 1,
+     "domain_name": "计算机网络",
+     "q_type": "single",
+     "stem": "Redis RDB 与 AOF 混合持久化在重启时如何加载？",
+     "options": [
+      {
+       "key": "A",
+       "text": "等待对端重传的 FIN"
+      },
+      {
+       "key": "B",
+       "text": "立即释放端口"
+      },
+      {
+       "key": "C",
+       "text": "发送 RST"
+      },
+      {
+       "key": "D",
+       "text": "重置拥塞窗口"
+      }
+     ],
+     "answer": [
+      "A"
+     ],
+     "explanation": "TIME_WAIT 持续 2MSL，保证最后一个 ACK 可达并让旧报文失效。",
+     "user_selected": [
+      "B"
+     ],
+     "knowledge_point": "混合持久化",
+     "difficulty": "medium",
+     "repetitions": 1,
+     "interval_days": 1,
+     "status": "due",
+     "next_review_at": "2026-11-25T08:00:00"
+    },
+    {
+     "card_id": 4,
+     "question_id": "dq3",
+     "quiz_id": "q1",
+     "domain_id": 1,
+     "domain_name": "计算机网络",
+     "q_type": "single",
+     "stem": "HTTP/2 多路复用解决了 HTTP/1.1 的什么问题？",
+     "options": [
+      {
+       "key": "A",
+       "text": "等待对端重传的 FIN"
+      },
+      {
+       "key": "B",
+       "text": "立即释放端口"
+      },
+      {
+       "key": "C",
+       "text": "发送 RST"
+      },
+      {
+       "key": "D",
+       "text": "重置拥塞窗口"
+      }
+     ],
+     "answer": [
+      "A"
+     ],
+     "explanation": "TIME_WAIT 持续 2MSL，保证最后一个 ACK 可达并让旧报文失效。",
+     "user_selected": [
+      "B"
+     ],
+     "knowledge_point": "队头阻塞",
+     "difficulty": "medium",
+     "repetitions": 1,
+     "interval_days": 1,
+     "status": "due",
+     "next_review_at": "2026-11-25T08:00:00"
+    },
+    {
+     "card_id": 5,
+     "question_id": "dq4",
+     "quiz_id": "q1",
+     "domain_id": 1,
+     "domain_name": "计算机网络",
+     "q_type": "single",
+     "stem": "进程与线程切换开销差异主要来自哪里？",
+     "options": [
+      {
+       "key": "A",
+       "text": "等待对端重传的 FIN"
+      },
+      {
+       "key": "B",
+       "text": "立即释放端口"
+      },
+      {
+       "key": "C",
+       "text": "发送 RST"
+      },
+      {
+       "key": "D",
+       "text": "重置拥塞窗口"
+      }
+     ],
+     "answer": [
+      "A"
+     ],
+     "explanation": "TIME_WAIT 持续 2MSL，保证最后一个 ACK 可达并让旧报文失效。",
+     "user_selected": [
+      "B"
+     ],
+     "knowledge_point": "上下文切换",
+     "difficulty": "medium",
+     "repetitions": 1,
+     "interval_days": 1,
+     "status": "due",
+     "next_review_at": "2026-11-25T08:00:00"
+    }
+   ]
+  },
+  "profile": {
+   "id": 1,
+   "nickname": "林同学",
+   "avatar_url": "",
+   "total_xp": 1280,
+   "streak_days": 5,
+   "quiz_count": 14,
+   "correct_count": 52,
+   "average_accuracy": 74
+  },
+  "quizzes": {
+   "items": [
+    {
+     "quiz_id": "q1",
+     "title": "TCP 三次握手与四次挥手",
+     "accuracy": 67,
+     "question_count": 3,
+     "domain_id": 1,
+     "domain_name": "计算机网络",
+     "source_type": "web_search",
+     "is_submitted": true,
+     "created_at": "2026-11-25T10:00:00"
+    },
+    {
+     "quiz_id": "q2",
+     "title": "进程调度与 CFS",
+     "accuracy": 80,
+     "question_count": 5,
+     "domain_id": 1,
+     "domain_name": "操作系统",
+     "source_type": "web_search",
+     "is_submitted": true,
+     "created_at": "2026-11-24T10:00:00"
+    },
+    {
+     "quiz_id": "q3",
+     "title": "Redis 持久化机制",
+     "accuracy": 60,
+     "question_count": 5,
+     "domain_id": 1,
+     "domain_name": "数据库 Redis",
+     "source_type": "web_search",
+     "is_submitted": true,
+     "created_at": "2026-11-23T10:00:00"
+    },
+    {
+     "quiz_id": "q4",
+     "title": "HTTP/2 与 HTTP/3 对比",
+     "accuracy": 100,
+     "question_count": 4,
+     "domain_id": 1,
+     "domain_name": "计算机网络",
+     "source_type": "web_search",
+     "is_submitted": true,
+     "created_at": "2026-11-22T10:00:00"
+    }
+   ],
+   "total": 4,
+   "page": 1,
+   "page_size": 10
+  },
+  "quizDetail": {
+   "quiz_id": "q1",
+   "title": "TCP 三次握手与四次挥手",
+   "summary": "围绕连接管理的 3 道题",
+   "source_type": "web_search",
+   "domain_id": 1,
+   "domain_name": "计算机网络",
+   "questions": [
+    {
+     "id": "s1",
+     "type": "single",
+     "stem": "TCP 四次挥手中，主动关闭方进入 TIME_WAIT 状态并等待 2MSL，其主要目的是什么？",
+     "options": [
+      {
+       "key": "A",
+       "text": "确保最后一个 ACK 能到达对端，并让本连接的旧报文在网络中失效"
+      },
+      {
+       "key": "B",
+       "text": "立即释放端口以便快速复用"
+      },
+      {
+       "key": "C",
+       "text": "等待应用层把缓冲区数据读完"
+      },
+      {
+       "key": "D",
+       "text": "重置拥塞窗口避免下一次连接拥塞"
+      }
+     ],
+     "answer": [
+      "A"
+     ],
+     "explanation": "2MSL 足够让最后的 ACK 重传一次并让旧连接的报文全部过期，避免干扰相同四元组的新连接。",
+     "knowledge_point": "TIME_WAIT 状态",
+     "difficulty": "medium",
+     "image_url": null
+    },
+    {
+     "id": "s2",
+     "type": "multiple",
+     "stem": "以下哪些属于 TCP 可靠传输机制？（多选）",
+     "options": [
+      {
+       "key": "A",
+       "text": "序列号与确认应答"
+      },
+      {
+       "key": "B",
+       "text": "超时重传"
+      },
+      {
+       "key": "C",
+       "text": "滑动窗口流量控制"
+      },
+      {
+       "key": "D",
+       "text": "广播寻址"
+      }
+     ],
+     "answer": [
+      "A",
+      "B",
+      "C"
+     ],
+     "explanation": "广播寻址是链路层/网络层概念。",
+     "knowledge_point": "可靠传输",
+     "difficulty": "easy"
+    },
+    {
+     "id": "s3",
+     "type": "judge",
+     "stem": "UDP 提供面向连接、可靠的字节流服务。",
+     "options": [
+      {
+       "key": "T",
+       "text": "正确"
+      },
+      {
+       "key": "F",
+       "text": "错误"
+      }
+     ],
+     "answer": [
+      "F"
+     ],
+     "explanation": "UDP 无连接、不保证可靠。",
+     "knowledge_point": "UDP 特点",
+     "difficulty": "easy"
+    }
+   ],
+   "image_status": "none",
+   "answer_records": [],
+   "created_at": "2026-11-25T10:00:00"
+  },
+  "quizDetailDone": {
+   "quiz_id": "q1",
+   "title": "TCP 三次握手与四次挥手",
+   "summary": "围绕连接管理的 3 道题",
+   "source_type": "web_search",
+   "domain_id": 1,
+   "domain_name": "计算机网络",
+   "questions": [
+    {
+     "id": "s1",
+     "type": "single",
+     "stem": "TCP 四次挥手中，主动关闭方进入 TIME_WAIT 状态并等待 2MSL，其主要目的是什么？",
+     "options": [
+      {
+       "key": "A",
+       "text": "确保最后一个 ACK 能到达对端，并让本连接的旧报文在网络中失效"
+      },
+      {
+       "key": "B",
+       "text": "立即释放端口以便快速复用"
+      },
+      {
+       "key": "C",
+       "text": "等待应用层把缓冲区数据读完"
+      },
+      {
+       "key": "D",
+       "text": "重置拥塞窗口避免下一次连接拥塞"
+      }
+     ],
+     "answer": [
+      "A"
+     ],
+     "explanation": "2MSL 足够让最后的 ACK 重传一次并让旧连接的报文全部过期，避免干扰相同四元组的新连接。",
+     "knowledge_point": "TIME_WAIT 状态",
+     "difficulty": "medium",
+     "image_url": null
+    },
+    {
+     "id": "s2",
+     "type": "multiple",
+     "stem": "以下哪些属于 TCP 可靠传输机制？（多选）",
+     "options": [
+      {
+       "key": "A",
+       "text": "序列号与确认应答"
+      },
+      {
+       "key": "B",
+       "text": "超时重传"
+      },
+      {
+       "key": "C",
+       "text": "滑动窗口流量控制"
+      },
+      {
+       "key": "D",
+       "text": "广播寻址"
+      }
+     ],
+     "answer": [
+      "A",
+      "B",
+      "C"
+     ],
+     "explanation": "广播寻址是链路层/网络层概念。",
+     "knowledge_point": "可靠传输",
+     "difficulty": "easy"
+    },
+    {
+     "id": "s3",
+     "type": "judge",
+     "stem": "UDP 提供面向连接、可靠的字节流服务。",
+     "options": [
+      {
+       "key": "T",
+       "text": "正确"
+      },
+      {
+       "key": "F",
+       "text": "错误"
+      }
+     ],
+     "answer": [
+      "F"
+     ],
+     "explanation": "UDP 无连接、不保证可靠。",
+     "knowledge_point": "UDP 特点",
+     "difficulty": "easy"
+    }
+   ],
+   "image_status": "none",
+   "answer_records": [
+    {
+     "question_id": "s1",
+     "selected_answers": [
+      "B"
+     ],
+     "is_correct": false,
+     "duration_ms": 21000
+    },
+    {
+     "question_id": "s2",
+     "selected_answers": [
+      "A",
+      "B",
+      "C"
+     ],
+     "is_correct": true,
+     "duration_ms": 18000
+    },
+    {
+     "question_id": "s3",
+     "selected_answers": [
+      "F"
+     ],
+     "is_correct": true,
+     "duration_ms": 6000
+    }
+   ],
+   "created_at": "2026-11-25T10:00:00",
+   "report": {
+    "accuracy": 67,
+    "mastered_points": [
+     "三次握手流程",
+     "SYN 洪泛防护"
+    ],
+    "weak_points": [
+     "TIME_WAIT 作用",
+     "半关闭状态"
+    ],
+    "three_line_summary": [
+     "连接建立流程掌握扎实。",
+     "连接释放阶段的状态含义仍有混淆。",
+     "建议明天复习 TIME_WAIT 与 CLOSE_WAIT 的区别。"
+    ],
+    "advice": [
+     "用状态机图把四次挥手画一遍",
+     "做 3 道 TIME_WAIT 变式题"
+    ],
+    "share_quote": "握手易，挥手难，2MSL 是给网络的告别时间。"
+   },
+   "report_status": "completed"
+  },
+  "documents": {
+   "items": [
+    {
+     "doc_id": "d0",
+     "file_name": "TCP-IP 详解 卷一（第 3–6 章）.pdf",
+     "file_type": "pdf",
+     "file_size": 204800,
+     "status": "ready",
+     "chunk_count": 42,
+     "domain_id": 1,
+     "domain_name": "计算机网络",
+     "error_message": null,
+     "created_at": "2026-11-25T09:00:00"
+    },
+    {
+     "doc_id": "d1",
+     "file_name": "进程与线程调度笔记.md",
+     "file_type": "md",
+     "file_size": 204800,
+     "status": "ready",
+     "chunk_count": 12,
+     "domain_id": 1,
+     "domain_name": "操作系统",
+     "error_message": null,
+     "created_at": "2026-11-24T09:00:00"
+    },
+    {
+     "doc_id": "d2",
+     "file_name": "Redis 设计与实现摘录.docx",
+     "file_type": "docx",
+     "file_size": 204800,
+     "status": "ready",
+     "chunk_count": 28,
+     "domain_id": 1,
+     "domain_name": "数据库 Redis",
+     "error_message": null,
+     "created_at": "2026-11-23T09:00:00"
+    },
+    {
+     "doc_id": "d3",
+     "file_name": "React Hooks 原理与闭包陷阱.md",
+     "file_type": "md",
+     "file_size": 204800,
+     "status": "processing",
+     "chunk_count": 0,
+     "domain_id": 1,
+     "domain_name": "前端 React",
+     "error_message": null,
+     "created_at": "2026-11-22T09:00:00"
+    }
+   ]
+  },
+  "report": {
+   "quiz_id": "q2",
+   "report_status": "completed",
+   "report": {
+    "accuracy": 67,
+    "mastered_points": [
+     "三次握手流程",
+     "SYN 洪泛防护"
+    ],
+    "weak_points": [
+     "TIME_WAIT 作用",
+     "半关闭状态"
+    ],
+    "three_line_summary": [
+     "连接建立流程掌握扎实。",
+     "连接释放阶段的状态含义仍有混淆。",
+     "建议明天复习 TIME_WAIT 与 CLOSE_WAIT 的区别。"
+    ],
+    "advice": [
+     "用状态机图把四次挥手画一遍",
+     "做 3 道 TIME_WAIT 变式题"
+    ],
+    "share_quote": "握手易，挥手难，2MSL 是给网络的告别时间。"
+   }
+  }
+ },
+ "newUser": {
+  "overview": {
+   "streak_days": 0,
+   "overall_retention": 0.0,
+   "due_review_total": 0,
+   "subscribe_remaining": 0,
+   "focus_domain": null,
+   "next_plan": null,
+   "domains": [],
+   "retention_curve": [],
+   "weekly_rhythm": [
+    {
+     "day_label": "六",
+     "date_num": "21",
+     "date_str": "2026-11-21",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    },
+    {
+     "day_label": "日",
+     "date_num": "22",
+     "date_str": "2026-11-22",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    },
+    {
+     "day_label": "一",
+     "date_num": "23",
+     "date_str": "2026-11-23",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    },
+    {
+     "day_label": "二",
+     "date_num": "24",
+     "date_str": "2026-11-24",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    },
+    {
+     "day_label": "三",
+     "date_num": "25",
+     "date_str": "2026-11-25",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": true,
+     "active": false,
+     "sessions": []
+    },
+    {
+     "day_label": "四",
+     "date_num": "26",
+     "date_str": "2026-11-26",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    },
+    {
+     "day_label": "五",
+     "date_num": "27",
+     "date_str": "2026-11-27",
+     "completed_count": 0,
+     "quiz_count": 0,
+     "avg_accuracy": null,
+     "is_today": false,
+     "active": false,
+     "sessions": []
+    }
+   ],
+   "seven_day_forecast": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "has_practice_data": false
+  },
+  "due": {
+   "total_due": 0,
+   "unresolved_total": 0,
+   "items": []
+  },
+  "profile": {
+   "id": 1,
+   "nickname": "学习者",
+   "avatar_url": "",
+   "total_xp": 0,
+   "streak_days": 0,
+   "quiz_count": 0,
+   "correct_count": 0,
+   "average_accuracy": 0
+  },
+  "quizzes": {
+   "items": [],
+   "total": 0,
+   "page": 1,
+   "page_size": 10
+  },
+  "documents": {
+   "items": []
+  }
+ }
+}

@@ -46,3 +46,13 @@
   align-items: center;
   justify-content: center;
 }
+
+/* V3.0 色彩层 */
+.zx-empty-icon {
+  background: var(--brand-50);
+}
+
+.zx-empty-action {
+  background: var(--grad-brand);
+  color: #ffffff;
+}

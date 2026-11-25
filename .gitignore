@@ -31,3 +31,8 @@ pnpm-debug.log*
 project.private.config.json
 **/project.private.config.json
 frontend/coverage/
+
+# Playwright E2E
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/

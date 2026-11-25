@@ -1,3 +1,6 @@
+// V3.0 公开门头页只进 H5（小程序没有门头页，仍由 wx.login 静默登录直达首页）
+const H5_ONLY_PAGES = process.env.TARO_ENV === 'h5' ? ['pages/landing/index'] : []
+
 export default defineAppConfig({
   pages: [
     'pages/index/index',
@@ -7,6 +10,7 @@ export default defineAppConfig({
     'pages/quiz/index',
     'pages/report/index',
     'pages/login/index',
+    ...H5_ONLY_PAGES,
   ],
   networkTimeout: {
     request: 600000,

@@ -1,0 +1,38 @@
+.zx-ring {
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.zx-ring-hole {
+  width: 76%;
+  height: 76%;
+  border-radius: 50%;
+  background: var(--surface-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.zx-ring-num {
+  font-size: 38px;
+  font-weight: 900;
+  color: var(--ink-900);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.zx-ring.is-empty .zx-ring-num {
+  color: var(--ink-400);
+}
+
+.zx-ring-cap {
+  font-size: 18px;
+  color: var(--ink-500);
+  margin-top: 2px;
+}

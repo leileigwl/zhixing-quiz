@@ -41,6 +41,7 @@ import ResponsiveNav from '../../components/ResponsiveNav'
 import LineIcon from '../../components/LineIcon'
 import { FOCUS_COMPOSER_EVENT } from '../../components/SideNav'
 import IcpFooter from '../../components/IcpFooter'
+import ProgressRing from '../../components/ProgressRing'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
@@ -443,19 +444,17 @@ export default function ProfilePage() {
 
       {/* 3 格纯学习核心数据（彻底去除 XP） */}
       <View className='stat-grid-3'>
-        <View className='stat-box'>
+        <View className='stat-box is-coral'>
           <Text className='stat-lbl'>连续打卡</Text>
           <Text className='stat-num'>{streakDays} 天</Text>
         </View>
-        <View className='stat-box'>
+        <View className='stat-box is-mint'>
           <Text className='stat-lbl'>累计答对</Text>
           <Text className='stat-num'>{profile?.correct_count ?? 0} 题</Text>
         </View>
-        <View className='stat-box'>
+        <View className='stat-box is-ring'>
+          <ProgressRing className='stat-ring' tone='mint' value={hasAnswered ? (profile?.average_accuracy ?? 0) : null} />
           <Text className='stat-lbl'>平均正确率</Text>
-          <Text className={`stat-num ${hasAnswered ? '' : 'is-empty'}`}>
-            {hasAnswered ? `${profile?.average_accuracy ?? 0}%` : '—'}
-          </Text>
         </View>
       </View>
 

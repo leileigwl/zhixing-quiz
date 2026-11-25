@@ -16,7 +16,7 @@ export default function EmptyState({ icon = 'sparkle', title, desc, actionText, 
   return (
     <View className={`zx-empty ${className}`}>
       <View className='zx-empty-icon'>
-        <LineIcon name={icon} size={22} color='#6e7280' />
+        <LineIcon name={icon} size={22} color='#4a3ad8' />
       </View>
       <Text className='zx-empty-title'>{title}</Text>
       {desc ? <Text className='zx-empty-desc'>{desc}</Text> : null}

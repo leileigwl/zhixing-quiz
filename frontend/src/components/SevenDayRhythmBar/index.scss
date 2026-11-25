@@ -52,7 +52,7 @@
   width: 34px;
   height: 116px;
   border-radius: 999px;
-  background: #f0f0f4;
+  background: var(--surface-soft);
   display: flex;
   align-items: flex-end;
   overflow: hidden;
@@ -66,11 +66,11 @@
 }
 
 .zx-bar-fill.is-active {
-  background: #7bbbe4;
+  background: linear-gradient(180deg, #8b7dff 0%, #5b4cf0 100%);
 }
 
 .zx-bar-fill.is-today {
-  background: #18191e;
+  background: linear-gradient(180deg, #ff8a5b 0%, #db2777 100%);
 }
 
 .zx-bar-lbl-pill {
@@ -85,7 +85,7 @@
 }
 
 .zx-bar-lbl-pill.is-selected {
-  background: #18191e;
+  background: var(--brand-600);
 }
 
 .zx-bar-lbl {

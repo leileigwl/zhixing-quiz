@@ -185,19 +185,32 @@ export function usesEmailLoginPage(): boolean {
   return process.env.TARO_ENV === 'h5'
 }
 
-function isOnLoginPage(): boolean {
+const LANDING_PAGE_ROUTE = 'pages/landing/index'
+
+function currentRoute(): string {
   try {
     const pages = Taro.getCurrentPages()
     const current = pages[pages.length - 1] as { route?: string } | undefined
-    return (current?.route || '').replace(/^\//, '').startsWith(LOGIN_PAGE_ROUTE)
+    return (current?.route || '').replace(/^\//, '')
   } catch {
-    return false
+    return ''
   }
 }
 
-/** H5 无有效登录态时跳转登录页（去重：并发请求同时 401 只跳一次；已在登录页时不跳） */
+/** 当前是否在公开页（登录页 / V3.0 门头页），公开页上不因「未登录」跳走 */
+function isOnPublicPage(): boolean {
+  const route = currentRoute()
+  if (route.startsWith(LOGIN_PAGE_ROUTE) || route.startsWith(LANDING_PAGE_ROUTE)) return true
+  // 启动瞬间 getCurrentPages 可能还为空：H5 退回读 hash
+  if (!route && process.env.TARO_ENV === 'h5' && typeof window !== 'undefined') {
+    return /pages\/(login|landing)\/index/.test(window.location.hash || '')
+  }
+  return false
+}
+
+/** H5 无有效登录态时跳转登录页（去重：并发请求同时 401 只跳一次；已在登录页 / 门头页时不跳） */
 export function redirectToLogin(): boolean {
-  if (!usesEmailLoginPage() || isOnLoginPage()) return false
+  if (!usesEmailLoginPage() || isOnPublicPage()) return false
   const now = Date.now()
   if (now - _lastRedirectAt < REDIRECT_DEDUPE_MS) return false
   _lastRedirectAt = now

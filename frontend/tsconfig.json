@@ -17,13 +17,25 @@
     "jsx": "react-jsx",
     "allowJs": true,
     "resolveJsonModule": true,
-    "typeRoots": ["node_modules/@types"],
-    "types": ["react"],
+    "typeRoots": [
+      "node_modules/@types"
+    ],
+    "types": [
+      "react"
+    ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
     "skipLibCheck": true
   },
-  "include": ["./src", "./types", "./config"],
+  "include": [
+    "./src",
+    "./types",
+    "./config",
+    "./e2e",
+    "./playwright.config.ts"
+  ],
   "compileOnSave": false
 }

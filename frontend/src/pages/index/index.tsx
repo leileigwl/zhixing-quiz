@@ -37,6 +37,8 @@ import {
 } from '../../services/backgroundQuizManager'
 import ResponsiveNav from '../../components/ResponsiveNav'
 import IcpFooter from '../../components/IcpFooter'
+import ProgressRing from '../../components/ProgressRing'
+import OnboardingSteps from '../../components/OnboardingSteps'
 import { FOCUS_COMPOSER_EVENT } from '../../components/SideNav'
 import { setNavDueCount } from '../../components/SideNav/navBadge'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
@@ -476,7 +478,7 @@ export default function IndexPage() {
         </View>
       </View>
 
-      <View className='home-grid'>
+      <View className={`home-grid ${isColdStart ? 'is-cold' : 'has-overview'}`}>
       {/* 2. 紧致双快捷区（纯正中文、冷启动引导与薄弱攻坚一键开刷） */}
       <View className='mini-bento-grid'>
         <View className='mini-tile is-butter zx-press zx-hover-lift' onClick={handleDueCardTap}>
@@ -503,7 +505,7 @@ export default function IndexPage() {
         >
           <View className='mini-top'>
             <View className='mini-tag-row'>
-              <LineIcon name='target' size={14} />
+              <LineIcon name='target' size={14} color='#ffffff' />
               <Text className='mini-tag'>{isColdStart ? '待解锁攻坚' : '重点攻坚'}</Text>
             </View>
             <Text className='mini-arrow'>{isFocusRunning ? '···' : '›'}</Text>
@@ -649,6 +651,50 @@ export default function IndexPage() {
           </View>
           <SevenDayRhythmBar days={effectiveOverview.weekly_rhythm || []} />
         </View>
+
+        {/* V3.0：有数据时的学习概览（进度环 + 大数字）；新用户换成三步引导（示意图已标注） */}
+        {isColdStart ? (
+          <OnboardingSteps
+            className='home-onboarding'
+            onUpload={openMaterialSheet}
+            onCompose={focusComposer}
+            onCurve={() => Taro.switchTab({ url: '/pages/mastery/index' })}
+          />
+        ) : (
+          <View
+            className='home-overview-card zx-press zx-hover-lift'
+            onClick={() => Taro.switchTab({ url: '/pages/mastery/index' })}
+          >
+            <View className='home-overview-head'>
+              <View className='zx-title-row'>
+                <LineIcon name='chart' size={15} />
+                <Text className='home-overview-title'>学习概览</Text>
+              </View>
+              <Text className='home-overview-link'>看曲线 ›</Text>
+            </View>
+            <View className='home-overview-body'>
+              <ProgressRing
+                className='home-overview-ring'
+                value={hasData ? effectiveOverview.overall_retention : null}
+                caption='整体保持率'
+              />
+              <View className='home-overview-stats'>
+                <View className='ov-stat is-coral'>
+                  <Text className='ov-num'>{streakDays}</Text>
+                  <Text className='ov-lbl'>连续天数</Text>
+                </View>
+                <View className='ov-stat is-mint'>
+                  <Text className='ov-num'>{weekTotal}</Text>
+                  <Text className='ov-lbl'>本周完成</Text>
+                </View>
+                <View className='ov-stat is-brand'>
+                  <Text className='ov-num'>{dueCount}</Text>
+                  <Text className='ov-lbl'>待巩固</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* 抽屉 1：三源资料与文档多选半屏弹层 */}

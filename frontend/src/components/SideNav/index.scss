@@ -206,3 +206,35 @@
   }
 }
 /* #endif */
+
+/* V3.0 色彩层：品牌渐变选中态 / 渐变 CTA / 彩色品牌标 */
+/* #ifdef h5 */
+.zx-brand-mark .bm-a {
+  background: #b9b0ff;
+}
+
+.zx-brand-mark .bm-b {
+  background: var(--butter-500);
+}
+
+.zx-brand-mark .bm-c {
+  background: var(--brand-600);
+}
+
+.zx-sn-item.is-active {
+  background: var(--grad-brand);
+  color: #ffffff;
+  box-shadow: 0 10Px 22Px -12Px rgba(91, 76, 240, 0.65);
+}
+
+.zx-sn-cta {
+  background: var(--grad-warm);
+  color: var(--ink-900);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .zx-sn-cta:hover {
+    background: linear-gradient(135deg, #ffb920 0%, #ff7a45 100%);
+  }
+}
+/* #endif */

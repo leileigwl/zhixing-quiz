@@ -38,6 +38,9 @@ import { setNavDueCount } from '../../components/SideNav/navBadge'
 import { FOCUS_COMPOSER_EVENT } from '../../components/SideNav'
 import LineIcon from '../../components/LineIcon'
 import EmptyState from '../../components/EmptyState'
+import ProgressRing from '../../components/ProgressRing'
+import OnboardingSteps from '../../components/OnboardingSteps'
+import { domainTone } from '../../utils/domainColor'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
 
@@ -202,28 +205,38 @@ export default function MasteryPage() {
         {effectiveOverview.domains.map((dom) => (
           <View
             key={dom.domain_id}
-            className={`domain-pill zx-press ${selectedDomainId === dom.domain_id ? 'is-on' : ''}`}
+            className={`domain-pill zx-press tone-${domainTone(dom.color_token, dom.domain_id)} ${selectedDomainId === dom.domain_id ? 'is-on' : ''}`}
             onClick={() => setSelectedDomainId(dom.domain_id)}
           >
+            <View className='domain-dot' />
             <Text>{dom.name}</Text>
           </View>
         ))}
       </View>
 
+      {/* V3.0：还没有答题记录时先给三步引导（示意图已标注「示意」） */}
+      {!hasData && (
+        <OnboardingSteps
+          className='mastery-onboarding'
+          title='记忆曲线从你的第一组题开始'
+          onUpload={() => Taro.switchTab({ url: '/pages/knowledge/index' })}
+          onCompose={goCompose}
+          onCurve={goCompose}
+        />
+      )}
+
       <View className={`curve-grid ${nextPlan ? 'has-sched' : 'no-sched'} ${showDiff ? 'has-diff' : 'no-diff'}`}>
       {/* 3 格核心记忆指标 */}
       <View className='stat-grid-3 a-stats'>
-        <View className='stat-box'>
+        <View className='stat-box is-ring'>
+          <ProgressRing className='stat-ring' value={hasData ? effectiveOverview.overall_retention : null} />
           <Text className='stat-lbl'>总体保持率</Text>
-          <Text className={`stat-num ${hasData ? '' : 'is-empty'}`}>
-            {hasData ? `${Math.round(effectiveOverview.overall_retention)}%` : '—'}
-          </Text>
         </View>
-        <View className='stat-box'>
+        <View className='stat-box is-coral'>
           <Text className='stat-lbl'>当前待复习</Text>
           <Text className='stat-num'>{dueReviews.total_due || effectiveOverview.due_review_total} 题</Text>
         </View>
-        <View className='stat-box'>
+        <View className='stat-box is-mint'>
           <Text className='stat-lbl'>连续复习</Text>
           <Text className='stat-num'>{effectiveOverview.streak_days} 天</Text>
         </View>
