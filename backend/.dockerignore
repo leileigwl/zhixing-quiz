@@ -1,0 +1,11 @@
+# 防止把本地密钥与运行时数据打进镜像（Dockerfile 使用 COPY . .）
+.env
+.env.*
+!.env.example
+data/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+tests/

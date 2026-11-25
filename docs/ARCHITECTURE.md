@@ -6,6 +6,8 @@
 
 自有云服务器通过 **Docker Compose** 运行 **FastAPI 后端（Multi-Worker 异步）**、**ARQ Worker**、**Redis 7**、**Chroma HTTP 向量服务** 与 **MySQL 8.0**，外层通过 **1Panel（Nginx / Caddy）** 提供公网 **HTTPS** 域名反向代理给微信小程序与 H5 调用。
 
+> 当前生产实例（2026-11-25，<https://study.leileigwl.cn>）：2C/1.6G 单机，`deploy/docker-compose.prod.yml` 起 **单 worker** API + ARQ Worker + MySQL/Redis/Chroma（仅内部网络，API 只绑 `127.0.0.1:8010`），外层为宿主机 **apt nginx + certbot**（未走 1Panel OpenResty，原因见 [`deploy.md`](deploy.md)）。部署与运维步骤以 [`docs/deploy.md`](deploy.md) 为准。
+
 ```mermaid
 flowchart LR
   WX["微信小程序 / H5 (Taro 4 / React 18 / TS)"] -->|HTTPS + Bearer JWT| Proxy["1Panel HTTPS 反向代理"]

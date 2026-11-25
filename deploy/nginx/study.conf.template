@@ -1,0 +1,104 @@
+# 知行快刷 H5 + API 反向代理（宿主机 Nginx）
+# __DOMAIN__ / __WEB_ROOT__ / __API_UPSTREAM__ 由 deploy/deploy.sh 渲染替换
+# 上传上限：KB_MAX_FILE_SIZE_MB=10，multipart 额外开销留 2MB 余量 → 12m
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+    server_tokens off;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    # Ubuntu 24.04 自带 nginx 1.24，不支持 `http2 on;`，用 listen 参数写法
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name __DOMAIN__;
+
+    ssl_certificate     /etc/letsencrypt/live/__DOMAIN__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__DOMAIN__/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:zhixing_ssl:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    server_tokens off;
+    include /etc/nginx/snippets/zhixing-security-headers.conf;
+
+    gzip on;
+    gzip_vary on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types text/plain text/css text/xml application/json application/javascript application/xml image/svg+xml font/ttf application/vnd.ms-fontobject;
+
+    client_max_body_size 12m;
+
+    root __WEB_ROOT__;
+    index index.html;
+
+    # ---- 后端 API：/api/v1/* ----
+    location /api/ {
+        proxy_pass http://__API_UPSTREAM__;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        # 覆盖客户端自带的同名头，后端 CLIENT_IP_HEADER=X-Real-IP 只信任这里写入的值
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 200s;
+        # QUIZ_TASK_TIMEOUT_SECONDS=180，留余量
+        proxy_read_timeout 200s;
+    }
+
+    # ---- 题目配图本地回落目录（后端 StaticFiles 挂载）----
+    location ^~ /static/quiz-images/ {
+        proxy_pass http://__API_UPSTREAM__;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        expires 30d;
+        include /etc/nginx/snippets/zhixing-security-headers.conf;
+        add_header Cache-Control "public";
+    }
+
+    # ---- H5 JS/CSS：Taro H5 产物文件名不带内容哈希（/js/app.js 等），
+    #      只能用 no-cache + ETag 协商缓存，避免发版后用户拿到旧脚本 ----
+    location ~* ^/(?:js|css|chunk)/ {
+        try_files $uri =404;
+        include /etc/nginx/snippets/zhixing-security-headers.conf;
+        add_header Cache-Control "no-cache";
+    }
+
+    # ---- 图片 / 字体等静态资源：短期强缓存 ----
+    location ~* \.(?:png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf)$ {
+        try_files $uri =404;
+        expires 7d;
+        include /etc/nginx/snippets/zhixing-security-headers.conf;
+        add_header Cache-Control "public";
+    }
+
+    # ---- 入口 HTML 不缓存（H5 为 hash 路由，所有页面都走 index.html）----
+    location = /index.html {
+        include /etc/nginx/snippets/zhixing-security-headers.conf;
+        add_header Cache-Control "no-cache";
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+        include /etc/nginx/snippets/zhixing-security-headers.conf;
+        add_header Cache-Control "no-cache";
+    }
+}
