@@ -655,6 +655,21 @@
     font-size: 12.5Px;
     color: var(--ink-500);
   }
+
+  /* 弹层：底部抽屉 → 居中对话框 520 */
+  .sheet-mask {
+    justify-content: center;
+    align-items: center;
+    padding: 32Px;
+  }
+
+  .sheet-panel {
+    width: 100%;
+    max-width: 520Px;
+    max-height: 84vh;
+    border-radius: 28Px;
+    padding: 22Px 24Px 24Px;
+  }
 }
 
 @media (min-width: 1100px) {

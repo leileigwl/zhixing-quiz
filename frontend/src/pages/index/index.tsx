@@ -37,6 +37,7 @@ import { FOCUS_COMPOSER_EVENT } from '../../components/SideNav'
 import { setNavDueCount } from '../../components/SideNav/navBadge'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
+import { useEscClose } from '../../hooks/useEscClose'
 import './index.scss'
 
 const QUICK_TOPICS = ['RAG 检索', 'HTTP/3', '分布式锁']
@@ -79,6 +80,9 @@ export default function IndexPage() {
   const [showSettingsSheet, setShowSettingsSheet] = useState(false)
   const [dockVisible, setDockVisible] = useState(true)
   const [composerFocus, setComposerFocus] = useState(false)
+  // V2.9：≥768 弹层变居中对话框；H5 下 Esc 关闭并管理焦点
+  useEscClose(showMaterialSheet, () => setShowMaterialSheet(false), '.sheet-panel')
+  useEscClose(showSettingsSheet, () => setShowSettingsSheet(false), '.sheet-panel')
   const [bgQuiz, setBgQuiz] = useState<BackgroundQuizState>(() => getBackgroundQuizState())
 
   const [user, setUser] = useState<UserBrief | null>(() => getCachedUser())
@@ -524,7 +528,7 @@ export default function IndexPage() {
       {/* 抽屉 1：三源资料与文档多选半屏弹层 */}
       {showMaterialSheet && (
         <View className='sheet-mask' onClick={() => setShowMaterialSheet(false)}>
-          <View className='sheet-panel' onClick={(e) => e.stopPropagation()}>
+          <View className='sheet-panel' role='dialog' aria-modal='true' onClick={(e) => e.stopPropagation()}>
             <View className='sheet-head'>
               <Text className='sheet-title'>导入参考资料与知识文档</Text>
               <Text className='sheet-done' onClick={() => setShowMaterialSheet(false)}>
@@ -590,7 +594,7 @@ export default function IndexPage() {
       {/* 抽屉 2：高级出题设置 */}
       {showSettingsSheet && (
         <View className='sheet-mask' onClick={() => setShowSettingsSheet(false)}>
-          <View className='sheet-panel' onClick={(e) => e.stopPropagation()}>
+          <View className='sheet-panel' role='dialog' aria-modal='true' onClick={(e) => e.stopPropagation()}>
             <View className='sheet-head'>
               <Text className='sheet-title'>出题偏好设置</Text>
               <Text className='sheet-done' onClick={() => setShowSettingsSheet(false)}>

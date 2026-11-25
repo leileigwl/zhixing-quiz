@@ -21,6 +21,10 @@ import { clearSavedDraftForQuiz, getActiveQuizSession } from '../../services/qui
 import { buildFallbackMasteryOverview, invalidateSwrCache } from '../../services/v2Adapters'
 import RetentionCurveCanvas from '../../components/RetentionCurveCanvas'
 import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
+import SideNav from '../../components/SideNav'
+import IcpFooter from '../../components/IcpFooter'
+import { useViewportTier } from '../../hooks/useViewportTier'
+import { usesSideNav } from '../../utils/viewport'
 import './index.scss'
 
 function getEditorialHeadline(acc: number, wrongCount: number): string {
@@ -32,6 +36,7 @@ function getEditorialHeadline(acc: number, wrongCount: number): string {
 
 export default function ReportPage() {
   const router = useRouter()
+  const tier = useViewportTier()
   const quizIdParam = router.params.quizId ? decodeURIComponent(router.params.quizId) : ''
 
   const cachedSession = useMemo(() => getActiveQuizSession(quizIdParam), [quizIdParam])
@@ -285,14 +290,16 @@ export default function ReportPage() {
   }
 
   return (
-    <View className='report-page'>
+    <View className='report-page zx-rpage zx-with-sidenav'>
+      {process.env.TARO_ENV === 'h5' && usesSideNav(tier) && <SideNav activeKey={null} />}
       <View className='report-head'>
         <Text className='report-kicker'>MEMORY RETENTION</Text>
         <Text className='report-title'>{getEditorialHeadline(accuracy, wrongCount)}</Text>
       </View>
 
+      <View className='rep-grid'>
       {/* 3 格纯核心指标（去 XP） */}
-      <View className='stat-grid-3'>
+      <View className='stat-grid-3 r-full'>
         <View className='stat-box'>
           <Text className='stat-lbl'>本次准确率</Text>
           <Text className='stat-num'>{accuracy}%</Text>
@@ -308,7 +315,7 @@ export default function ReportPage() {
       </View>
 
       {/* 本次复盘一图看懂（人话三步结论：答得怎样 / 曲线原因 / 下次安排） */}
-      <View className='zx-card digest-card'>
+      <View className='zx-card digest-card r-digest'>
         <Text className='digest-head'>本次诊断结论</Text>
         <View className='digest-row'>
           <Text className='digest-num'>1</Text>
@@ -390,20 +397,20 @@ export default function ReportPage() {
       </View>
 
       {loading ? (
-        <View className='zx-card report-panel'>
+        <View className='zx-card report-panel r-full'>
           <Text className='report-loading-txt'>正在结算交卷结果...</Text>
         </View>
       ) : (
         <>
           {reportStatus === 'generating' && !report && (
-            <View className='zx-card report-panel'>
+            <View className='zx-card report-panel r-full'>
               <Text className='panel-title'>AI 复盘总结生成中...</Text>
               <Text className='summary-line'>客观算分已完成，正在提炼掌握点与后续训练重点。</Text>
             </View>
           )}
 
           {reportStatus === 'failed' && !report && (
-            <View className='zx-card report-panel'>
+            <View className='zx-card report-panel r-full'>
               <Text className='panel-title'>复盘小结</Text>
               <Text className='summary-line'>
                 {reportError || 'AI 总结暂未返回，客观成绩与解析已完整保存。'}
@@ -460,7 +467,7 @@ export default function ReportPage() {
             </View>
           ) : null}
 
-          <View className='quote-banner zx-press' onClick={handleShareQuote}>
+          <View className='quote-banner zx-press r-full' onClick={handleShareQuote}>
             <Text className='quote-text'>
               “{report?.share_quote || '少一点题海消耗，把错题练进长期记忆。'}”
             </Text>
@@ -468,7 +475,7 @@ export default function ReportPage() {
           </View>
 
           {quizData?.questions && quizData.questions.length > 0 && (
-            <View className='zx-card report-panel'>
+            <View className='zx-card report-panel r-full'>
               <View className='review-toggle' onClick={() => setReviewOpen((prev) => !prev)}>
                 <Text className='panel-title'>题目解析回看 ({quizData.questions.length} 题)</Text>
                 <Text className='review-arrow'>{reviewOpen ? '收起 ⌄' : '展开 ›'}</Text>
@@ -501,6 +508,8 @@ export default function ReportPage() {
         </>
       )}
 
+      </View>
+
       {/* 底部操作区 */}
       <View className='report-footer'>
         <View
@@ -517,6 +526,8 @@ export default function ReportPage() {
           <Text>→</Text>
         </View>
       </View>
+
+      <IcpFooter className='report-icp' />
     </View>
   )
 }

@@ -10,16 +10,17 @@ import './index.scss'
 export const FOCUS_COMPOSER_EVENT = 'zx:focus-composer'
 
 interface SideNavProps {
-  activeKey: DockTabKey
+  /** 当前 tab；二级页（如复盘报告）传 null，不高亮任何一项 */
+  activeKey: DockTabKey | null
 }
 
-export function goToNavTab(key: DockTabKey, activeKey: DockTabKey) {
+export function goToNavTab(key: DockTabKey, activeKey: DockTabKey | null) {
   if (key === activeKey) return
   const tab = DOCK_TABS.find((t) => t.key === key)
   if (tab) Taro.switchTab({ url: tab.url })
 }
 
-export function startNewQuiz(activeKey: DockTabKey) {
+export function startNewQuiz(activeKey: DockTabKey | null) {
   if (activeKey !== 'index') {
     Taro.switchTab({ url: '/pages/index/index' })
   }

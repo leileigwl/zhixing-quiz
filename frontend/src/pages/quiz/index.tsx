@@ -23,6 +23,8 @@ import {
   updateActiveQuizImages,
 } from '../../services/quizSessionStore'
 import { invalidateSwrCache } from '../../services/v2Adapters'
+import IcpFooter from '../../components/IcpFooter'
+import { optionKeyHint, resolveQuizKey } from './quizKeys'
 import './index.scss'
 
 const DIFF_LABEL: Record<Question['difficulty'], string> = {
@@ -414,6 +416,61 @@ export default function QuizPage() {
     }
   }
 
+  // V2.9 键盘答题（仅 H5）：1–4 / A–D 选择、Enter 提交 / 下一题、← 上一题；用 ref 读最新状态，只注册一次监听
+  const keyStateRef = useRef({
+    optionKeys: [] as string[],
+    submitted: false,
+    readonly: false,
+    hasSelection: false,
+    canPrev: false,
+    blocked: false,
+    select: (_k: string) => {},
+    submit: () => {},
+    next: () => {},
+    prev: () => {},
+  })
+  keyStateRef.current = {
+    optionKeys: currentQuestion?.options.map((o) => o.key) || [],
+    submitted,
+    readonly: isReviewReadonly,
+    hasSelection: selectedAnswers.length > 0,
+    canPrev: currentIndex > 0,
+    blocked: Boolean(instantSummary) || submittingInstant || !currentQuestion,
+    select: handleOptionClick,
+    submit: handleSubmit,
+    next: () => void handleNext(),
+    prev: () => handlePrev(),
+  }
+
+  useEffect(() => {
+    if (process.env.TARO_ENV !== 'h5' || typeof document === 'undefined') return undefined
+    const onKeyDown = (e: KeyboardEvent) => {
+      const st = keyStateRef.current
+      const target = e.target as HTMLElement | null
+      const action = resolveQuizKey(
+        {
+          key: e.key,
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          altKey: e.altKey,
+          isComposing: e.isComposing,
+          repeat: e.repeat,
+          targetTag: target?.tagName,
+          targetEditable: Boolean(target?.isContentEditable),
+        },
+        st,
+      )
+      if (!action) return
+      e.preventDefault()
+      if (action.type === 'select') st.select(action.optionKey)
+      else if (action.type === 'submit') st.submit()
+      else if (action.type === 'next') st.next()
+      else st.prev()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   if (loadingDetail) {
     return (
       <View className='quiz-empty'>
@@ -481,8 +538,8 @@ export default function QuizPage() {
         </View>
       </View>
 
-      {/* 纯净题干区 */}
-      <View className='quiz-body'>
+      {/* 纯净题干区（V2.9：≥1100 题干 5 / 选项 7 并排，q-left / q-right 在手机端为普通块） */}
+      <View className='quiz-body quiz-grid'>
         {/* 答错时滑入非阻塞纠错条（零遮挡题干与选项，口吻轻松包容，可直接下一题） */}
         {submitted && isAnswerWrong && (
           <View className='quiz-wrong-banner'>
@@ -498,6 +555,7 @@ export default function QuizPage() {
           </View>
         )}
 
+        <View className='q-left'>
         <Text className='quiz-kp'>考点 · {currentQuestion.knowledge_point}</Text>
         <Text className='quiz-stem'>{currentQuestion.stem}</Text>
 
@@ -517,9 +575,12 @@ export default function QuizPage() {
           </View>
         )}
 
+        </View>
+
+        <View className='q-right'>
         {/* 选项列表 */}
         <View className='options-list'>
-          {currentQuestion.options.map((opt) => {
+          {currentQuestion.options.map((opt, optIdx) => {
             const optState = getOptionState(opt.key)
             const isAnswer = currentQuestion.answer.includes(opt.key)
             const isSelected = selectedAnswers.includes(opt.key)
@@ -536,6 +597,11 @@ export default function QuizPage() {
                 </View>
 
                 <View className='opt-right'>
+                  {process.env.TARO_ENV === 'h5' && !submitted && optionKeyHint(optIdx) && (
+                    <Text className='opt-kbd' aria-hidden>
+                      {optionKeyHint(optIdx)}
+                    </Text>
+                  )}
                   {submitted && isAnswer && <Text className='opt-mark is-ok'>✓</Text>}
                   {submitted && isSelected && !isAnswer && <Text className='opt-mark is-wrong'>✕</Text>}
                   {!submitted && (
@@ -606,9 +672,8 @@ export default function QuizPage() {
             </View>
           </View>
         )}
-      </View>
 
-      {/* 底部双栏底座：220rpx (110px) 「‹ 上一题」 + 1fr 主按钮 */}
+      {/* 底部双栏底座：220rpx (110px) 「‹ 上一题」 + 1fr 主按钮（V2.9：移入右栏；手机端仍 fixed 在底部，视觉不变） */}
       <View className='quiz-footer'>
         <View className='dual-nav'>
           <View
@@ -647,6 +712,10 @@ export default function QuizPage() {
           )}
         </View>
       </View>
+        </View>
+      </View>
+
+      <IcpFooter className='quiz-icp' />
 
       {instantSummary && (
         <View className='zx-loading-overlay'>

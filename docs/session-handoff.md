@@ -8,8 +8,8 @@
 
 - [x] PR #3（部署文件）已合并到 main（`dc3a060`）。
 - [x] PR ① [#4](https://github.com/leileigwl/zhixing-quiz/pull/4) 已合并（main `d05f88c`）：导航外壳（`ResponsiveNav` = 手机/竖屏底部 Dock、≥1100 `SideNav` 侧栏）+ 备案页脚 `IcpFooter`（4 个 tab 页）+ 全局手感（focus-visible / hover / `.zx-hit` 44px 热区 / 内容容器 720·1120）+ `useViewportTier` / `tierFromWidth` + **修复「未登录时地址是登录页、画面是首页」**（`services/authGuard.ts`，路由初始化前同步切到登录页）+ 登录邮箱记录与 `logout()`；原型与改动清单已按竖屏决定同步修改。
-- [ ] PR ② [#5](https://github.com/leileigwl/zhixing-quiz/pull/5)（分支 `feat/v29-responsive-pages`，待 CI → 合并）：四个 tab 页宽屏多栏布局（首页 7:5 + 本周完成题数卡、口袋 5:7 / 竖屏 3 列、曲线 8:4 + Canvas 随宽度重绘、我的 4:8 sticky）+「我的」页账号区（邮箱 + 退出登录）+ 小胶囊热区统一扩到 44px。
-- [ ] PR ③：答题（5:7 并排 + 键盘 1–4/A–D、Enter、←）/ 登录分屏 / 复盘双栏 / 弹层居中对话框（Esc）/ 其余页面备案号。
+- [x] PR ② [#5](https://github.com/leileigwl/zhixing-quiz/pull/5) 已合并（main `35f5a33`）：四个 tab 页宽屏多栏布局（首页 7:5 + 本周完成题数卡、口袋 5:7 / 竖屏 3 列、曲线 8:4 + Canvas 随宽度重绘、我的 4:8 sticky）+「我的」页账号区（邮箱 + 退出登录）+ 小胶囊热区统一扩到 44px。
+- [ ] PR ③（分支 `feat/v29-responsive-quiz`，待 CI → 合并）：答题（竖屏 680 窄栏 + sticky 操作栏；宽屏题干 5 / 选项 7 并排 + 键位提示；键盘 1–4/A–D、Enter、← 由纯函数 `pages/quiz/quizKeys.ts` 决定）/ 登录（竖屏 440 白卡、宽屏左品牌面板分屏）/ 复盘（宽屏侧栏 + 7:5 双栏，底部按钮右对齐）/ 首页两个弹层 ≥768 居中对话框 + `useEscClose`（Esc 关闭、焦点进出）/ 答题、登录、复盘页备案号。
 - [ ] 上线：`TARO_APP_API_BASE_URL=https://study.leileigwl.cn/api/v1 pnpm build:h5` → 备份 `/var/www/zhixing-quiz/h5` 为 `h5.bak-<日期>` → 上传替换；服务器 `/opt/zhixing-quiz` 拉最新 main（后端无改动则不重建）。
 
 **下一步**：看上面第一个未勾选项。截图脚本与假后端数据在项目工作区 `work/shot_v29_app.py`、`work/mockapi.py`（不入库），截图存 `v29-screens/`。

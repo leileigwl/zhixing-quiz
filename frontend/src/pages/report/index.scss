@@ -357,3 +357,72 @@
   border: 1Px solid var(--ok-border);
   color: var(--ok);
 }
+
+/* =========================================================
+   V2.9 响应式（仅 H5；weapp 整段剔除）：手机 <768 与现网一致
+   iPad 竖屏：无导航（同手机），单栏 720 居中；宽屏 ≥1100：左侧侧栏，7:5 双栏，指标 / 金句 / 解析通栏，底部按钮右对齐
+   ========================================================= */
+/* #ifdef h5 */
+@media (min-width: 768px) {
+  .report-page.zx-rpage {
+    padding-bottom: calc(150Px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .report-footer {
+    left: max(32Px, calc((100% - 720Px) / 2));
+    right: max(32Px, calc((100% - 720Px) / 2));
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .report-panel,
+  .digest-card {
+    border-radius: 26Px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .report-page.zx-rpage {
+    padding-bottom: 24Px !important;
+  }
+
+  .rep-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 16Px;
+    align-items: start;
+  }
+
+  .rep-grid > * {
+    margin-bottom: 0 !important;
+    min-width: 0;
+  }
+
+  .rep-grid > .r-full {
+    grid-column: 1 / -1;
+  }
+
+  .report-footer {
+    position: static;
+    margin-top: 20Px;
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12Px;
+  }
+
+  .report-footer .btn-remind,
+  .report-footer .zx-btn-obsidian {
+    width: auto;
+    min-width: 240Px;
+    flex: 0 0 auto;
+  }
+
+  .report-footer .zx-btn-obsidian {
+    gap: 24Px;
+  }
+}
+/* #endif */

@@ -384,3 +384,204 @@
     transform: translateX(8px);
   }
 }
+
+/* =========================================================
+   V2.9 响应式（仅 H5；weapp 整段剔除）
+   手机：同 V2.8（新增备案号在页底）；平板：表单收进 440 白卡并垂直居中；宽屏：左品牌面板 / 右表单 420
+   ========================================================= */
+/* #ifdef h5 */
+.login-hero {
+  display: none;
+}
+
+.login-right,
+.login-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-icp {
+  padding-top: 8Px;
+}
+
+@media (min-width: 768px) {
+  .login-page {
+    padding: 48Px 32Px 8Px;
+  }
+
+  .login-right {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .login-col {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 440Px;
+    margin: auto 0;
+    background: var(--surface-card);
+    border-radius: 32Px;
+    padding: 32Px;
+    box-shadow: 0 24Px 60Px -24Px rgba(20, 21, 26, 0.18);
+  }
+
+  .login-col .login-card {
+    box-shadow: none;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .login-title {
+    margin-top: 22Px;
+  }
+
+  .login-foot {
+    padding-top: 20Px;
+  }
+
+  .login-banner {
+    left: 50%;
+    right: auto;
+    width: 440Px;
+    margin-left: -220Px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .login-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 0;
+    min-height: 100vh;
+  }
+
+  .login-hero {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    padding: 64Px clamp(40Px, 6vw, 96Px);
+    background: var(--accent-sky);
+  }
+
+  .login-hero .brand-mark-sky {
+    background: #ffffff;
+  }
+
+  .hero-title {
+    display: block;
+    white-space: pre-line;
+    font-size: 38Px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.25;
+    margin: 40Px 0 10Px;
+    color: var(--ink-900);
+  }
+
+  .hero-sub {
+    display: block;
+    font-size: 15Px;
+    line-height: 1.6;
+    color: var(--ink-700);
+    max-width: 420Px;
+  }
+
+  .hero-values {
+    margin-top: 28Px;
+    display: flex;
+    flex-direction: column;
+    gap: 14Px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-value {
+    display: flex;
+    align-items: flex-start;
+    gap: 12Px;
+  }
+
+  .hero-dot {
+    width: 26Px;
+    height: 26Px;
+    border-radius: 50%;
+    background: var(--ink-900);
+    color: #ffffff;
+    font-size: 13Px;
+    font-weight: 700;
+    line-height: 26Px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .hero-value-texts {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .hero-value-title {
+    font-size: 15Px;
+    font-weight: 700;
+    color: var(--ink-900);
+  }
+
+  .hero-value-sub {
+    font-size: 13.5Px;
+    color: var(--ink-700);
+  }
+
+  .hero-geo {
+    position: absolute;
+    right: -60Px;
+    bottom: -60Px;
+    width: 260Px;
+    height: 260Px;
+    border-radius: 64Px;
+    background: var(--accent-butter);
+    opacity: 0.85;
+    transform: rotate(14deg);
+  }
+
+  .hero-geo2 {
+    position: absolute;
+    right: 120Px;
+    bottom: 120Px;
+    width: 48Px;
+    height: 48Px;
+    border-radius: 50%;
+    background: var(--ink-900);
+  }
+
+  .login-right {
+    padding: 40Px 40Px 8Px;
+  }
+
+  .login-col {
+    max-width: 420Px;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  .login-col .login-brand {
+    display: none;
+  }
+
+  .login-col .login-card {
+    background: var(--surface-card);
+    border-radius: 28Px;
+    padding: 24Px;
+    box-shadow: 0 8Px 24Px rgba(20, 21, 26, 0.05);
+  }
+
+  .login-banner {
+    left: auto;
+    right: 40Px;
+    margin-left: 0;
+    width: 420Px;
+  }
+}
+/* #endif */
