@@ -14,6 +14,7 @@ logger = structlog.get_logger()
 SUPPORTED_FILE_TYPES = {"pdf", "docx", "md", "txt"}
 TEXT_ENCODINGS = ("utf-8-sig", "utf-8", "gb18030")
 MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+MAX_PDF_PAGES = 500
 
 
 def _guard_docx_zip_bomb(file_path: str) -> None:
@@ -43,6 +44,51 @@ def _read_text_with_fallback(file_path: str) -> str:
             continue
 
     raise ValueError("文档文本编码不受支持，请转换为 UTF-8 或 GBK/GB18030 后重新上传")
+
+
+def _load_pdf(file_path: str) -> list[Document]:
+    """直接用 pypdf 逐页抽取文字（替代 langchain_community.PyPDFLoader，减少依赖面）。
+
+    - 加密 PDF：先尝试空密码解密，失败则拒绝；
+    - 页数上限 MAX_PDF_PAGES，防止超大/畸形 PDF 拖垮 Worker；
+    - 单页抽取异常只跳过该页并记日志，不让整份文档失败。
+    """
+    from pypdf import PdfReader
+    from pypdf.errors import PdfReadError
+
+    try:
+        reader = PdfReader(file_path)
+        if reader.is_encrypted and not reader.decrypt(""):
+            raise ValueError("PDF 已加密，请先移除密码后重新上传")
+        total_pages = len(reader.pages)
+    except PdfReadError as exc:
+        raise ValueError("PDF 文件已损坏或格式不受支持") from exc
+
+    if total_pages > MAX_PDF_PAGES:
+        raise ValueError(f"PDF 页数过多（{total_pages} 页），单个文件最多 {MAX_PDF_PAGES} 页")
+
+    docs: list[Document] = []
+    for index, page in enumerate(reader.pages):
+        try:
+            text = page.extract_text() or ""
+        except Exception as exc:  # 单页畸形不影响其它页
+            logger.warning("pdf_page_extract_failed", page=index, error=str(exc))
+            continue
+        docs.append(
+            Document(
+                page_content=text,
+                metadata={"source": file_path, "page": index, "total_pages": total_pages},
+            )
+        )
+    return docs
+
+
+def _load_docx(file_path: str) -> list[Document]:
+    """直接用 docx2txt 抽取 Word 文字（替代 langchain_community.Docx2txtLoader）。"""
+    import docx2txt
+
+    text = docx2txt.process(file_path) or ""
+    return [Document(page_content=text, metadata={"source": file_path})]
 
 
 def _split_markdown_by_headers(raw_text: str) -> list[Document]:
@@ -79,18 +125,14 @@ def _load_documents(file_path: str, file_type: str) -> list[Document]:
     file_type = file_type.lower().lstrip(".")
 
     if file_type == "pdf":
-        from langchain_community.document_loaders import PyPDFLoader
-
-        docs = PyPDFLoader(file_path).load()
+        docs = _load_pdf(file_path)
         if not docs or not any(d.page_content.strip() for d in docs):
             raise ValueError("PDF 未提取到有效文字内容（暂不支持纯图片扫描版 PDF）")
         return docs
 
     if file_type == "docx":
-        from langchain_community.document_loaders import Docx2txtLoader
-
         _guard_docx_zip_bomb(file_path)
-        docs = Docx2txtLoader(file_path).load()
+        docs = _load_docx(file_path)
         if not docs or not any(d.page_content.strip() for d in docs):
             raise ValueError("Word 文档内容为空或未提取到有效文字")
         return docs
