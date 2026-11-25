@@ -1,8 +1,13 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-25 22:10 CST（H5 基础问题修复，分支 `fix/h5-basic-issues`，**PR 待合并 / 未上线**）
+> 最后更新：2026-11-25 22:20 CST（H5 基础问题修复 PR #10 **已合并并上线**，线上 main `7248f76`）
 
-## 当前进度（H5 基础问题修复 · 2026-11-25 · 进行中）
+## 当前进度（H5 基础问题修复 · 2026-11-25 · 已上线 `7248f76`）
+
+- 回滚：H5 `cp -a /var/www/zhixing-quiz/h5.bak-20261125-2205/. /var/www/zhixing-quiz/h5/`；后端把 `zhixing-quiz-backend:prev-f70bdf3` 重新打成 prod 标签后 `up -d --no-deps api worker`。
+- 线上浏览器冒烟（未登录进登录页、获取验证码先弹同意）Playwright 超时未跑通，curl 正常；本地生产构建 + mock 已验证。
+- 待办：nginx 给 `.webmanifest` 补 `application/manifest+json`；下一轮视觉改版需先出原型（建议：主色区域与知识域配色、三步新手引导空状态、大数字/进度环/完成动效）。
+- 备份 cron 首次自动运行 2026-11-26 03:30，查 `/var/log/zhixing-quiz-backup.log`。
 
 > 用户 2026-11-25 21:22 反馈线上 H5 基础问题，要求先修基本问题、**本轮不做整体视觉改版**（配色与内容视觉她之后再定），授权 CI 全绿后合并并上线。图标补齐是她点名要求的，属于修复范围，未走原型门控；整体配色 / 内容改版仍须先出原型。
 
