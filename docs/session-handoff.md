@@ -13,7 +13,7 @@
 - [x] **上线（2026-11-25 21:00 CST）**：沙箱 `TARO_APP_API_BASE_URL=https://study.leileigwl.cn/api/v1 pnpm build:h5`（构建自 `7c19fcb`）→ 服务器旧目录备份为 `/var/www/zhixing-quiz/h5.bak-20261125`（`deploy.sh web` 另留 `h5.prev`）→ 发布到 `/var/www/zhixing-quiz/h5`。服务器 `/opt/zhixing-quiz` 已快进到 `7c19fcb`（服务器访问 GitHub 超时，用 `git bundle` 上传后 fetch；原手工拷贝的 deploy 文件与仓库逐字节一致，已备份到 `/root/zq-predeploy-20261125/` 后清理）。后端自 `18eeab8` 起只有 Dockerfile/.dockerignore 变化且与运行中镜像一致，**未重建 api/worker**。
 - 冒烟：首页 200、`/api/v1/health` 200 `{"status":"ok"}`、hello-agent `127.0.0.1:8000` 200 且服务 active、5 个容器 healthy/up；未登录访问 `/`、`/#/pages/index/index`、`/#/pages/mastery/index`、`/#/pages/profile/index`、`/#/pages/quiz/index`（正常 + 6 倍 CPU 降速）均稳定显示登录页；线上手机 390 / 电脑 1440 截图无溢出、无 JS 报错、备案号链接 `https://beian.miit.gov.cn/`。
 
-**闸门（PR ③ 合并时）**：`pnpm lint` 0 errors（3 条既有 exhaustive-deps 警告）；`typecheck` 通过；`test:coverage` 18 files / 177 passed，lines 87.5 / branches 87.57 / functions 86.01（阈值 70 不变）；`build:h5` / `build:weapp`（占位 env）通过；weapp 产物 wxss 规则集合与改动前一致；GitHub CI 三个 PR 均 backend + frontend 全绿。后端未改动，未在本地重跑 ruff / pytest（CI 已跑且通过）。
+**闸门（PR ③ 合并时）**：`pnpm lint` 0 errors（4 条既有 exhaustive-deps 警告）；`typecheck` 通过；`test:coverage` 18 files / 177 passed，lines 87.5 / branches 87.57 / functions 86.01（阈值 70 不变）；`build:h5` / `build:weapp`（占位 env）通过；weapp 产物 wxss 规则集合与改动前一致；GitHub CI 三个 PR 均 backend + frontend 全绿。后端未改动，未在本地重跑 ruff / pytest（CI 已跑且通过）。
 
 **登录 bug 结论**：确有 bug，非偶发。无 token 直接打开 `/#/pages/index/index`（刷新首页、书签）时，App 在首页挂载过程中 `reLaunch` 到登录页，hash 变了但 Taro H5 路由随后又把首页设为可见。修复为 `services/authGuard.ts`：在 Taro 路由初始化前（`app.ts` 模块顶层）同步把地址切到登录页；token 过期（4010）路径也验证会回登录页。单测 `authGuard.test.ts`。
 
