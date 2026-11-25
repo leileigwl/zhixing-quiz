@@ -289,13 +289,15 @@ export default function KnowledgePage() {
         <Text className='kb-strip-badge'>已分 {pockets.length} 域</Text>
       </View>
 
+      <View className='kb-grid'>
+      <View className='kb-col-pockets'>
       <View className='pockets-grid'>
         {pockets.map((bucket, idx) => {
           const isSelected = activeDomain === bucket.name
           return (
             <View
               key={bucket.name}
-              className={`pocket-card is-${bucket.theme} ${isSelected ? 'is-selected' : ''} zx-press`}
+              className={`pocket-card is-${bucket.theme} ${isSelected ? 'is-selected' : ''} zx-press zx-hover-lift`}
               onClick={() =>
                 setActiveDomain((prev) => (prev === bucket.name ? '全部' : bucket.name))
               }
@@ -323,6 +325,9 @@ export default function KnowledgePage() {
         )}
       </View>
 
+      </View>
+
+      <View className='kb-col-docs'>
       <View className='docs-head'>
         <Text className='docs-title'>
           {activeDomain === '全部' ? `全部文档 (${documents.length}/10)` : `${activeDomain} (${filteredDocs.length})`}
@@ -343,7 +348,7 @@ export default function KnowledgePage() {
           {filteredDocs.map((doc) => {
             const st = STATUS_MAP[doc.status] || { label: doc.status, cls: 'is-processing' }
             return (
-              <View key={doc.doc_id} className='zx-card doc-row'>
+              <View key={doc.doc_id} className='zx-card doc-row zx-hover-row'>
                 <View className='doc-ext-pill'>
                   <Text>{doc.file_type.toUpperCase()}</Text>
                 </View>
@@ -385,6 +390,9 @@ export default function KnowledgePage() {
           })}
         </View>
       )}
+
+      </View>
+      </View>
 
       <IcpFooter />
 

@@ -36,6 +36,7 @@ import IcpFooter from '../../components/IcpFooter'
 import { FOCUS_COMPOSER_EVENT } from '../../components/SideNav'
 import { setNavDueCount } from '../../components/SideNav/navBadge'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
+import SevenDayRhythmBar from '../../components/SevenDayRhythmBar'
 import './index.scss'
 
 const QUICK_TOPICS = ['RAG 检索', 'HTTP/3', '分布式锁']
@@ -195,6 +196,11 @@ export default function IndexPage() {
     return todayBar?.completed_count || 0
   }, [effectiveOverview.weekly_rhythm])
 
+  const weekTotal = useMemo(
+    () => (effectiveOverview.weekly_rhythm || []).reduce((sum, d) => sum + (d.completed_count || 0), 0),
+    [effectiveOverview.weekly_rhythm],
+  )
+
   const isColdStart = useMemo(() => {
     if (quizCount === 0 && dueCount === 0) return true
     if (!overview?.focus_domain && (!effectiveOverview.domains || effectiveOverview.domains.length === 0)) {
@@ -352,9 +358,10 @@ export default function IndexPage() {
         </View>
       </View>
 
+      <View className='home-grid'>
       {/* 2. 紧致双快捷区（纯正中文、冷启动引导与薄弱攻坚一键开刷） */}
       <View className='mini-bento-grid'>
-        <View className='mini-tile is-butter zx-press' onClick={handleDueCardTap}>
+        <View className='mini-tile is-butter zx-press zx-hover-lift' onClick={handleDueCardTap}>
           <View className='mini-top'>
             <Text className='mini-tag'>今日待巩固</Text>
             <Text className='mini-arrow'>→</Text>
@@ -370,7 +377,7 @@ export default function IndexPage() {
         </View>
 
         <View
-          className={`mini-tile ${isColdStart ? 'is-sky-cold' : 'is-sky'} zx-press`}
+          className={`mini-tile ${isColdStart ? 'is-sky-cold' : 'is-sky'} zx-press zx-hover-lift`}
           onClick={handleFocusTileTap}
         >
           <View className='mini-top'>
@@ -501,6 +508,16 @@ export default function IndexPage() {
               <Text>→</Text>
             </>
           )}
+        </View>
+      </View>
+
+        {/* V2.9：iPad / 宽屏新增「本周完成题数」卡（手机端隐藏，保持现网） */}
+        <View className='home-rhythm-card'>
+          <View className='home-rhythm-head'>
+            <Text className='home-rhythm-title'>本周完成题数</Text>
+            <Text className='home-rhythm-sub'>共 {weekTotal} 题</Text>
+          </View>
+          <SevenDayRhythmBar days={effectiveOverview.weekly_rhythm || []} />
         </View>
       </View>
 

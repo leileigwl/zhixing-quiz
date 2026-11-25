@@ -676,3 +676,121 @@
   font-weight: 600;
   color: var(--ink-500);
 }
+
+/* V2.9 账号区（仅 H5 渲染；样式跟随卡片体系） */
+/* #ifdef h5 */
+.account-card {
+  margin-top: 28px;
+  padding: 26px 30px;
+  border-radius: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.account-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.account-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink-500);
+}
+
+.account-email {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ink-900);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-logout {
+  flex-shrink: 0;
+  min-height: 88px;
+  padding: 0 32px;
+  border-radius: 999px;
+  border: 1Px solid var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-red);
+  font-size: 24px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* #endif */
+
+/* =========================================================
+   V2.9 响应式（仅 H5；weapp 整段剔除）：手机 <768 与现网一致
+   ========================================================= */
+/* #ifdef h5 */
+@media (min-width: 768px) {
+  .profile-hero {
+    border-radius: 28Px;
+    padding: 22Px;
+  }
+
+  .avatar-btn,
+  .avatar-lg-img,
+  .avatar-lg-fallback {
+    width: 76Px !important;
+    height: 76Px !important;
+  }
+
+  .stamp-card,
+  .due-queue-card,
+  .account-card {
+    border-radius: 26Px;
+    padding: 18Px 20Px;
+  }
+
+  .history-card {
+    border-radius: 20Px;
+  }
+
+  .account-logout {
+    min-height: 44Px;
+    padding: 0 20Px;
+  }
+}
+
+@media (min-width: 1100px) {
+  .me-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+    gap: 20Px;
+    align-items: start;
+  }
+
+  /* 页面根节点本身是滚动容器（overflow-x:hidden），sticky 以其内容区为基准，top 取 0 即贴着页面上内边距 */
+  .me-side {
+    position: sticky;
+    top: 0;
+  }
+
+  .me-side .profile-hero {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .me-side .profile-name-row {
+    justify-content: center;
+  }
+
+  .me-side .stat-box {
+    padding: 12Px 8Px;
+    text-align: center;
+  }
+
+  .me-main .account-card {
+    margin-top: 20Px;
+  }
+}
+/* #endif */

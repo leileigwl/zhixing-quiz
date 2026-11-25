@@ -247,8 +247,32 @@ button {
   outline-offset: 2Px;
 }
 
-/* 小于 44px 的可点元素用伪元素把热区扩到 44×44（视觉尺寸不变） */
-.zx-hit {
+/* 小于 44px 的可点元素用伪元素把热区扩到 44×44（视觉尺寸不变）。
+   除 .zx-hit 外，下列现有小胶囊 / 小按钮经 Playwright 在 390 宽实测不足 44px，统一在这里扩热区 */
+.zx-hit,
+.topbar-badge,
+.tool-chip,
+.quick-chip,
+.ds-pill,
+.seg-item,
+.zx-dock-tab,
+.kb-upload-pill,
+.btn-doc-quiz,
+.btn-doc-del,
+.domain-pill,
+.mastery-compact-cta,
+.btn-edit-name-pill,
+.btn-due-variant,
+.btn-due-go,
+.fold-toggle-pill,
+.md-btn,
+.sheet-done,
+.sheet-link,
+.docs-reset,
+.sheet-pill,
+.home-greet,
+.stamp-cell,
+.mastery-due-head {
   position: relative;
 
   &::before {
@@ -292,6 +316,7 @@ button {
 @media (min-width: 768px) {
   /* 页面容器：内容最大宽 720 居中（左右至少 32） */
   .zx-rpage {
+    padding-top: 28Px !important;
     padding-left: max(32Px, calc((100% - 720Px) / 2)) !important;
     padding-right: max(32Px, calc((100% - 720Px) / 2)) !important;
   }

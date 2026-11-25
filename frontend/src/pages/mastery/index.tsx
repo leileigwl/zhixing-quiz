@@ -187,8 +187,9 @@ export default function MasteryPage() {
         ))}
       </View>
 
+      <View className={`curve-grid ${nextPlan ? 'has-sched' : 'no-sched'} ${activeDomain ? 'has-diff' : 'no-diff'}`}>
       {/* 3 格核心记忆指标 */}
-      <View className='stat-grid-3'>
+      <View className='stat-grid-3 a-stats'>
         <View className='stat-box'>
           <Text className='stat-lbl'>总体保持率</Text>
           <Text className='stat-num'>{Math.round(effectiveOverview.overall_retention)}%</Text>
@@ -204,7 +205,7 @@ export default function MasteryPage() {
       </View>
 
       {/* 学习记忆曲线卡片 */}
-      <View className='zx-card curve-panel'>
+      <View className='zx-card curve-panel a-curve'>
         <View className='panel-head'>
           <Text className='panel-title'>
             {activeDomain ? `${activeDomain.name} · 记忆曲线` : '学习记忆曲线 · R(t) = e^(-t/S)'}
@@ -229,7 +230,7 @@ export default function MasteryPage() {
 
       {/* 曲线洞察与下次遗忘预警（纯阅读提示，去除了重复出题大按钮） */}
       {nextPlan && (
-        <View className='zx-card schedule-card'>
+        <View className='zx-card schedule-card a-sched'>
           <View className='schedule-head'>
             <View className='schedule-badge'>
               <Text>下次遗忘节点 · {nextPlan.when_label}</Text>
@@ -245,7 +246,7 @@ export default function MasteryPage() {
       )}
 
       {/* 本周学习进度（已完成答题数 + 点击柱子看当日具体内容） */}
-      <View className='zx-card curve-panel'>
+      <View className='zx-card curve-panel a-week'>
         <View className='panel-head'>
           <Text className='panel-title'>本周完成题数</Text>
           <Text className='panel-sub'>共 {totalWeekQuestions} 题 · 点击柱子看明细</Text>
@@ -300,7 +301,7 @@ export default function MasteryPage() {
 
       {/* 三维难度掌握分布 */}
       {activeDomain && (
-        <View className='zx-card curve-panel'>
+        <View className='zx-card curve-panel a-diff'>
           <View className='panel-head'>
             <Text className='panel-title'>{activeDomain.name} · 难度掌握度</Text>
             <Text className='panel-sub'>稳定性 S = {activeDomain.stability_days} 天</Text>
@@ -342,7 +343,7 @@ export default function MasteryPage() {
 
       {/* 待复习错题手风琴清单（仅标题旁保留 1 枚轻胶囊，无错题时全页 0 个刷题按钮） */}
       {dueReviews.items.length > 0 && (
-        <View className='zx-card curve-panel'>
+        <View className='zx-card curve-panel a-due'>
           <View className='panel-head'>
             <Text className='panel-title'>待巩固错题 ({dueReviews.items.length})</Text>
             <View
@@ -402,6 +403,8 @@ export default function MasteryPage() {
           </View>
         </View>
       )}
+
+      </View>
 
       <IcpFooter />
 

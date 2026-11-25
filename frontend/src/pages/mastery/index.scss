@@ -450,3 +450,166 @@
   font-size: 21px;
   color: var(--ink-400);
 }
+
+/* =========================================================
+   V2.9 响应式（仅 H5；weapp 整段剔除）：手机 <768 与现网一致
+   ========================================================= */
+/* #ifdef h5 */
+@media (min-width: 768px) {
+  .curve-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'stats stats'
+      'curve curve'
+      'sched diff'
+      'week week'
+      'due due';
+    gap: 14Px;
+    align-items: start;
+  }
+
+  .curve-grid.no-diff {
+    grid-template-areas:
+      'stats stats'
+      'curve curve'
+      'sched sched'
+      'week week'
+      'due due';
+  }
+
+  .curve-grid.no-sched {
+    grid-template-areas:
+      'stats stats'
+      'curve curve'
+      'diff diff'
+      'week week'
+      'due due';
+  }
+
+  .curve-grid > * {
+    margin-bottom: 0 !important;
+    min-width: 0;
+  }
+
+  .a-stats {
+    grid-area: stats;
+  }
+  .a-curve {
+    grid-area: curve;
+  }
+  .a-sched {
+    grid-area: sched;
+  }
+  .a-week {
+    grid-area: week;
+  }
+  .a-diff {
+    grid-area: diff;
+  }
+  .a-due {
+    grid-area: due;
+  }
+
+  .stat-box {
+    border-radius: 20Px;
+  }
+
+  .curve-panel,
+  .schedule-card {
+    border-radius: 26Px;
+    padding: 18Px 20Px;
+  }
+
+  .a-curve .zx-curve-wrap,
+  .a-curve .zx-curve-canvas {
+    height: 220Px;
+  }
+
+  .domain-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2Px;
+  }
+
+  .domain-pill {
+    flex-shrink: 0;
+  }
+}
+
+@media (min-width: 1100px) {
+  .curve-grid,
+  .curve-grid.no-diff,
+  .curve-grid.no-sched {
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+    grid-template-rows: auto 1fr auto auto;
+    gap: 16Px;
+  }
+
+  .curve-grid {
+    grid-template-areas:
+      'curve stats'
+      'curve sched'
+      'week diff'
+      'due due';
+  }
+
+  .curve-grid.no-diff {
+    grid-template-areas:
+      'curve stats'
+      'curve sched'
+      'week sched'
+      'due due';
+  }
+
+  .curve-grid.no-sched {
+    grid-template-areas:
+      'curve stats'
+      'curve diff'
+      'week diff'
+      'due due';
+  }
+
+  .a-curve {
+    align-self: stretch;
+  }
+
+  .a-curve .zx-curve-wrap,
+  .a-curve .zx-curve-canvas {
+    height: 300Px;
+  }
+
+  /* 右栏指标竖排 */
+  .a-stats.stat-grid-3 {
+    grid-template-columns: 1fr;
+    gap: 8Px;
+    margin-bottom: 0;
+  }
+
+  .a-stats .stat-box {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12Px 16Px;
+  }
+
+  .a-stats .stat-lbl {
+    margin-bottom: 0;
+  }
+
+  .domain-pills {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .schedule-head {
+    flex-wrap: wrap;
+    gap: 6Px;
+  }
+
+  .schedule-meta {
+    white-space: nowrap;
+  }
+}
+/* #endif */

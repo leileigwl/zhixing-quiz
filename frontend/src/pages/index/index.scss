@@ -592,3 +592,105 @@
   border-radius: 50%;
   background: #ffffff;
 }
+
+/* =========================================================
+   V2.9 响应式（仅 H5；weapp 整段剔除）：手机 <768 与现网一致
+   ========================================================= */
+/* #ifdef h5 */
+.home-grid {
+  display: block;
+}
+
+.home-rhythm-card {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .mini-bento-grid {
+    gap: 12Px;
+    margin-bottom: 16Px;
+  }
+
+  .mini-tile {
+    height: auto;
+    min-height: 164Px;
+    border-radius: 26Px;
+    padding: 18Px 20Px;
+  }
+
+  .composer-card {
+    border-radius: 28Px;
+    padding: 22Px;
+    margin-bottom: 16Px;
+  }
+
+  .composer-textarea {
+    height: 150Px;
+    border-radius: 18Px;
+    padding: 14Px 16Px;
+  }
+
+  .home-rhythm-card {
+    display: block;
+    background: var(--surface-card);
+    border-radius: 26Px;
+    padding: 18Px 20Px 16Px;
+    box-shadow: 0 8Px 28Px rgba(20, 21, 26, 0.04);
+  }
+
+  .home-rhythm-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10Px;
+  }
+
+  .home-rhythm-title {
+    font-size: 15Px;
+    font-weight: 700;
+    color: var(--ink-900);
+  }
+
+  .home-rhythm-sub {
+    font-size: 12.5Px;
+    color: var(--ink-500);
+  }
+}
+
+@media (min-width: 1100px) {
+  .home-topbar {
+    margin-bottom: 20Px;
+  }
+
+  .home-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-areas:
+      'comp bento'
+      'comp rhythm';
+    grid-template-rows: auto 1fr;
+    gap: 20Px;
+    align-items: start;
+  }
+
+  .home-grid .mini-bento-grid {
+    grid-area: bento;
+    margin-bottom: 0;
+  }
+
+  .home-grid .composer-card {
+    grid-area: comp;
+    margin-bottom: 0;
+    padding: 24Px;
+  }
+
+  .home-grid .home-rhythm-card {
+    grid-area: rhythm;
+  }
+
+  .composer-textarea {
+    height: 230Px;
+    font-size: 17Px;
+  }
+}
+/* #endif */
