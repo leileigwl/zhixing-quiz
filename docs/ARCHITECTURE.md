@@ -26,7 +26,7 @@ flowchart LR
 
 ## 锁定技术栈
 
-- **前端**：Taro 4 (`4.1.x`) + React 18 + TypeScript + Sass，统一使用 **`pnpm`** 管理依赖（禁止混用 `npm`）；采用 `MOVEPOP` 暖石膏视觉规范（`#F6F5F1` / `#F4D06F` / `#CBE5F5` / `#18191E`）、4 Tab 黑曜石悬浮胶囊 Dock（`今日` / `口袋` / `曲线` / `我的`）与跨端 `<Canvas type="2d">` 遗忘曲线组件。H5 编译输出至 `frontend/dist-h5/`（`hash` 路由），微信小程序编译输出至 `frontend/dist/`。
+- **前端**：Taro 4 (`4.1.x`) + React 18 + TypeScript + Sass，统一使用 **`pnpm`** 管理依赖（禁止混用 `npm`）；采用 `MOVEPOP` 暖石膏视觉规范（`#F6F5F1` / `#F4D06F` / `#CBE5F5` / `#18191E`）、4 Tab 黑曜石悬浮胶囊 Dock（`今日` / `口袋` / `曲线` / `我的`）与跨端 `<Canvas type="2d">` 遗忘曲线组件。H5 编译输出至 `frontend/dist-h5/`（`hash` 路由），微信小程序编译输出至 `frontend/dist/`。 **H5 响应式（V2.9，2026-11-25）**：断点 `<768` 手机（底部 Dock）/ `768–1099` iPad 竖屏（仍底部 Dock，内容居中最大宽 720）/ `≥1100` 宽屏（232px 左侧侧栏 + 内容 1120 多栏）；纯样式用条件编译 `/* #ifdef h5 */` 包裹的媒体查询，结构切换用 `useViewportTier()`（weapp 恒为 mobile），weapp 产物样式不受影响；H5 每页底部展示备案号（`IcpFooter`）。见 [`v29-responsive-layout.html`](02-design/prototypes/v29-responsive-layout.html)。
 - **后端**：Python 3.12 + **`uv`（`pyproject.toml` + `uv.lock`）** + FastAPI + Pydantic v2 + Uvicorn（支持 `--workers >= 1`）+ `arq` + `structlog`。
 - **AI 编排与检索**：LangChain **LCEL `RunnableBranch`**（URL 提取 / 时效或显式联网 / 直出，取代慢速 ReAct 循环）+ `langchain-openai`（`check_embedding_ctx_length=False`）+ `langchain-chroma`（`chromadb.HttpClient`）+ `langchain-tavily`。
 - **数据与队列存储**：MySQL 8.0（`aiomysql` 异步连接池 + `GET_LOCK` 并发安全的 12 表 DDL / 存量回填）+ Redis 7（Lua 原子滑动窗口限流、60s 画像缓存、ARQ 持久化任务队列与 `_defer_by` 延迟复习任务）+ Chroma HTTP 独立服务 + 腾讯云 COS（含自有静态目录回落）。

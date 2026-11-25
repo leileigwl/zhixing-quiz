@@ -16,6 +16,7 @@ import {
   type AuthErrorLike,
 } from '../../services/emailLogin'
 import { useCountdown } from '../../services/useCountdown'
+import IcpFooter from '../../components/IcpFooter'
 import './index.scss'
 
 const BANNER_MS = 2400
@@ -26,6 +27,12 @@ const PRESS_STAY_MS = 90
  * H5 邮箱验证码登录页（对照 docs/02-design/prototypes/v28-email-login.html）。
  * 小程序端不会进入本页（weapp 走 wx.login 静默登录）。
  */
+const HERO_VALUES = [
+  { title: '自由主题出题', sub: '联网补充最新知识，3–10 题即时判分' },
+  { title: '知识口袋', sub: 'PDF / Word / MD 笔记定向出题' },
+  { title: '记忆曲线', sub: '跌破 50% 前提醒巩固' },
+]
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
@@ -142,6 +149,37 @@ export default function LoginPage() {
         <Text>{banner}</Text>
       </View>
 
+      {/* V2.9：宽屏左侧品牌面板（仅 H5 渲染；手机 / 平板用 CSS 隐藏） */}
+      {process.env.TARO_ENV === 'h5' && (
+      <View className='login-hero' aria-hidden>
+        <View className='login-brand'>
+          <View className='brand-mark'>
+            <View className='brand-mark-sky' />
+            <View className='brand-mark-butter' />
+            <View className='brand-mark-dot' />
+          </View>
+          <Text className='brand-name'>知行快刷</Text>
+        </View>
+        <Text className='hero-title'>把错题{'\n'}练进长期记忆</Text>
+        <Text className='hero-sub'>输入主题或上传笔记，AI 立即出题，按记忆曲线提醒你复习。</Text>
+        <View className='hero-values'>
+          {HERO_VALUES.map((v, i) => (
+            <View key={v.title} className='hero-value'>
+              <Text className='hero-dot'>{i + 1}</Text>
+              <View className='hero-value-texts'>
+                <Text className='hero-value-title'>{v.title}</Text>
+                <Text className='hero-value-sub'>{v.sub}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+        <View className='hero-geo' />
+        <View className='hero-geo2' />
+      </View>
+      )}
+
+      <View className='login-right'>
+      <View className='login-col'>
       <View className='login-brand'>
         <View className='brand-mark'>
           <View className='brand-mark-sky' />
@@ -249,6 +287,9 @@ export default function LoginPage() {
       </View>
 
       <Text className='login-foot'>收不到邮件？请检查垃圾邮件箱，或 60 秒后重新获取</Text>
+      </View>
+      <IcpFooter className='login-icp' />
+      </View>
     </View>
   )
 }

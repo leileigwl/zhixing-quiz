@@ -40,6 +40,7 @@ export default defineConfig({
         'src/components/ResponsiveNav/**/*.tsx',
         'src/components/IcpFooter/**/*.tsx',
         'src/pages/login/index.tsx',
+        'src/pages/quiz/quizKeys.ts',
         'src/components/RetentionCurveCanvas/chartModel.ts',
         'src/components/SevenDayRhythmBar/rhythmModel.ts',
         'config/apiBaseUrl.ts',
