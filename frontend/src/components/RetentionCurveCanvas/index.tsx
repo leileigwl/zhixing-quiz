@@ -169,25 +169,50 @@ export default function RetentionCurveCanvas({ canvasId, points }: RetentionCurv
         })
     }
 
+    const renderH5 = (): boolean => {
+      const dpr = Taro.getSystemInfoSync?.().pixelRatio || 2
+      const wrapper = document.getElementById(canvasId)
+      const canvasEl = (
+        wrapper?.tagName === 'CANVAS' ? wrapper : wrapper?.querySelector('canvas')
+      ) as HTMLCanvasElement | null
+      if (!canvasEl) return false
+      const rect = canvasEl.getBoundingClientRect()
+      const width = Math.max(260, rect.width || wrapper?.clientWidth || 300)
+      const height = Math.max(110, rect.height || wrapper?.clientHeight || 126)
+      canvasEl.width = Math.round(width * dpr)
+      canvasEl.height = Math.round(height * dpr)
+      const ctx = canvasEl.getContext('2d')
+      if (!ctx) return true
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      drawRetentionChart(ctx, width, height, points)
+      return true
+    }
+
+    // V2.9：H5 下容器宽度变化（旋转 iPad、拖动窗口、跨断点换栏）时按新尺寸重绘；weapp 分支不变
+    let observer: ResizeObserver | null = null
+    let frame = 0
+    const observeH5 = () => {
+      if (typeof ResizeObserver === 'undefined') return
+      const wrapper = document.getElementById(canvasId)
+      if (!wrapper) return
+      let lastWidth = Math.round(wrapper.getBoundingClientRect().width)
+      observer = new ResizeObserver(() => {
+        const w = Math.round(wrapper.getBoundingClientRect().width)
+        if (w === lastWidth || w <= 0) return
+        lastWidth = w
+        cancelAnimationFrame(frame)
+        frame = requestAnimationFrame(() => {
+          if (!cancelled) renderH5()
+        })
+      })
+      observer.observe(wrapper)
+    }
+
     const timer = setTimeout(() => {
       if (cancelled) return
-      const dpr = Taro.getSystemInfoSync?.().pixelRatio || 2
 
       if (process.env.TARO_ENV === 'h5' && typeof document !== 'undefined') {
-        const wrapper = document.getElementById(canvasId)
-        const canvasEl = (
-          wrapper?.tagName === 'CANVAS' ? wrapper : wrapper?.querySelector('canvas')
-        ) as HTMLCanvasElement | null
-        if (!canvasEl) return
-        const rect = canvasEl.getBoundingClientRect()
-        const width = Math.max(260, rect.width || wrapper?.clientWidth || 300)
-        const height = Math.max(110, rect.height || wrapper?.clientHeight || 126)
-        canvasEl.width = Math.round(width * dpr)
-        canvasEl.height = Math.round(height * dpr)
-        const ctx = canvasEl.getContext('2d')
-        if (!ctx) return
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-        drawRetentionChart(ctx, width, height, points)
+        if (renderH5()) observeH5()
         return
       }
 
@@ -201,6 +226,8 @@ export default function RetentionCurveCanvas({ canvasId, points }: RetentionCurv
     return () => {
       cancelled = true
       clearTimeout(timer)
+      if (observer) observer.disconnect()
+      if (frame && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame)
     }
   }, [canvasId, points])
 

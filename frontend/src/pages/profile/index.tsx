@@ -10,6 +10,9 @@ import {
   updateUserProfile,
   setCachedUser,
   waitForLogin,
+  getLoginEmail,
+  logout,
+  usesEmailLoginPage,
   type UserProfile,
   type QuizHistoryItem,
   type DueReviewsResponse,
@@ -265,8 +268,27 @@ export default function ProfilePage() {
   const avatarInitial = profile?.nickname?.[0] || '知'
   const streakDays = profile?.streak_days ?? Math.max(1, historyItems.length)
 
+  const loginEmail = getLoginEmail()
+
+  const handleLogout = () => {
+    void Promise.resolve(
+      Taro.showModal({
+        title: '退出登录',
+        content: '退出后需要重新用邮箱验证码登录，本机的学习缓存会被清除。',
+        confirmText: '退出',
+        cancelText: '取消',
+      }),
+    )
+      .then((res) => {
+        if (res?.confirm) logout()
+      })
+      .catch(() => undefined)
+  }
+
   return (
     <View className={`profile-page zx-rpage zx-with-sidenav ${bgQuiz.status !== 'idle' ? 'has-bg-pill' : ''}`}>
+      <View className='me-grid'>
+      <View className='me-side'>
       {/* 个人档案头部卡 */}
       <View className='zx-card profile-hero'>
         <View className='avatar-wrap'>
@@ -425,6 +447,9 @@ export default function ProfilePage() {
         )}
       </View>
 
+      </View>
+
+      <View className='me-main'>
       {/* ARQ 待复习错题本（支持手风琴展开选项/答案/解析 + 秒开回顾 + AI变式 + 掌握毕业） */}
       <View className='zx-card due-queue-card'>
         <View className='due-head'>
@@ -568,7 +593,7 @@ export default function ProfilePage() {
             return (
               <View
                 key={item.quiz_id}
-                className='zx-card history-card zx-press'
+                className='zx-card history-card zx-press zx-hover-row'
                 onClick={() => handleViewDetail(item)}
               >
                 <View className='history-left'>
@@ -603,6 +628,21 @@ export default function ProfilePage() {
           )}
         </View>
       )}
+
+      {/* V2.9 账号区（仅 H5 邮箱登录）：登录邮箱 + 退出登录 */}
+      {usesEmailLoginPage() && (
+        <View className='zx-card account-card'>
+          <View className='account-info'>
+            <Text className='account-title'>账号</Text>
+            <Text className='account-email'>{loginEmail || '邮箱验证码登录'}</Text>
+          </View>
+          <View className='account-logout zx-press' onClick={handleLogout} aria-label='退出登录'>
+            <Text>退出登录</Text>
+          </View>
+        </View>
+      )}
+      </View>
+      </View>
 
       <IcpFooter />
 
