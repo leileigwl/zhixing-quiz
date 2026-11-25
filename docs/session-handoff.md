@@ -1,8 +1,8 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-25 21:50 CST（依赖漏洞升级 + MySQL 定时备份：分支 `chore/deps-security-backup`，**进行中**）
+> 最后更新：2026-11-25 21:55 CST（依赖漏洞升级 + MySQL 每日备份已合并并上线；**线上后端镜像对应 main `f70bdf3`**）
 
-## 当前进度（依赖安全升级 + MySQL 备份 · 2026-11-25 · 进行中）
+## 当前进度（依赖安全升级 + MySQL 备份 · 2026-11-25 · 已上线）
 
 > 用户 2026-11-25 授权：升级有漏洞的 Python 依赖、加 MySQL 每日备份，CI 全绿后自行合并并上线。另一个任务（zhixing-basic-fixes）同时在改前端/后端，本分支用独立 worktree，只动依赖 / 文档加载器 / deploy。
 
@@ -11,8 +11,19 @@
   - pypdf 6.x API：直接用 `PdfReader(path).pages[i].extract_text()`；加密 PDF 先试空密码，页数上限 `MAX_PDF_PAGES=500`，坏页跳过，损坏文件报友好错误；新增真实 PDF 单测（多页、空白页、损坏、超页数）。
 - [x] **pip-audit 复查**：升级前 10 个包 128 条 → 升级后只剩 **chromadb 1.5.9（5 条，上游无修复版）**：CVE-2026-45829（未鉴权代码注入）、CVE-2026-45833、CVE-2026-45831、CVE-2026-45830。缓解：Chroma 服务只在 compose 内部网络（不映射宿主机端口），只有 api/worker 容器能访问；**风险仍在**——若 api 容器被攻破可横向利用。待 chromadb 发布修复版后升级（重建会同时更新 chroma 服务端镜像）。
 - [x] **前端 pnpm audit**：`package.json#pnpm.overrides` 把 lodash-es 4.17.21 → 4.18.1、swiper 11.1.15 → 12.2.0（均为 Taro 传递依赖）。实测 H5 产物在 override 前后**逐字节一致**（项目未用 Swiper 组件，lodash-es 只在构建期），lint / typecheck / test:coverage（177 passed）/ build:h5 / build:weapp 通过。剩余 50 条（4 critical / 15 high）全部是构建与测试工具链：@tarojs/cli（download-git-repo→decompress/got/git-clone、adm-zip）、webpack 5.91 / webpack-dev-server / html-minifier / serialize-javascript / postcss(miniprogram-simulate) / esbuild / glob、vitest 3 / tinypool；不进入线上产物，修复需要 Taro 或 vitest 大版本升级，**本轮不硬升**，仅本地开发与 CI 有风险（不要用 dev server 打开不可信网页、不要 `taro init` 不可信模板）。
-- [x] **MySQL 备份**：`deploy/backup-mysql.sh` + `bash deploy/deploy.sh backup-cron`（`/etc/cron.d/zhixing-quiz-backup`，每天 03:30，宿主机时区 Asia/Shanghai）；恢复步骤见 [`deploy.md` §4.1](deploy.md)。2026-11-25 21:35 已在服务器手动跑一次（脚本临时放 /tmp，ENV_FILE 指向线上 .env）：`/var/backups/zhixing-quiz/zhixing_quiz-20261125-213513.sql.gz`，gzip -t 通过、12 张表、`-- Dump completed`；导入临时库 `zq_restore_check` 演练恢复成功（12 表，users 行数与线上一致）后已删除。**cron 尚未安装**（待代码上线后执行 `deploy.sh backup-cron`）。
-- [ ] 开 PR → CI → 合并 → 服务器更新到 main、重建 api/worker → 安装 cron → 冒烟。
+- [x] **MySQL 备份**：`deploy/backup-mysql.sh` + `bash deploy/deploy.sh backup-cron`（`/etc/cron.d/zhixing-quiz-backup`，每天 03:30，宿主机时区 Asia/Shanghai）；恢复步骤见 [`deploy.md` §4.1](deploy.md)。2026-11-25 21:35 已在服务器手动跑一次（脚本临时放 /tmp，ENV_FILE 指向线上 .env）：`/var/backups/zhixing-quiz/zhixing_quiz-20261125-213513.sql.gz`，gzip -t 通过、12 张表、`-- Dump completed`；导入临时库 `zq_restore_check` 演练恢复成功（12 表，users 行数与线上一致）后已删除。2026-11-25 21:46 已执行 `bash deploy/deploy.sh backup-cron` 安装 cron + logrotate，首次自动备份将在 2026-11-26 03:30 CST。
+- [x] PR [#8](https://github.com/leileigwl/zhixing-quiz/pull/8) CI（backend + frontend）全绿后合并，main `f70bdf3`。
+- [x] **上线（2026-11-25 21:47 CST）**：`git bundle` 上传 → 服务器 `/opt/zhixing-quiz` 快进到 `f70bdf3` → 旧镜像另存为 `zhixing-quiz-backend:prev-7c19fcb` → `compose build api`（阿里云内网 PyPI，按 uv.lock 哈希安装）→ `compose up -d --no-deps api worker`。**chroma 容器未重建**（仍跑旧镜像，同为 chromadb 1.5.9，避免无谓重启）；mysql / redis 未动。镜像内实测 pypdf 6.21.4 / cryptography 50.0.2 / langchain-core 1.8.4 / langchain 1.5.2 / langgraph 1.2.24。
+- 冒烟：`https://study.leileigwl.cn/api/v1/health` 200 `{"status":"ok"}`、首页 200、hello-agent `127.0.0.1:8000` 200 且 `hello-agent-h5` active；未登录上传 `/api/v1/knowledge/documents` 返回 401（路由正常）；**在线上 api 容器内**用 pypdf 生成 2 页 PDF 调 `load_and_split` → 2 个分块、页码 0/1、文字正确（未写数据库）；api 容器连 chroma `heartbeat` 正常。api 145 MiB / worker 132 MiB，可用内存约 700 MB。
+- 回滚后端：`docker tag zhixing-quiz-backend:prev-7c19fcb zhixing-quiz-backend:prod && docker compose --env-file backend/.env -f deploy/docker-compose.prod.yml -p zhixing-quiz-prod up -d --no-deps api worker`（并 `git reset --hard 7c19fcb`）。
+
+**未实机验证**：登录后真实上传 PDF/Word → 向量化 → 出题全链路（线上 Embedding / LLM key 仍为空，上传会在向量化一步失败；只验证了解析环节）；langchain 1.x 下 ChatOpenAI 流式出题、OpenAIEmbeddings、TavilySearch 的真实调用；cron 03:30 首次自动执行（明早看 `/var/log/zhixing-quiz-backup.log`）。
+
+**下一步 / 遗留**：
+1. 明天确认 `/var/log/zhixing-quiz-backup.log` 有 03:30 记录、`/var/backups/zhixing-quiz/` 新增文件；建议加异地副本（OSS / ECS 快照），当前备份与库在同一块云盘。
+2. 配好 LLM / Embedding key 后，用测试账号真实走一次上传 PDF → 出题，验证 langchain 1.x 链路。
+3. chromadb 出修复版后升级并重建 chroma；前端工具链漏洞随 Taro / vitest 大版本升级处理。
+4. 其余遗留同下文 V2.9 节（SMTP 真实发信、协议正文、上线前安全审计门控）。
 
 **闸门（本分支）**：`uv run ruff check app tests` 通过；`uv run pytest -q` **246 passed**；`pnpm lint` 0 errors（4 条既有警告）；`typecheck` 通过；`test:coverage` 18 files / 177 passed（lines 87.5 / branches 87.57 / functions 86.01）；`build:h5` / `build:weapp`（占位 env）退出码 0。
 
