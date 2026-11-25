@@ -122,6 +122,13 @@
   align-items: center;
 }
 
+.mini-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .mini-tag {
   font-size: 17px;
   font-weight: 700;
@@ -186,7 +193,7 @@
 
 .composer-title-wrap {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   min-width: 0;
 }
@@ -456,6 +463,27 @@
   font-size: 22px;
   font-weight: 600;
   color: var(--ds-blue);
+}
+
+.sheet-upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 56px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink-900);
+  white-space: nowrap;
+}
+
+.sheet-processing {
+  display: block;
+  font-size: 21px;
+  color: var(--ink-500);
+  padding: 4px 0 8px;
 }
 
 .sheet-empty {

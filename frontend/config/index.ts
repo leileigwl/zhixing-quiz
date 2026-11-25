@@ -19,7 +19,9 @@ export default defineConfig<'webpack5'>(async (merge) => {
     plugins: ['@tarojs/plugin-framework-react'],
     defineConstants: {},
     copy: {
-      patterns: [],
+      // H5 站点图标（favicon / apple-touch-icon / PWA manifest）只拷进 H5 产物根目录，小程序不需要
+      patterns:
+        process.env.TARO_ENV === 'h5' ? [{ from: 'src/public/', to: 'dist-h5/' }] : [],
       options: {},
     },
     framework: 'react',

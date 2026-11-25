@@ -38,6 +38,8 @@ import {
 } from '../../services/backgroundQuizManager'
 import { compressAvatarImage, validateAvatarFile } from '../../services/avatarImage'
 import ResponsiveNav from '../../components/ResponsiveNav'
+import LineIcon from '../../components/LineIcon'
+import { FOCUS_COMPOSER_EVENT } from '../../components/SideNav'
 import IcpFooter from '../../components/IcpFooter'
 import BackgroundTaskPill from '../../components/BackgroundTaskPill'
 import './index.scss'
@@ -327,7 +329,13 @@ export default function ProfilePage() {
   }
 
   const avatarInitial = profile?.nickname?.[0] || '知'
-  const streakDays = profile?.streak_days ?? Math.max(1, historyItems.length)
+  const streakDays = profile?.streak_days ?? 0
+  // 没有交过卷就没有正确率：显示「—」而不是 0%
+  const hasAnswered = (profile?.quiz_count ?? 0) > 0 || (profile?.correct_count ?? 0) > 0
+  const goCompose = () => {
+    Taro.switchTab({ url: '/pages/index/index' })
+    setTimeout(() => Taro.eventCenter.trigger(FOCUS_COMPOSER_EVENT), 320)
+  }
 
   const loginEmail = getLoginEmail()
 
@@ -445,14 +453,19 @@ export default function ProfilePage() {
         </View>
         <View className='stat-box'>
           <Text className='stat-lbl'>平均正确率</Text>
-          <Text className='stat-num'>{profile?.average_accuracy ?? 0}%</Text>
+          <Text className={`stat-num ${hasAnswered ? '' : 'is-empty'}`}>
+            {hasAnswered ? `${profile?.average_accuracy ?? 0}%` : '—'}
+          </Text>
         </View>
       </View>
 
       {/* DAYPATCH 打卡印章微条（支持点击任意一天下钻当天学过的具体测验与考点） */}
       <View className='zx-card stamp-card'>
         <View className='stamp-head'>
-          <Text className='stamp-title'>本周学习印章</Text>
+          <View className='zx-title-row'>
+            <LineIcon name='award' size={15} />
+            <Text className='stamp-title'>本周学习印章</Text>
+          </View>
           <Text className='stamp-sub'>点击任意一天看明细 · 共 {profile?.quiz_count ?? 0} 局</Text>
         </View>
         <View className='stamp-grid'>
@@ -522,7 +535,8 @@ export default function ProfilePage() {
       {/* ARQ 待复习错题本（支持手风琴展开选项/答案/解析 + 秒开回顾 + AI变式 + 掌握毕业） */}
       <View className='zx-card due-queue-card'>
         <View className='due-head'>
-          <View>
+          <View className='zx-title-row'>
+            <LineIcon name='alert' size={15} />
             <Text className='due-title'>
               错题巩固本 ({dueReviews.total_due} 到期
               {typeof dueReviews.unresolved_total === 'number' &&
@@ -554,7 +568,12 @@ export default function ProfilePage() {
           )}
         </View>
         {dueReviews.items.length === 0 ? (
-          <Text className='due-empty'>目前没有未掌握的错题卡片，去首页发起新测验吧</Text>
+          <View className='due-empty-row'>
+            <Text className='due-empty'>答错的题会自动收进这里，按记忆曲线安排复习。</Text>
+            <View className='due-empty-go zx-press' onClick={goCompose}>
+              <Text>去出题 ›</Text>
+            </View>
+          </View>
         ) : (
           <View className='due-list'>
             {visibleDueCards.map((card) => {
@@ -646,13 +665,16 @@ export default function ProfilePage() {
 
       {/* 历史记录 */}
       <View className='section-head'>
-        <Text className='section-title'>历史练习档案</Text>
+        <View className='zx-title-row'>
+          <LineIcon name='clock' size={15} />
+          <Text className='section-title'>历史练习档案</Text>
+        </View>
         <Text className='section-count'>共 {totalHistory} 条</Text>
       </View>
 
       {historyItems.length === 0 ? (
-        <View className='zx-card empty-history'>
-          <Text className='empty-text'>暂无历史记录，去首页开始第一轮自适应测验</Text>
+        <View className='zx-card empty-history zx-press' onClick={goCompose}>
+          <Text className='empty-text'>还没有练习记录，点这里发起第一组测验</Text>
         </View>
       ) : (
         <View className='history-list'>
@@ -702,7 +724,10 @@ export default function ProfilePage() {
       {usesEmailLoginPage() && (
         <View className='zx-card account-card'>
           <View className='account-info'>
-            <Text className='account-title'>账号</Text>
+            <View className='zx-title-row'>
+              <LineIcon name='user' size={14} />
+              <Text className='account-title'>账号</Text>
+            </View>
             <Text className='account-email'>{loginEmail || '邮箱验证码登录'}</Text>
           </View>
           <View className='account-logout zx-press' onClick={handleLogout} aria-label='退出登录'>

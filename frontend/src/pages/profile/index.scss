@@ -819,3 +819,24 @@
   }
 }
 /* #endif */
+
+/* 2026-11-25：错题本空状态带「去出题」 */
+.due-empty-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.due-empty-go {
+  min-height: 60px;
+  padding: 0 24px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  font-size: 23px;
+  font-weight: 600;
+  color: var(--ink-900);
+  display: flex;
+  align-items: center;
+}

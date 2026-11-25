@@ -35,6 +35,9 @@
 }
 
 .kb-upload-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   background: var(--ink-900);
   color: #ffffff;
   font-size: 23px;
@@ -213,6 +216,16 @@
   margin-bottom: 18px;
 }
 
+.docs-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kb-empty-card {
+  padding: 0;
+}
+
 .docs-title {
   font-size: 28px;
   font-weight: 700;
@@ -228,6 +241,10 @@
 .empty-docs {
   padding: 46px 32px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }
 
 .empty-docs-text {
