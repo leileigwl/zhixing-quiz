@@ -1,8 +1,12 @@
 # Session handoff：交接清单
 
-> 最后更新：2026-11-26 03:10 CST（**V3.0 进行中**：分支 `feat/v30-landing-visual`，未合并）
+> 最后更新：2026-11-26 10:55 CST（**V3.0 已上线**：PR #11 合并为 main `6fa6ccb`，H5 已发布）
 
-## 当前进度（V3.0 门头页 + 彩色视觉 + iPad 排布 + 备案贴底 · 2026-11-26 · 进行中）
+## 当前进度（V3.0 门头页 + 彩色视觉 + iPad 排布 + 备案贴底 · 2026-11-26 · 已上线 `6fa6ccb`）
+
+- 上线：H5 已发布，`/opt/zhixing-quiz` 快进到 `6fa6ccb`，后端未重建（纯前端）。回滚：`cp -a /var/www/zhixing-quiz/h5.bak-20261126-1052/. /var/www/zhixing-quiz/h5/`。
+- 部署密钥：沙箱 home 会被重置，新密钥 `hark-deploy-zhixing-2` 私钥放在工作区 `/workspace/.zx-keys/`（不入库），helper `/workspace/.zx-keys/ssh.py`；旧公钥 `hark-deploy-zhixing` 可从服务器 authorized_keys 删掉。
+- MySQL 备份 cron 首次自动运行 2026-11-26 03:30 成功（12 张表）。
 
 > 用户 2026-11-26 02:36 授权：配色改得更有颜色、新增公开门头页、修 iPad 排布与备案位置、加 E2E 与 CI，**做好直接上线，免确认原型**（AGENTS.md 原型门控按她的授权跳过，仍在 `docs/02-design/prototypes/v30-landing-and-color.html` 留设计记录）。
 
